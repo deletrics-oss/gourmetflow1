@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/lib/supabase";
 import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { toast as sonnerToast } from "sonner";
+import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 
 interface CartItem {
   id: string;
@@ -54,6 +55,8 @@ export default function PDV() {
   const [includeServiceFee, setIncludeServiceFee] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<any | null>(null);
   const [printOnClose, setPrintOnClose] = useState(true);
+  const [selectedClosedOrder, setSelectedClosedOrder] = useState<any | null>(null);
+  const [closedOrderDialogOpen, setClosedOrderDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -165,6 +168,11 @@ export default function PDV() {
   const handleSelectPendingOrder = (order: any) => {
     setCurrentOrder(order);
     sonnerToast.info(`Pedido ${order.order_number} carregado no caixa`);
+  };
+
+  const handleViewClosedOrder = (order: any) => {
+    setSelectedClosedOrder(order);
+    setClosedOrderDialogOpen(true);
   };
 
   const handleCloseCurrentOrder = async () => {
@@ -865,7 +873,8 @@ export default function PDV() {
             {recentlyClosedOrders.map((order) => (
               <Card 
                 key={order.id} 
-                className="p-4 border-2 border-green-200 bg-green-50/50"
+                className="p-4 border-2 border-green-200 bg-green-50/50 cursor-pointer hover:shadow-lg transition-all hover:scale-105"
+                onClick={() => handleViewClosedOrder(order)}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -885,6 +894,14 @@ export default function PDV() {
           </div>
         </div>
       )}
+
+      {/* Dialog de Detalhes do Pedido Fechado */}
+      <OrderDetailsDialog
+        order={selectedClosedOrder}
+        open={closedOrderDialogOpen}
+        onOpenChange={setClosedOrderDialogOpen}
+        restaurantName={restaurantName}
+      />
     </div>
   );
 }

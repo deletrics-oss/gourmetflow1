@@ -19,7 +19,14 @@ export default function Configuracoes() {
     instagram: "",
     segment: "",
     cnpj_cpf: "",
-    responsible_name: ""
+    responsible_name: "",
+    street: "",
+    number: "",
+    neighborhood: "",
+    city: "",
+    state: "",
+    zipcode: "",
+    complement: ""
   });
   
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
@@ -46,7 +53,14 @@ export default function Configuracoes() {
           instagram: data.instagram || "",
           segment: data.segment || "",
           cnpj_cpf: data.cnpj_cpf || "",
-          responsible_name: data.responsible_name || ""
+          responsible_name: data.responsible_name || "",
+          street: data.street || "",
+          number: data.number || "",
+          neighborhood: data.neighborhood || "",
+          city: data.city || "",
+          state: data.state || "",
+          zipcode: data.zipcode || "",
+          complement: data.complement || ""
         });
       }
     } catch (error) {
@@ -185,6 +199,89 @@ export default function Configuracoes() {
                   value={settings.responsible_name}
                   onChange={(e) => setSettings({...settings, responsible_name: e.target.value})}
                 />
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t">
+              <div className="flex items-center gap-3 mb-6">
+                <MapPin className="h-6 w-6 text-primary" />
+                <div>
+                  <h3 className="text-lg font-semibold">Endereço Completo</h3>
+                  <p className="text-sm text-muted-foreground">Necessário para integração com mapa e entregas</p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="zipcode">CEP *</Label>
+                  <Input 
+                    id="zipcode" 
+                    placeholder="00000-000"
+                    value={settings.zipcode}
+                    onChange={(e) => setSettings({...settings, zipcode: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="street">Rua *</Label>
+                  <Input 
+                    id="street" 
+                    placeholder="Nome da rua"
+                    value={settings.street}
+                    onChange={(e) => setSettings({...settings, street: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="number">Número *</Label>
+                  <Input 
+                    id="number" 
+                    placeholder="123"
+                    value={settings.number}
+                    onChange={(e) => setSettings({...settings, number: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="neighborhood">Bairro *</Label>
+                  <Input 
+                    id="neighborhood" 
+                    placeholder="Nome do bairro"
+                    value={settings.neighborhood}
+                    onChange={(e) => setSettings({...settings, neighborhood: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="city">Cidade *</Label>
+                  <Input 
+                    id="city" 
+                    placeholder="Nome da cidade"
+                    value={settings.city}
+                    onChange={(e) => setSettings({...settings, city: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="state">Estado *</Label>
+                  <Input 
+                    id="state" 
+                    placeholder="SP"
+                    maxLength={2}
+                    value={settings.state}
+                    onChange={(e) => setSettings({...settings, state: e.target.value.toUpperCase()})}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="complement">Complemento</Label>
+                  <Input 
+                    id="complement" 
+                    placeholder="Apto, Sala, etc."
+                    value={settings.complement}
+                    onChange={(e) => setSettings({...settings, complement: e.target.value})}
+                  />
+                </div>
               </div>
             </div>
 

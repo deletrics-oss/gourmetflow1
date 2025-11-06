@@ -491,7 +491,9 @@ export type Database = {
           accept_scheduled_orders: boolean | null
           address: Json | null
           business_hours: Json | null
+          city: string | null
           cnpj_cpf: string | null
+          complement: string | null
           created_at: string | null
           delivery_options: Json | null
           dine_in_settings: Json | null
@@ -500,19 +502,26 @@ export type Database = {
           is_active: boolean | null
           logo_url: string | null
           name: string
+          neighborhood: string | null
+          number: string | null
           paghiper_api_key: string | null
           payment_methods: Json | null
           phone: string | null
           responsible_name: string | null
           segment: string | null
+          state: string | null
+          street: string | null
           updated_at: string | null
           whatsapp_api_key: string | null
+          zipcode: string | null
         }
         Insert: {
           accept_scheduled_orders?: boolean | null
           address?: Json | null
           business_hours?: Json | null
+          city?: string | null
           cnpj_cpf?: string | null
+          complement?: string | null
           created_at?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
@@ -521,19 +530,26 @@ export type Database = {
           is_active?: boolean | null
           logo_url?: string | null
           name: string
+          neighborhood?: string | null
+          number?: string | null
           paghiper_api_key?: string | null
           payment_methods?: Json | null
           phone?: string | null
           responsible_name?: string | null
           segment?: string | null
+          state?: string | null
+          street?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          zipcode?: string | null
         }
         Update: {
           accept_scheduled_orders?: boolean | null
           address?: Json | null
           business_hours?: Json | null
+          city?: string | null
           cnpj_cpf?: string | null
+          complement?: string | null
           created_at?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
@@ -542,13 +558,18 @@ export type Database = {
           is_active?: boolean | null
           logo_url?: string | null
           name?: string
+          neighborhood?: string | null
+          number?: string | null
           paghiper_api_key?: string | null
           payment_methods?: Json | null
           phone?: string | null
           responsible_name?: string | null
           segment?: string | null
+          state?: string | null
+          street?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          zipcode?: string | null
         }
         Relationships: []
       }
