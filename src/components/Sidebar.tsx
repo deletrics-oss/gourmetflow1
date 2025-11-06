@@ -1,8 +1,10 @@
-import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { FloatingAISearch } from "@/components/FloatingAISearch";
 
 interface NavItem {
   title: string;
@@ -42,6 +44,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isManager, signOut, user } = useAuth();
+  const [showSearch, setShowSearch] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -49,20 +52,34 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-sidebar">
-      <div className="flex h-16 items-center gap-3 border-b px-6">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-          <Utensils className="h-6 w-6 text-primary-foreground" />
+    <>
+      {showSearch && <FloatingAISearch onClose={() => setShowSearch(false)} />}
+      <div className="flex h-screen w-64 flex-col border-r bg-sidebar">
+        <div className="flex h-16 items-center gap-3 border-b px-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+            <Utensils className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold">GourmetFlow</h1>
+            <p className="text-xs text-muted-foreground">Admin Panel</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-bold">GourmetFlow</h1>
-          <p className="text-xs text-muted-foreground">Admin Panel</p>
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto py-4">
-        <div className="space-y-1 px-3">
-          <p className="px-3 text-xs font-semibold text-muted-foreground">MENU PRINCIPAL</p>
+        <div className="px-3 py-3">
+          <Button 
+            variant="outline" 
+            className="w-full justify-start gap-2"
+            onClick={() => setShowSearch(true)}
+          >
+            <Search className="h-4 w-4" />
+            Pesquisa Inteligente
+            <kbd className="ml-auto text-xs bg-muted px-1.5 py-0.5 rounded">Ctrl+K</kbd>
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-4">
+          <div className="space-y-1 px-3">
+            <p className="px-3 text-xs font-semibold text-muted-foreground">MENU PRINCIPAL</p>
           {mainNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
@@ -211,5 +228,6 @@ export function Sidebar() {
         </Button>
       </div>
     </div>
+    </>
   );
 }

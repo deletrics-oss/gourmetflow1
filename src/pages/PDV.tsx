@@ -49,8 +49,11 @@ export default function PDV() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [restaurantName, setRestaurantName] = useState("Restaurante");
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [recentlyClosedOrders, setRecentlyClosedOrders] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"new" | "pending">("new");
   const [includeServiceFee, setIncludeServiceFee] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState<any | null>(null);
+  const [printOnClose, setPrintOnClose] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,6 +62,7 @@ export default function PDV() {
     loadTables();
     loadRestaurantSettings();
     loadPendingOrders();
+    loadRecentlyClosedOrders();
 
     // Atualizar pedidos pendentes em tempo real
     const channel = supabase
@@ -139,7 +143,33 @@ export default function PDV() {
     }
   };
 
-  const handleCloseOrder = async (order: any) => {
+  const loadRecentlyClosedOrders = async () => {
+    try {
+      const { data: orders } = await supabase
+        .from('orders' as any)
+        .select(`
+          *,
+          order_items:order_items(*),
+          tables(number)
+        `)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(5);
+
+      if (orders) setRecentlyClosedOrders(orders);
+    } catch (error) {
+      console.error('Erro ao carregar pedidos fechados:', error);
+    }
+  };
+
+  const handleSelectPendingOrder = (order: any) => {
+    setCurrentOrder(order);
+    sonnerToast.info(`Pedido ${order.order_number} carregado no caixa`);
+  };
+
+  const handleCloseCurrentOrder = async () => {
+    if (!currentOrder) return;
+
     try {
       // Atualizar pedido como completo
       const { error: orderError } = await supabase
@@ -148,16 +178,16 @@ export default function PDV() {
           status: 'completed',
           completed_at: new Date().toISOString()
         })
-        .eq('id', order.id);
+        .eq('id', currentOrder.id);
 
       if (orderError) throw orderError;
 
       // Liberar mesa se for pedido no local
-      if (order.table_id) {
+      if (currentOrder.table_id) {
         await supabase
           .from('tables' as any)
           .update({ status: 'free' })
-          .eq('id', order.table_id);
+          .eq('id', currentOrder.table_id);
       }
 
       // Registrar entrada no caixa
@@ -165,18 +195,25 @@ export default function PDV() {
         .from('cash_movements' as any)
         .insert({
           type: 'entry',
-          amount: order.total,
+          amount: currentOrder.total,
           category: 'Venda',
-          description: `Pedido ${order.order_number} - ${order.payment_method}`,
-          payment_method: order.payment_method
+          description: `Pedido ${currentOrder.order_number} - ${currentOrder.payment_method}`,
+          payment_method: currentOrder.payment_method
         });
 
-      sonnerToast.success(`Pedido ${order.order_number} fechado com sucesso!`);
+      sonnerToast.success(`Pedido ${currentOrder.order_number} fechado com sucesso!`);
       
-      // Imprimir recibo
-      generatePrintReceipt(order, restaurantName, undefined, 'customer');
+      // Imprimir recibo se opção estiver marcada
+      if (printOnClose) {
+        const tableNum = currentOrder.table_id && currentOrder.tables
+          ? currentOrder.tables.number 
+          : undefined;
+        generatePrintReceipt(currentOrder, restaurantName, tableNum, 'customer');
+      }
       
+      setCurrentOrder(null);
       loadPendingOrders();
+      loadRecentlyClosedOrders();
       loadTables();
     } catch (error) {
       console.error('Erro ao fechar pedido:', error);
@@ -598,6 +635,129 @@ export default function PDV() {
         </div>
       </div>
 
+      {/* Pedido Atual no Caixa */}
+      {currentOrder && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <ShoppingCart className="h-6 w-6" />
+            <h2 className="text-2xl font-bold">Pedido Atual no Caixa</h2>
+          </div>
+          
+          <Card className="p-6 border-2 border-primary">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-bold text-2xl">#{currentOrder.order_number}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(currentOrder.created_at).toLocaleString('pt-BR')}
+                </p>
+                {currentOrder.tables && (
+                  <Badge variant="outline" className="mt-2">
+                    Mesa {currentOrder.tables.number}
+                  </Badge>
+                )}
+              </div>
+              <Badge variant="default" className="text-lg px-4 py-2">
+                {currentOrder.delivery_type === 'online' && '🌐 Online'}
+                {currentOrder.delivery_type === 'delivery' && '🚚 Entrega'}
+                {currentOrder.delivery_type === 'pickup' && '🏪 Retirada'}
+                {currentOrder.delivery_type === 'dine_in' && '🍽️ Local'}
+                {currentOrder.delivery_type === 'counter' && '🏪 Balcão'}
+              </Badge>
+            </div>
+
+            {currentOrder.customer_name && (
+              <p className="text-sm mb-2">
+                <strong>Cliente:</strong> {currentOrder.customer_name}
+              </p>
+            )}
+
+            {currentOrder.customer_phone && (
+              <p className="text-sm mb-4">
+                <strong>Telefone:</strong> {currentOrder.customer_phone}
+              </p>
+            )}
+
+            <div className="bg-muted/50 rounded-lg p-4 mb-4">
+              <p className="font-semibold mb-3">Itens do pedido:</p>
+              <div className="space-y-2">
+                {currentOrder.order_items && currentOrder.order_items.length > 0 ? (
+                  currentOrder.order_items.map((item: any) => (
+                    <div key={item.id} className="flex justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="font-medium">{item.quantity}x {item.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          R$ {item.unit_price.toFixed(2)} cada
+                        </p>
+                      </div>
+                      <span className="font-bold">R$ {item.total_price.toFixed(2)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground italic">Sem itens</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-4">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>R$ {currentOrder.subtotal.toFixed(2)}</span>
+              </div>
+              {currentOrder.service_fee > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Taxa de serviço:</span>
+                  <span>R$ {currentOrder.service_fee.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-xl font-semibold">Total:</span>
+                <span className="text-3xl font-bold text-green-600">
+                  R$ {currentOrder.total.toFixed(2)}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Pagamento: {currentOrder.payment_method === 'cash' && 'Dinheiro'}
+                {currentOrder.payment_method === 'credit_card' && 'Cartão de Crédito'}
+                {currentOrder.payment_method === 'debit_card' && 'Cartão de Débito'}
+                {currentOrder.payment_method === 'pix' && 'PIX'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 mb-4 p-3 bg-accent/50 rounded-lg">
+              <input
+                type="checkbox"
+                id="printOnClose"
+                checked={printOnClose}
+                onChange={(e) => setPrintOnClose(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="printOnClose" className="cursor-pointer text-sm">
+                Imprimir recibo ao fechar pedido
+              </Label>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setCurrentOrder(null)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="lg"
+                onClick={handleCloseCurrentOrder}
+                className="flex-1 gap-2"
+              >
+                <CheckCircle className="h-5 w-5" />
+                Fechar Pedido
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Pedidos Pendentes */}
       <div className="mt-8">
         <div className="flex items-center gap-2 mb-4">
@@ -617,7 +777,7 @@ export default function PDV() {
               <Card 
                 key={order.id} 
                 className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
-                onClick={() => handleCloseOrder(order)}
+                onClick={() => handleSelectPendingOrder(order)}
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -625,7 +785,6 @@ export default function PDV() {
                     <p className="text-xs text-muted-foreground">
                       {new Date(order.created_at).toLocaleTimeString('pt-BR')}
                     </p>
-                    {/* Mostrar Mesa ou Tipo de Pedido */}
                     {order.tables ? (
                       <Badge variant="outline" className="mt-1">
                         Mesa {order.tables.number}
@@ -680,41 +839,9 @@ export default function PDV() {
                 </div>
 
                 <div className="pt-3 border-t">
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center">
                     <span className="text-sm font-semibold">Total:</span>
                     <span className="text-xl font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    {order.payment_method === 'cash' && '💵 Dinheiro'}
-                    {order.payment_method === 'credit_card' && '💳 Cartão Crédito'}
-                    {order.payment_method === 'debit_card' && '💳 Cartão Débito'}
-                    {order.payment_method === 'pix' && '📱 PIX'}
-                    {order.payment_method === 'pending' && '⏳ Pendente'}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        generatePrintReceipt(order, restaurantName, undefined, 'customer');
-                      }}
-                    >
-                      <Printer className="h-3 w-3 mr-1" />
-                      Imprimir
-                    </Button>
-                    <Button 
-                      size="sm"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCloseOrder(order);
-                      }}
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Fechar
-                    </Button>
                   </div>
                 </div>
               </Card>
@@ -722,6 +849,42 @@ export default function PDV() {
           )}
         </div>
       </div>
+
+      {/* Últimos Pedidos Fechados */}
+      {recentlyClosedOrders.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="h-6 w-6 text-green-600" />
+            <h2 className="text-2xl font-bold">Últimos Pedidos Fechados</h2>
+            <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">
+              {recentlyClosedOrders.length}
+            </Badge>
+          </div>
+          
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
+            {recentlyClosedOrders.map((order) => (
+              <Card 
+                key={order.id} 
+                className="p-4 border-2 border-green-200 bg-green-50/50"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h4 className="font-bold text-sm">#{order.order_number}</h4>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.completed_at).toLocaleTimeString('pt-BR')}
+                    </p>
+                  </div>
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">Total</span>
+                  <span className="font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

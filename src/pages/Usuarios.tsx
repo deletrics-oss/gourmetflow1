@@ -63,6 +63,9 @@ export default function Usuarios() {
 
   const fetchUsers = async () => {
     try {
+      // Get current user to check if admin
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       // Get all profiles with their roles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -82,12 +85,23 @@ export default function Usuarios() {
       
       if (rolesError) throw rolesError;
 
-      // Combine the data
-      const usersWithData = (profiles || []).map((profile) => {
+      // Get auth users to get emails (only admins can do this via admin functions)
+      // For now, we'll fetch user emails from auth metadata or use a placeholder
+      const usersWithData = await Promise.all((profiles || []).map(async (profile) => {
         const userRole = roles?.find(r => r.user_id === profile.user_id);
+        
+        // Try to get email - if current user ID matches, use current user email
+        let email = '';
+        if (currentUser?.id === profile.user_id) {
+          email = currentUser.email || '';
+        } else {
+          // For other users, we'll show a placeholder since we can't access auth.users directly
+          email = `user_${profile.user_id.slice(0, 8)}@sistema.local`;
+        }
+        
         return {
           id: profile.user_id,
-          email: '', // We can't get email from profiles, so we'll need to get it differently
+          email: email,
           created_at: profile.created_at,
           profile: {
             full_name: profile.full_name,
@@ -95,7 +109,7 @@ export default function Usuarios() {
           },
           role: userRole ? { role: userRole.role } : null,
         };
-      });
+      }));
 
       setUsers(usersWithData as UserWithRole[]);
     } catch (error) {
