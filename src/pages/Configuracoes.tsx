@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, MapPin, Clock, CreditCard, Printer, Info, Palette, Volume2, DollarSign } from "lucide-react";
+import { Settings, MapPin, Clock, CreditCard, Printer, Info, Palette, Volume2, DollarSign, Gift } from "lucide-react";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 export default function Configuracoes() {
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,10 @@ export default function Configuracoes() {
     cnpj_cpf: "",
     responsible_name: ""
   });
+  
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [loyaltyPointsPerReal, setLoyaltyPointsPerReal] = useState(1);
+  const [loyaltyRedemptionValue, setLoyaltyRedemptionValue] = useState(0.01);
 
   useEffect(() => {
     loadSettings();
@@ -96,6 +101,10 @@ export default function Configuracoes() {
           <TabsTrigger value="informacoes" className="gap-2">
             <Info className="h-4 w-4" />
             Informações
+          </TabsTrigger>
+          <TabsTrigger value="fidelidade" className="gap-2">
+            <Gift className="h-4 w-4" />
+            Fidelidade
           </TabsTrigger>
           <TabsTrigger value="aparencia" className="gap-2">
             <Palette className="h-4 w-4" />
@@ -183,6 +192,84 @@ export default function Configuracoes() {
               <Info className="h-4 w-4" />
               {loading ? "Salvando..." : "Salvar Informações"}
             </Button>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="fidelidade">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Gift className="h-6 w-6 text-primary" />
+              <div>
+                <h3 className="text-lg font-semibold">Programa de Fidelidade</h3>
+                <p className="text-sm text-muted-foreground">Configure o programa de pontos e recompensas</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Ativar Programa de Fidelidade</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Permita que clientes acumulem pontos em cada compra
+                  </p>
+                </div>
+                <Switch
+                  checked={loyaltyEnabled}
+                  onCheckedChange={setLoyaltyEnabled}
+                />
+              </div>
+
+              {loyaltyEnabled && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pointsPerReal">Pontos por Real Gasto</Label>
+                    <Input
+                      id="pointsPerReal"
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={loyaltyPointsPerReal}
+                      onChange={(e) => setLoyaltyPointsPerReal(parseFloat(e.target.value))}
+                      placeholder="Ex: 1 ponto = R$ 1,00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cliente ganha {loyaltyPointsPerReal} ponto(s) a cada R$ 1,00 gasto
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="redemptionValue">Valor de Resgate por Ponto (R$)</Label>
+                    <Input
+                      id="redemptionValue"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={loyaltyRedemptionValue}
+                      onChange={(e) => setLoyaltyRedemptionValue(parseFloat(e.target.value))}
+                      placeholder="Ex: 0.01 = 1 ponto vale R$ 0,01"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cada ponto vale R$ {loyaltyRedemptionValue.toFixed(2)} no resgate
+                    </p>
+                  </div>
+
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Exemplo de Acúmulo:</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Compra de R$ 100,00 = {(100 * loyaltyPointsPerReal).toFixed(0)} pontos
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {(100 * loyaltyPointsPerReal).toFixed(0)} pontos = R$ {(100 * loyaltyPointsPerReal * loyaltyRedemptionValue).toFixed(2)} em desconto
+                    </p>
+                  </div>
+
+                  <Button className="w-full">
+                    <Gift className="h-4 w-4 mr-2" />
+                    Salvar Configurações de Fidelidade
+                  </Button>
+                </>
+              )}
+            </div>
           </Card>
         </TabsContent>
 

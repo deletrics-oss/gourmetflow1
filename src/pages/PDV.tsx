@@ -41,7 +41,7 @@ export default function PDV() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup" | "dine_in" | "online">("dine_in");
+  const [deliveryType, setDeliveryType] = useState<"delivery" | "pickup" | "dine_in" | "online" | "counter">("dine_in");
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [tables, setTables] = useState<any[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
@@ -432,6 +432,7 @@ export default function PDV() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="dine_in">Mesa (Consumo no Local)</SelectItem>
+                  <SelectItem value="counter">Balcão</SelectItem>
                   <SelectItem value="online">Pedido Online (WhatsApp/Web)</SelectItem>
                   <SelectItem value="delivery">Entrega</SelectItem>
                   <SelectItem value="pickup">Retirada</SelectItem>
@@ -613,7 +614,11 @@ export default function PDV() {
             </Card>
           ) : (
             pendingOrders.map((order) => (
-              <Card key={order.id} className="p-4">
+              <Card 
+                key={order.id} 
+                className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
+                onClick={() => handleCloseOrder(order)}
+              >
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="font-bold text-lg">#{order.order_number}</h3>
@@ -631,6 +636,7 @@ export default function PDV() {
                         {order.delivery_type === 'delivery' && '🚚 Entrega'}
                         {order.delivery_type === 'pickup' && '🏪 Retirada'}
                         {order.delivery_type === 'dine_in' && '🍽️ Local'}
+                        {order.delivery_type === 'counter' && '🏪 Balcão'}
                       </Badge>
                     )}
                   </div>
@@ -690,7 +696,10 @@ export default function PDV() {
                       size="sm" 
                       variant="outline"
                       className="flex-1"
-                      onClick={() => generatePrintReceipt(order, restaurantName, undefined, 'customer')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        generatePrintReceipt(order, restaurantName, undefined, 'customer');
+                      }}
                     >
                       <Printer className="h-3 w-3 mr-1" />
                       Imprimir
@@ -698,10 +707,13 @@ export default function PDV() {
                     <Button 
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleCloseOrder(order)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseOrder(order);
+                      }}
                     >
                       <CheckCircle className="h-3 w-3 mr-1" />
-                      Fechar Pedido
+                      Fechar
                     </Button>
                   </div>
                 </div>
