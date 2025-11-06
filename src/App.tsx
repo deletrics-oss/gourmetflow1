@@ -25,6 +25,7 @@ import MonitorCozinha from "./pages/MonitorCozinha";
 import MonitorGestor from "./pages/MonitorGestor";
 import Estoque from "./pages/Estoque";
 import Usuarios from "./pages/Usuarios";
+import PermissoesUsuarios from "./pages/PermissoesUsuarios";
 import Clientes from "./pages/Clientes";
 import Fornecedores from "./pages/Fornecedores";
 import NotFound from "./pages/NotFound";
@@ -78,6 +79,11 @@ const App = () => (
                       <Route path="/usuarios" element={
                         <ProtectedRoute requireAdmin>
                           <Usuarios />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/permissoes" element={
+                        <ProtectedRoute requireAdmin>
+                          <PermissoesUsuarios />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />

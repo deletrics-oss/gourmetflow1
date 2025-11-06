@@ -96,11 +96,7 @@ export default function CustomerMenu() {
     if (savedPhone) setCustomerPhone(savedPhone);
     if (savedCPF) setCustomerCPF(savedCPF);
     
-    // Show promotion dialog after 2 seconds
-    const timer = setTimeout(() => {
-      setPromotionDialogOpen(true);
-    }, 2000);
-    return () => clearTimeout(timer);
+    // Promotion dialog removed - will be sent via chatbot/WhatsApp
   }, []);
 
   const loadData = async () => {
@@ -219,6 +215,36 @@ export default function CustomerMenu() {
         cart,
         total
       });
+
+      // Auto-create or update customer
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+
+      if (!existingCustomer) {
+        console.log('📝 Criando novo cliente automaticamente');
+        await supabase
+          .from('customers')
+          .insert({
+            name: customerName,
+            phone: customerPhone,
+            cpf: customerCPF || null,
+            address: deliveryType === 'delivery' ? address : null
+          });
+      } else {
+        console.log('✅ Cliente já existe:', existingCustomer.id);
+        // Update customer info if needed
+        await supabase
+          .from('customers')
+          .update({
+            name: customerName,
+            cpf: customerCPF || existingCustomer.cpf,
+            address: deliveryType === 'delivery' ? address : existingCustomer.address
+          })
+          .eq('id', existingCustomer.id);
+      }
 
       // Create order
       const { data: order, error: orderError } = await supabase

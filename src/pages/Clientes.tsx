@@ -12,9 +12,12 @@ import { toast } from "sonner";
 
 export default function Clientes() {
   const [customers, setCustomers] = useState<any[]>([]);
+  const [customerHistory, setCustomerHistory] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -35,11 +38,23 @@ export default function Clientes() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      // Load order history for each customer
+      const { data: historyData } = await supabase
+        .from('customer_order_history' as any)
+        .select('*');
+      
       setCustomers(data || []);
+      setCustomerHistory(historyData || []);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
       toast.error('Erro ao carregar clientes');
     }
+  };
+
+  const viewCustomerHistory = async (customer: any) => {
+    setSelectedCustomer(customer);
+    setHistoryDialogOpen(true);
   };
 
   const handleSave = async () => {
@@ -153,13 +168,15 @@ export default function Clientes() {
       <Card>
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Telefone</TableHead>
-              <TableHead>CPF</TableHead>
-              <TableHead>Cidade</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Telefone</TableHead>
+                <TableHead>CPF</TableHead>
+                <TableHead>Cidade</TableHead>
+                <TableHead>Cadastro</TableHead>
+                <TableHead>Pedidos</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
           </TableHeader>
           <TableBody>
             {filteredCustomers.length === 0 ? (
@@ -169,30 +186,53 @@ export default function Clientes() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell className="font-medium">{customer.name}</TableCell>
-                  <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.cpf || '-'}</TableCell>
-                  <TableCell>{customer.address?.city || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => openEditDialog(customer)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleDelete(customer.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredCustomers.map((customer) => {
+                const history = customerHistory.find(h => h.customer_id === customer.id);
+                return (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell>{customer.phone}</TableCell>
+                    <TableCell>{customer.cpf || '-'}</TableCell>
+                    <TableCell>{customer.address?.city || '-'}</TableCell>
+                    <TableCell>
+                      {customer.created_at ? new Date(customer.created_at).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {history ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => viewCustomerHistory(customer)}
+                          className="gap-2"
+                        >
+                          {history.total_orders} pedidos
+                          {history.completed_orders > 0 && (
+                            <span className="text-green-600">({history.completed_orders} ✓)</span>
+                          )}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">Nenhum pedido</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEditDialog(customer)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDelete(customer.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -309,6 +349,48 @@ export default function Clientes() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Histórico de Pedidos - {selectedCustomer?.name}</DialogTitle>
+          </DialogHeader>
+          
+          {selectedCustomer && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total de Pedidos</p>
+                  <p className="text-2xl font-bold">
+                    {customerHistory.find(h => h.customer_id === selectedCustomer.id)?.total_orders || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Pedidos Concluídos</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {customerHistory.find(h => h.customer_id === selectedCustomer.id)?.completed_orders || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Gasto</p>
+                  <p className="text-2xl font-bold">
+                    R$ {(customerHistory.find(h => h.customer_id === selectedCustomer.id)?.total_spent || 0).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Último Pedido</p>
+                  <p className="text-sm font-medium">
+                    {customerHistory.find(h => h.customer_id === selectedCustomer.id)?.last_order_date 
+                      ? new Date(customerHistory.find(h => h.customer_id === selectedCustomer.id)?.last_order_date).toLocaleDateString('pt-BR')
+                      : 'Nunca'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
