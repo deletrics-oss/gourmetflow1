@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, User } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Edit, Trash2, Search, User, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 export default function Clientes() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -18,12 +20,14 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     cpf: "",
     address: { street: "", number: "", neighborhood: "", city: "", state: "" },
-    notes: ""
+    notes: "",
+    is_suspicious: false
   });
 
   useEffect(() => {
@@ -39,7 +43,6 @@ export default function Clientes() {
 
       if (error) throw error;
       
-      // Load order history for each customer
       const { data: historyData } = await supabase
         .from('customer_order_history' as any)
         .select('*');
@@ -94,7 +97,7 @@ export default function Clientes() {
     if (!confirm('Deseja excluir este cliente?')) return;
 
     try {
-      const { error } = await supabase
+      const { error} = await supabase
         .from('customers' as any)
         .delete()
         .eq('id', id);
@@ -108,6 +111,66 @@ export default function Clientes() {
     }
   };
 
+  const toggleSuspicious = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('customers' as any)
+        .update({ is_suspicious: !currentStatus })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success(!currentStatus ? 'Cliente marcado como suspeito' : 'Marcação removida');
+      loadCustomers();
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
+      toast.error('Erro ao atualizar');
+    }
+  };
+
+  const handleClone = async (customer: any) => {
+    setFormData({
+      name: customer.name + ' (Cópia)',
+      phone: '',
+      cpf: '',
+      address: customer.address || { street: "", number: "", neighborhood: "", city: "", state: "" },
+      notes: customer.notes || "",
+      is_suspicious: false
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedCustomers.length === 0) {
+      toast.error('Selecione clientes para remover');
+      return;
+    }
+
+    if (!confirm(`Deseja excluir ${selectedCustomers.length} cliente(s)?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('customers' as any)
+        .delete()
+        .in('id', selectedCustomers);
+
+      if (error) throw error;
+      toast.success('Clientes excluídos!');
+      setSelectedCustomers([]);
+      loadCustomers();
+    } catch (error) {
+      console.error('Erro ao excluir clientes:', error);
+      toast.error('Erro ao excluir clientes');
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCustomers.length === filteredCustomers.length) {
+      setSelectedCustomers([]);
+    } else {
+      setSelectedCustomers(filteredCustomers.map(c => c.id));
+    }
+  };
+
   const openEditDialog = (customer: any) => {
     setEditingCustomer(customer);
     setFormData({
@@ -115,7 +178,8 @@ export default function Clientes() {
       phone: customer.phone,
       cpf: customer.cpf || "",
       address: customer.address || { street: "", number: "", neighborhood: "", city: "", state: "" },
-      notes: customer.notes || ""
+      notes: customer.notes || "",
+      is_suspicious: customer.is_suspicious || false
     });
     setDialogOpen(true);
   };
@@ -126,7 +190,8 @@ export default function Clientes() {
       phone: "",
       cpf: "",
       address: { street: "", number: "", neighborhood: "", city: "", state: "" },
-      notes: ""
+      notes: "",
+      is_suspicious: false
     });
     setEditingCustomer(null);
   };
@@ -147,10 +212,18 @@ export default function Clientes() {
           </h1>
           <p className="text-muted-foreground">Gerencie os clientes do restaurante</p>
         </div>
-        <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <div className="flex gap-2">
+          {selectedCustomers.length > 0 && (
+            <Button variant="destructive" onClick={handleDeleteSelected}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remover ({selectedCustomers.length})
+            </Button>
+          )}
+          <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       <Card className="p-6 mb-6">
@@ -169,6 +242,12 @@ export default function Clientes() {
         <Table>
           <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead>CPF</TableHead>
@@ -181,16 +260,40 @@ export default function Clientes() {
           <TableBody>
             {filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   Nenhum cliente cadastrado
                 </TableCell>
               </TableRow>
             ) : (
               filteredCustomers.map((customer) => {
                 const history = customerHistory.find(h => h.customer_id === customer.id);
+                const isSelected = selectedCustomers.includes(customer.id);
+                
                 return (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
+                  <TableRow key={customer.id} className={customer.is_suspicious ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCustomers([...selectedCustomers, customer.id]);
+                          } else {
+                            setSelectedCustomers(selectedCustomers.filter(id => id !== customer.id));
+                          }
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {customer.name}
+                        {customer.is_suspicious && (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Suspeito
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell>{customer.cpf || '-'}</TableCell>
                     <TableCell>{customer.address?.city || '-'}</TableCell>
@@ -215,20 +318,38 @@ export default function Clientes() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openEditDialog(customer)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDelete(customer.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => toggleSuspicious(customer.id, customer.is_suspicious)}
+                          title={customer.is_suspicious ? "Remover marcação de suspeito" : "Marcar como suspeito"}
+                        >
+                          <AlertTriangle className={`h-4 w-4 ${customer.is_suspicious ? 'text-red-600' : 'text-muted-foreground'}`} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleClone(customer)}
+                          title="Clonar cliente"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditDialog(customer)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(customer.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -338,6 +459,18 @@ export default function Clientes() {
                 rows={3}
                 placeholder="Notas sobre o cliente..."
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="suspicious"
+                checked={formData.is_suspicious}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_suspicious: checked as boolean })}
+              />
+              <Label htmlFor="suspicious" className="flex items-center gap-2 cursor-pointer">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                Marcar como cliente suspeito
+              </Label>
             </div>
 
             <div className="flex gap-2 justify-end">

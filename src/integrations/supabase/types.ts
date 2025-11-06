@@ -116,12 +116,58 @@ export type Database = {
         }
         Relationships: []
       }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string | null
+          current_uses: number
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_uses: number
+          min_order_value: number
+          type: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          current_uses?: number
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number
+          min_order_value?: number
+          type: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          current_uses?: number
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number
+          min_order_value?: number
+          type?: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: Json | null
           cpf: string | null
           created_at: string | null
           id: string
+          is_suspicious: boolean | null
           name: string
           notes: string | null
           phone: string
@@ -132,6 +178,7 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           id?: string
+          is_suspicious?: boolean | null
           name: string
           notes?: string | null
           phone: string
@@ -142,6 +189,7 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           id?: string
+          is_suspicious?: boolean | null
           name?: string
           notes?: string | null
           phone?: string
@@ -328,6 +376,8 @@ export type Database = {
       orders: {
         Row: {
           completed_at: string | null
+          coupon_code: string | null
+          coupon_discount: number | null
           created_at: string | null
           created_by: string | null
           customer_cpf: string | null
@@ -351,6 +401,8 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
+          coupon_code?: string | null
+          coupon_discount?: number | null
           created_at?: string | null
           created_by?: string | null
           customer_cpf?: string | null
@@ -374,6 +426,8 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
+          coupon_code?: string | null
+          coupon_discount?: number | null
           created_at?: string | null
           created_by?: string | null
           customer_cpf?: string | null
@@ -505,6 +559,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string
+          is_suspicious: boolean | null
           name: string
           notes: string | null
           phone: string | null
@@ -516,6 +571,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_suspicious?: boolean | null
           name: string
           notes?: string | null
           phone?: string | null
@@ -527,6 +583,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_suspicious?: boolean | null
           name?: string
           notes?: string | null
           phone?: string | null
