@@ -21,6 +21,12 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   const [promotionalPrice, setPromotionalPrice] = useState("");
   const [category, setCategory] = useState("");
   const [image, setImage] = useState("");
+  const [preparationTime, setPreparationTime] = useState("20");
+  const [availableHours, setAvailableHours] = useState({
+    start: "00:00",
+    end: "23:59",
+    days: [0, 1, 2, 3, 4, 5, 6]
+  });
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showVariations, setShowVariations] = useState(false);
@@ -65,7 +71,9 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
           promotional_price: promotionalPrice ? parseFloat(promotionalPrice) : null,
           category_id: category,
           image_url: image.trim() || null,
-          is_available: true
+          is_available: true,
+          preparation_time: parseInt(preparationTime),
+          available_hours: availableHours
         })
         .select()
         .single();
@@ -84,6 +92,12 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
       setPromotionalPrice("");
       setCategory("");
       setImage("");
+      setPreparationTime("20");
+      setAvailableHours({
+        start: "00:00",
+        end: "23:59",
+        days: [0, 1, 2, 3, 4, 5, 6]
+      });
       onOpenChange(false);
       
       // Abrir dialog de variações
@@ -171,6 +185,58 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://exemplo.com/imagem.jpg"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="prep-time">Tempo de Preparo (minutos)</Label>
+            <Input
+              id="prep-time"
+              type="number"
+              min="1"
+              value={preparationTime}
+              onChange={(e) => setPreparationTime(e.target.value)}
+              placeholder="20"
+            />
+          </div>
+          <div className="space-y-3">
+            <Label>Horário de Disponibilidade</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-time">Início</Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  value={availableHours.start}
+                  onChange={(e) => setAvailableHours({...availableHours, start: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-time">Fim</Label>
+                <Input
+                  id="end-time"
+                  type="time"
+                  value={availableHours.end}
+                  onChange={(e) => setAvailableHours({...availableHours, end: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, index) => (
+                <Button
+                  key={index}
+                  type="button"
+                  size="sm"
+                  variant={availableHours.days.includes(index) ? "default" : "outline"}
+                  onClick={() => {
+                    const newDays = availableHours.days.includes(index)
+                      ? availableHours.days.filter(d => d !== index)
+                      : [...availableHours.days, index];
+                    setAvailableHours({...availableHours, days: newDays});
+                  }}
+                >
+                  {day}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
         <DialogFooter>

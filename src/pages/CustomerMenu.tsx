@@ -446,7 +446,13 @@ export default function CustomerMenu() {
   };
 
   const openWhatsApp = () => {
-    const phone = restaurantSettings?.phone?.replace(/\D/g, '') || '5511999999999';
+    let phone = restaurantSettings?.phone || '';
+    // Remove all non-numeric characters
+    phone = phone.replace(/\D/g, '');
+    // If doesn't start with country code, add Brazil's
+    if (!phone.startsWith('55')) {
+      phone = '55' + phone;
+    }
     const message = encodeURIComponent('Olá! Gostaria de fazer um pedido.');
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
