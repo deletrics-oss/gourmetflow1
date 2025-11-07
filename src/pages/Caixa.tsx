@@ -184,7 +184,7 @@ export default function Caixa() {
                 </div>
                 <div>
                   <Label htmlFor="category">Categoria *</Label>
-                  <select name="category" id="category" className="w-full p-2 border rounded" required>
+                  <select name="category" id="category" className="w-full p-2 border rounded bg-background text-foreground" required>
                     <option value="Venda">Venda</option>
                     <option value="Retirada">Retirada</option>
                     <option value="Deposito">Depósito</option>
@@ -201,7 +201,7 @@ export default function Caixa() {
               
               <div>
                 <Label htmlFor="payment_method">Método de Pagamento</Label>
-                <select name="payment_method" id="payment_method" className="w-full p-2 border rounded">
+                <select name="payment_method" id="payment_method" className="w-full p-2 border rounded bg-background text-foreground">
                   <option value="Dinheiro">Dinheiro</option>
                   <option value="PIX">PIX</option>
                   <option value="Cartão">Cartão</option>

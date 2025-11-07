@@ -367,7 +367,7 @@ export default function PDV() {
 
       if (orderError) throw orderError;
 
-      // Adicionar itens do pedido
+      // Adicionar itens do pedido com variações
       const orderItems = cart.map(item => ({
         order_id: orderData.id,
         menu_item_id: item.id,
@@ -379,15 +379,29 @@ export default function PDV() {
       }));
 
       const { error: itemsError } = await supabase
-        .from('order_items' as any)
+        .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('Erro ao inserir itens:', itemsError);
+        throw itemsError;
+      }
+
+      // Registrar movimentação no caixa
+      await supabase.from('cash_movements').insert([{
+        type: 'entrada',
+        description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : 'Online'}`,
+        amount: total,
+        movement_date: new Date().toISOString().split('T')[0],
+        payment_method: paymentMethod,
+        category: 'Venda'
+      }]);
+
 
       // Atualizar status da mesa se for pedido no local
       if (deliveryType === "dine_in" && selectedTable) {
         await supabase
-          .from('tables' as any)
+          .from('tables')
           .update({ status: 'occupied' })
           .eq('id', selectedTable);
       }
