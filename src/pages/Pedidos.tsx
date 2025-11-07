@@ -50,14 +50,69 @@ export default function Pedidos() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      // Buscar o pedido completo
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (!order) throw new Error('Pedido não encontrado');
+
+      // Atualizar status do pedido
       const { error } = await supabase
         .from('orders')
         .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
+
+      // Se o pedido está sendo concluído E tem pontos de fidelidade, creditar os pontos
+      if (newStatus === 'completed' && order.loyalty_points_earned > 0 && order.customer_phone) {
+        // Buscar ou criar cliente
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('phone', order.customer_phone)
+          .maybeSingle();
+
+        if (customer) {
+          // Verificar se os pontos já foram creditados
+          const { data: existingTransaction } = await supabase
+            .from('loyalty_transactions')
+            .select('*')
+            .eq('order_id', orderId)
+            .eq('type', 'earned')
+            .maybeSingle();
+
+          if (!existingTransaction) {
+            // Atualizar pontos do cliente
+            const newPoints = (customer.loyalty_points || 0) + order.loyalty_points_earned;
+            await supabase
+              .from('customers')
+              .update({ loyalty_points: newPoints })
+              .eq('id', customer.id);
+
+            // Criar transação de pontos
+            await supabase
+              .from('loyalty_transactions')
+              .insert({
+                customer_id: customer.id,
+                order_id: orderId,
+                points: order.loyalty_points_earned,
+                type: 'earned',
+                description: `Pontos ganhos no pedido ${order.order_number}`
+              });
+
+            toast.success(`Status atualizado! Cliente ganhou ${order.loyalty_points_earned} pontos!`);
+          } else {
+            toast.success('Status atualizado!');
+          }
+        }
+      } else {
+        toast.success('Status atualizado!');
+      }
       
-      toast.success('Status atualizado!');
       loadOrders();
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
