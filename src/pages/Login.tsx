@@ -35,52 +35,12 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Primeiro tenta login com system_users
-      const { data: systemUser, error: systemUserError } = await supabase
-        .from('system_users')
-        .select('*')
-        .eq('username', loginEmail)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (systemUser) {
-        // Usuário do sistema encontrado, verificar senha
-        // Suporta tanto hash bcrypt quanto senha em texto plano (temporário para migração)
-        let isValidPassword = false;
-        
-        if (systemUser.password_hash.startsWith('$2a$') || systemUser.password_hash.startsWith('$2b$')) {
-          // É um hash bcrypt
-          isValidPassword = await bcrypt.compare(loginPassword, systemUser.password_hash);
-        } else {
-          // É texto plano (temporário)
-          isValidPassword = loginPassword === systemUser.password_hash;
-          
-          // Se for válido, atualizar para bcrypt
-          if (isValidPassword) {
-            const hashedPassword = await bcrypt.hash(loginPassword, 10);
-            await supabase
-              .from('system_users')
-              .update({ password_hash: hashedPassword })
-              .eq('id', systemUser.id);
-          }
-        }
-        
-        if (isValidPassword) {
-          // Login bem-sucedido - salvar no localStorage
-          localStorage.setItem('system_user', JSON.stringify(systemUser));
-          toast.success('Login realizado com sucesso!');
-          navigate('/');
-          return;
-        } else {
-          toast.error('Credenciais inválidas');
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Se não for system_user, tenta com Supabase Auth
+      // Tenta login com Supabase Auth
       await signIn(loginEmail, loginPassword);
-      navigate('/');
+      // Aguarda um pouco para garantir que o auth state foi atualizado
+      setTimeout(() => {
+        navigate('/');
+      }, 500);
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Erro ao fazer login');
