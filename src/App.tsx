@@ -36,6 +36,7 @@ import TableCustomerMenu from "./pages/TableCustomerMenu";
 import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
 import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
+import Caixa from "./pages/Caixa";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ const App = () => {
                       <Route path="/cozinha" element={<Cozinha />} />
                       <Route path="/estoque" element={<Estoque />} />
                       <Route path="/pdv" element={<PDV />} />
+                      <Route path="/caixa" element={<Caixa />} />
                       <Route path="/monitor-cozinha" element={<MonitorCozinha />} />
                       <Route path="/monitor-gestor" element={
                         <ProtectedRoute requireManager>

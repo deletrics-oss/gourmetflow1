@@ -13,12 +13,16 @@ import { supabase } from "@/lib/supabase";
 import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { toast as sonnerToast } from "sonner";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
+import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
 
 interface CartItem {
   id: string;
   name: string;
   price: number;
   quantity: number;
+  customizations?: any[];
+  finalPrice?: number;
+  customizationsText?: string;
 }
 
 interface MenuItem {
@@ -57,6 +61,8 @@ export default function PDV() {
   const [printOnClose, setPrintOnClose] = useState(true);
   const [selectedClosedOrder, setSelectedClosedOrder] = useState<any | null>(null);
   const [closedOrderDialogOpen, setClosedOrderDialogOpen] = useState(false);
+  const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -199,14 +205,22 @@ export default function PDV() {
       }
 
       // Registrar entrada no caixa
+      const paymentMethodMap: any = {
+        'cash': 'Dinheiro',
+        'credit_card': 'Cartão',
+        'debit_card': 'Cartão',
+        'pix': 'PIX'
+      };
+
       await supabase
         .from('cash_movements' as any)
         .insert({
-          type: 'entry',
+          type: 'entrada',
           amount: currentOrder.total,
           category: 'Venda',
-          description: `Pedido ${currentOrder.order_number} - ${currentOrder.payment_method}`,
-          payment_method: currentOrder.payment_method
+          description: `Pedido ${currentOrder.order_number}`,
+          payment_method: paymentMethodMap[currentOrder.payment_method] || 'Dinheiro',
+          movement_date: new Date().toISOString().split('T')[0]
         });
 
       sonnerToast.success(`Pedido ${currentOrder.order_number} fechado com sucesso!`);
@@ -234,27 +248,52 @@ export default function PDV() {
       ? menuItems
       : menuItems.filter((item) => item.category_id === selectedCategory);
 
-  const addToCart = (item: MenuItem) => {
-    const existingItem = cart.find((cartItem) => cartItem.id === item.id);
-    if (existingItem) {
-      setCart(
-        cart.map((cartItem) =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        )
-      );
+  const handleAddToCart = async (item: MenuItem) => {
+    // Check if item has variations
+    const { data: variations } = await supabase
+      .from('item_variations')
+      .select('*')
+      .eq('menu_item_id', item.id)
+      .eq('is_active', true);
+
+    if (variations && variations.length > 0) {
+      // Open customization dialog
+      setSelectedItem(item);
+      setCustomizeDialogOpen(true);
     } else {
-      setCart([
-        ...cart,
-        {
-          id: item.id,
-          name: item.name,
-          price: item.promotional_price || item.price,
-          quantity: 1,
-        },
-      ]);
+      // Add directly to cart
+      addToCart(item);
     }
+  };
+
+  const addToCart = (item: MenuItem, customizations: any[] = []) => {
+    // Calculate price with variations
+    const variationsPrice = customizations.reduce((sum, v) => sum + (v.price_adjustment || 0), 0);
+    const finalPrice = (item.promotional_price || item.price) + variationsPrice;
+
+    const cartItem = {
+      id: item.id,
+      name: item.name,
+      price: item.promotional_price || item.price,
+      quantity: 1,
+      customizations,
+      finalPrice,
+      customizationsText: customizations.map(c => c.name).join(', ')
+    };
+
+    setCart(prev => {
+      const existingIndex = prev.findIndex(i => 
+        i.id === item.id && 
+        JSON.stringify(i.customizations) === JSON.stringify(customizations)
+      );
+      
+      if (existingIndex >= 0) {
+        const newCart = [...prev];
+        newCart[existingIndex].quantity += 1;
+        return newCart;
+      }
+      return [...prev, cartItem];
+    });
   };
 
   const updateQuantity = (id: string, delta: number) => {
@@ -271,7 +310,10 @@ export default function PDV() {
     setCart(cart.filter((item) => item.id !== id));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.finalPrice || item.price;
+    return sum + price * item.quantity;
+  }, 0);
   const serviceFee = includeServiceFee ? subtotal * 0.1 : 0;
   const total = subtotal + serviceFee;
 
@@ -331,8 +373,9 @@ export default function PDV() {
         menu_item_id: item.id,
         name: item.name,
         quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
+        unit_price: item.finalPrice || item.price,
+        total_price: (item.finalPrice || item.price) * item.quantity,
+        notes: item.customizationsText || null
       }));
 
       const { error: itemsError } = await supabase
@@ -421,7 +464,7 @@ export default function PDV() {
                   <Card
                     key={item.id}
                     className="p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => addToCart(item)}
+                    onClick={() => handleAddToCart(item)}
                   >
                     {item.image_url && (
                       <img
@@ -559,12 +602,15 @@ export default function PDV() {
               ) : (
                 cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-2 mb-3 pb-3 border-b">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        R$ {item.price.toFixed(2)}
-                      </p>
-                    </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.name}</p>
+                    {item.customizationsText && (
+                      <p className="text-xs text-muted-foreground">+ {item.customizationsText}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      R$ {(item.finalPrice || item.price).toFixed(2)}
+                    </p>
+                  </div>
                     <div className="flex items-center gap-1">
                       <Button
                         size="icon"
@@ -595,7 +641,7 @@ export default function PDV() {
                       </Button>
                     </div>
                     <p className="text-sm font-bold w-20 text-right">
-                      R$ {(item.price * item.quantity).toFixed(2)}
+                      R$ {((item.finalPrice || item.price) * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 ))
@@ -901,6 +947,14 @@ export default function PDV() {
         open={closedOrderDialogOpen}
         onOpenChange={setClosedOrderDialogOpen}
         restaurantName={restaurantName}
+      />
+
+      {/* Dialog de Customização */}
+      <CustomizeItemDialog
+        open={customizeDialogOpen}
+        onOpenChange={setCustomizeDialogOpen}
+        item={selectedItem}
+        onAddToCart={addToCart}
       />
     </div>
   );
