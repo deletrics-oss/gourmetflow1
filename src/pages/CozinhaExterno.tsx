@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChefHat, Clock, CheckCircle } from "lucide-react";
+import { ChefHat, Clock, CheckCircle, Printer } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { PrintReceipt } from "@/components/PrintReceipt";
 
 interface OrderItem {
   id: string;
@@ -26,9 +29,12 @@ interface KitchenOrder {
 
 export default function CozinhaExterno() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [restaurantName, setRestaurantName] = useState("");
 
   useEffect(() => {
     loadOrders();
+    loadRestaurantSettings();
     
     const channel = supabase
       .channel('kitchen-orders-external-kds')
@@ -41,6 +47,21 @@ export default function CozinhaExterno() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const loadRestaurantSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('restaurant_settings')
+        .select('name')
+        .maybeSingle();
+      
+      if (data) {
+        setRestaurantName(data.name);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -78,6 +99,20 @@ export default function CozinhaExterno() {
     }
   };
 
+  const handlePrintOrder = (order: KitchenOrder) => {
+    const receiptContent = PrintReceipt({ order: order as any, restaurantName });
+    const printWindow = window.open('', '', 'width=300,height=600');
+    if (printWindow) {
+      printWindow.document.write(receiptContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+  };
+
   const handleStartPreparing = async (orderId: string) => {
     try {
       const { error } = await supabase
@@ -86,6 +121,14 @@ export default function CozinhaExterno() {
         .eq('id', orderId);
 
       if (error) throw error;
+      
+      if (autoPrint) {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          handlePrintOrder(order);
+        }
+      }
+      
       toast.success("Pedido em preparação");
     } catch (error) {
       toast.error("Erro ao atualizar pedido");
@@ -140,9 +183,21 @@ export default function CozinhaExterno() {
             <p className="text-status-new-foreground/80 text-sm">Pedidos em Produção</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-status-new-foreground/80">Pedidos na fila</p>
-          <p className="text-4xl font-bold text-status-new-foreground">{orders.length}</p>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Switch 
+              id="auto-print" 
+              checked={autoPrint}
+              onCheckedChange={setAutoPrint}
+            />
+            <Label htmlFor="auto-print" className="text-status-new-foreground text-sm cursor-pointer">
+              Impressão Automática
+            </Label>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-status-new-foreground/80">Pedidos na fila</p>
+            <p className="text-4xl font-bold text-status-new-foreground">{orders.length}</p>
+          </div>
         </div>
       </div>
 
@@ -202,6 +257,14 @@ export default function CozinhaExterno() {
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t border-slate-700">
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handlePrintOrder(order)}
+                      className="shrink-0"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
                     {order.status === 'confirmed' ? (
                       <Button 
                         className="flex-1 bg-status-preparing hover:bg-status-preparing/90"

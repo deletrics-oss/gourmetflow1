@@ -12,6 +12,7 @@ export default function MonitorCozinhaExterno() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const slideSpeed = 8000;
   const [restaurantName, setRestaurantName] = useState("Restaurante");
+  const [autoPrint, setAutoPrint] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -87,10 +88,18 @@ export default function MonitorCozinhaExterno() {
     return 'bg-green-500';
   };
 
-  const handlePrintOrder = async (order: any) => {
-    const tableNum = order.table_id && order.tables ? order.tables.number : undefined;
-    generatePrintReceipt(order, restaurantName, tableNum, 'kitchen');
-    toast.success('Imprimindo pedido...');
+  const handlePrintOrder = (order: any) => {
+    const receiptContent = PrintReceipt({ order, restaurantName });
+    const printWindow = window.open('', '', 'width=300,height=600');
+    if (printWindow) {
+      printWindow.document.write(receiptContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -101,6 +110,14 @@ export default function MonitorCozinhaExterno() {
         .eq('id', orderId);
 
       if (error) throw error;
+      
+      if (newStatus === 'preparing' && autoPrint) {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          handlePrintOrder(order);
+        }
+      }
+      
       toast.success('Status atualizado!');
     } catch (error) {
       console.error('Erro ao atualizar:', error);
@@ -152,9 +169,21 @@ export default function MonitorCozinhaExterno() {
               <p className="text-lg opacity-90">Monitor de Cozinha - Slide {currentSlide + 1}/{slides.length}</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-lg opacity-90">Total</p>
-            <p className="text-6xl font-bold">{currentSlideData.data.length}</p>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Switch 
+                id="auto-print-monitor" 
+                checked={autoPrint}
+                onCheckedChange={setAutoPrint}
+              />
+              <Label htmlFor="auto-print-monitor" className="text-white text-sm cursor-pointer">
+                Impressão Automática
+              </Label>
+            </div>
+            <div className="text-right">
+              <p className="text-lg opacity-90">Total</p>
+              <p className="text-6xl font-bold">{currentSlideData.data.length}</p>
+            </div>
           </div>
         </div>
       </div>
