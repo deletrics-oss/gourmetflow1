@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { CustomizeItemDialog } from '@/components/dialogs/CustomizeItemDialog';
+import { useCEP } from '@/hooks/useCEP';
 
 interface MenuItem {
   id: string;
@@ -83,6 +84,9 @@ export default function CustomerMenu() {
     street: '',
     number: '',
     neighborhood: '',
+    city: '',
+    state: '',
+    zipcode: '',
     complement: '',
     reference: ''
   });
@@ -91,6 +95,7 @@ export default function CustomerMenu() {
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [customerLoyalty, setCustomerLoyalty] = useState<any>(null);
+  const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
     loadData();
@@ -300,6 +305,24 @@ export default function CustomerMenu() {
   const deliveryFee = deliveryType === 'delivery' ? 5.00 : 0;
   const total = cartTotal + deliveryFee - couponDiscount;
 
+  const handleCEPSearch = async () => {
+    if (!address.zipcode) {
+      toast.error('Digite um CEP');
+      return;
+    }
+
+    const cepData = await buscarCEP(address.zipcode);
+    if (cepData) {
+      setAddress({
+        ...address,
+        street: cepData.street,
+        neighborhood: cepData.neighborhood,
+        city: cepData.city,
+        state: cepData.state
+      });
+    }
+  };
+
   const handleCheckout = async () => {
     if (!customerName || !customerPhone) {
       toast.error('Preencha seu nome e telefone');
@@ -334,23 +357,22 @@ export default function CustomerMenu() {
             phone: customerPhone,
             cpf: customerCPF || null,
             address: deliveryType === 'delivery' ? address : null,
-            loyalty_points: earnedPoints
+            loyalty_points: 0 // Pontos serão creditados quando o pedido for concluído
           })
           .select()
           .single();
         customerId = newCustomer?.id;
       } else {
-        // Update customer and add points
-        const newPoints = (existingCustomer.loyalty_points || 0) + earnedPoints;
+        // Update customer info (não credita pontos aqui)
         await supabase
           .from('customers')
           .update({
             name: customerName,
             cpf: customerCPF || existingCustomer.cpf,
-            address: deliveryType === 'delivery' ? address : existingCustomer.address,
-            loyalty_points: newPoints
+            address: deliveryType === 'delivery' ? address : existingCustomer.address
           })
           .eq('id', existingCustomer.id);
+        customerId = existingCustomer.id;
       }
 
       // Create order
@@ -406,40 +428,25 @@ export default function CustomerMenu() {
           .eq('id', appliedCoupon.id);
       }
 
-      // Create loyalty transactions
-      if (customerId && restaurantSettings?.loyalty_enabled) {
-        // Points earned
-        if (earnedPoints > 0) {
-          await supabase
-            .from('loyalty_transactions')
-            .insert({
-              customer_id: customerId,
-              order_id: order.id,
-              points: earnedPoints,
-              type: 'earned',
-              description: `Pontos ganhos no pedido ${orderNumber}`
-            });
-        }
+
+      // Create loyalty transaction for redeemed points only (earned points are added when order is completed)
+      if (customerId && restaurantSettings?.loyalty_enabled && loyaltyPoints > 0) {
+        // Deduct used points
+        const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - loyaltyPoints);
+        await supabase
+          .from('customers')
+          .update({ loyalty_points: updatedPoints })
+          .eq('id', customerId);
         
-        // Points redeemed (if loyalty points were used)
-        if (loyaltyPoints > 0) {
-          // Deduct used points
-          const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - loyaltyPoints);
-          await supabase
-            .from('customers')
-            .update({ loyalty_points: updatedPoints })
-            .eq('id', customerId);
-          
-          await supabase
-            .from('loyalty_transactions')
-            .insert({
-              customer_id: customerId,
-              order_id: order.id,
-              points: -loyaltyPoints,
-              type: 'redeemed',
-              description: `Pontos usados no pedido ${orderNumber}`
-            });
-        }
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: customerId,
+            order_id: order.id,
+            points: -loyaltyPoints,
+            type: 'redeemed',
+            description: `Pontos usados no pedido ${orderNumber}`
+          });
       }
 
       // Save customer data
@@ -447,7 +454,7 @@ export default function CustomerMenu() {
       localStorage.setItem('customer_phone', customerPhone);
       if (customerCPF) localStorage.setItem('customer_cpf', customerCPF);
 
-      toast.success(`Pedido realizado! ${earnedPoints > 0 ? `Você ganhou ${earnedPoints} pontos!` : ''}`);
+      toast.success(`Pedido realizado! ${earnedPoints > 0 ? `Você ganhará ${earnedPoints} pontos quando o pedido for concluído!` : ''}`);
       setCart([]);
       setCheckoutOpen(false);
       setCartOpen(false);
@@ -458,7 +465,16 @@ export default function CustomerMenu() {
         setLoyaltyPoints(prev => prev + earnedPoints);
       }
       if (deliveryType === 'delivery') {
-        setAddress({ street: '', number: '', neighborhood: '', complement: '', reference: '' });
+        setAddress({ 
+          street: '', 
+          number: '', 
+          neighborhood: '', 
+          city: '', 
+          state: '', 
+          zipcode: '', 
+          complement: '', 
+          reference: '' 
+        });
       }
     } catch (error) {
       console.error('❌ Erro geral ao criar pedido:', error);
@@ -879,6 +895,25 @@ export default function CustomerMenu() {
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
+                    <Label>CEP *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="00000-000"
+                        value={address.zipcode}
+                        onChange={(e) => setAddress({...address, zipcode: e.target.value})}
+                        maxLength={9}
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={handleCEPSearch}
+                        disabled={cepLoading}
+                      >
+                        {cepLoading ? "..." : "Buscar"}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
                     <Label>Rua *</Label>
                     <Input
                       placeholder="Nome da rua"
@@ -900,6 +935,23 @@ export default function CustomerMenu() {
                       placeholder="Bairro"
                       value={address.neighborhood}
                       onChange={(e) => setAddress({...address, neighborhood: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Cidade *</Label>
+                    <Input
+                      placeholder="Cidade"
+                      value={address.city}
+                      onChange={(e) => setAddress({...address, city: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Estado *</Label>
+                    <Input
+                      placeholder="SP"
+                      maxLength={2}
+                      value={address.state}
+                      onChange={(e) => setAddress({...address, state: e.target.value.toUpperCase()})}
                     />
                   </div>
                   <div className="col-span-2">

@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { useCEP } from "@/hooks/useCEP";
 
 export default function Configuracoes() {
   const [loading, setLoading] = useState(false);
@@ -33,6 +34,7 @@ export default function Configuracoes() {
   const [loyaltyPointsPerReal, setLoyaltyPointsPerReal] = useState(1);
   const [loyaltyRedemptionValue, setLoyaltyRedemptionValue] = useState(0.01);
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
     loadSettings();
@@ -70,6 +72,24 @@ export default function Configuracoes() {
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
+    }
+  };
+
+  const handleCEPSearch = async () => {
+    if (!settings.zipcode) {
+      toast.error('Digite um CEP');
+      return;
+    }
+
+    const cepData = await buscarCEP(settings.zipcode);
+    if (cepData) {
+      setSettings({
+        ...settings,
+        street: cepData.street,
+        neighborhood: cepData.neighborhood,
+        city: cepData.city,
+        state: cepData.state
+      });
     }
   };
 
@@ -226,12 +246,26 @@ export default function Configuracoes() {
               <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="zipcode">CEP *</Label>
-                  <Input 
-                    id="zipcode" 
-                    placeholder="00000-000"
-                    value={settings.zipcode}
-                    onChange={(e) => setSettings({...settings, zipcode: e.target.value})}
-                  />
+                  <div className="flex gap-2">
+                    <Input 
+                      id="zipcode" 
+                      placeholder="00000-000"
+                      value={settings.zipcode}
+                      onChange={(e) => setSettings({...settings, zipcode: e.target.value})}
+                      maxLength={9}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={handleCEPSearch}
+                      disabled={cepLoading}
+                    >
+                      {cepLoading ? "..." : "Buscar"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Digite o CEP e clique em Buscar
+                  </p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
