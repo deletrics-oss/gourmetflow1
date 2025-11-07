@@ -21,6 +21,7 @@ interface KitchenOrder {
   items: OrderItem[];
   created_at: string;
   status: string;
+  notes?: string;
 }
 
 export default function CozinhaExterno() {
@@ -65,7 +66,8 @@ export default function CozinhaExterno() {
             delivery_type: order.delivery_type,
             items: items || [],
             created_at: order.created_at,
-            status: order.status
+            status: order.status,
+            notes: order.notes
           };
         })
       );
@@ -184,11 +186,17 @@ export default function CozinhaExterno() {
                         <div className="flex-1">
                           <p className="text-white font-medium">{item.quantity}x {item.name}</p>
                           {item.notes && (
-                            <p className="text-sm text-yellow-400 mt-1">Obs: {item.notes}</p>
+                            <p className="text-sm text-yellow-400 mt-1">Obs Item: {item.notes}</p>
                           )}
                         </div>
                       </div>
                     ))}
+                    {order.notes && (
+                      <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded">
+                        <p className="text-sm font-semibold text-yellow-300">Observações do Pedido:</p>
+                        <p className="text-sm text-yellow-200 mt-1">{order.notes}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t border-slate-700">
