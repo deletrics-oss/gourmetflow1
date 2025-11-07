@@ -32,7 +32,7 @@ export default function MonitorCozinhaExterno() {
         .from('orders')
         .select(`
           *,
-          order_items(*),
+          order_items(*, menu_items(preparation_time)),
           tables(number)
         `)
         .in('status', ['new', 'preparing', 'ready'])
@@ -43,6 +43,30 @@ export default function MonitorCozinhaExterno() {
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
     }
+  };
+
+  const getOrderPrepTime = (order: any) => {
+    const maxPrepTime = Math.max(
+      ...order.order_items.map((item: any) => item.menu_items?.preparation_time || 20)
+    );
+    return maxPrepTime;
+  };
+
+  const getOrderDelayStatus = (order: any) => {
+    const createdAt = new Date(order.created_at);
+    const now = new Date();
+    const elapsed = (now.getTime() - createdAt.getTime()) / 60000;
+    const prepTime = getOrderPrepTime(order);
+    
+    if (elapsed > prepTime * 1.5) return 'critical';
+    if (elapsed > prepTime) return 'warning';
+    return 'normal';
+  };
+
+  const getDelayColor = (status: string) => {
+    if (status === 'critical') return 'bg-red-500 animate-pulse';
+    if (status === 'warning') return 'bg-orange-500';
+    return 'bg-green-500';
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -120,8 +144,15 @@ export default function MonitorCozinhaExterno() {
             </p>
           </Card>
         ) : (
-          currentSlideData.data.map((order) => (
-            <Card key={order.id} className="p-6 bg-card">
+          currentSlideData.data.map((order) => {
+            const delayStatus = getOrderDelayStatus(order);
+            const prepTime = getOrderPrepTime(order);
+            const createdAt = new Date(order.created_at);
+            const estimatedReady = new Date(createdAt.getTime() + prepTime * 60000);
+            
+            return (
+            <Card key={order.id} className="p-6 bg-card relative">
+              <div className={`absolute top-0 right-0 w-4 h-4 rounded-bl-lg ${getDelayColor(delayStatus)}`} />
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-3xl font-bold">#{order.order_number}</h3>
@@ -131,10 +162,16 @@ export default function MonitorCozinhaExterno() {
                     </Badge>
                   )}
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-1">
                   <Badge className={`bg-${currentSlideData.color}`}>
                     {formatTime(order.created_at)}
                   </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    Preparo: {prepTime}min
+                  </div>
+                  <div className="text-xs font-medium">
+                    Pronto: {estimatedReady.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
               </div>
               <div className="space-y-2 mb-4">
@@ -190,7 +227,8 @@ export default function MonitorCozinhaExterno() {
                 )}
               </div>
             </Card>
-          ))
+          );
+        })
         )}
       </div>
 

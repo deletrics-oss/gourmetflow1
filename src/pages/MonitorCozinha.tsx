@@ -13,15 +13,20 @@ export default function MonitorCozinha() {
   const [orders, setOrders] = useState<any[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideSpeed, setSlideSpeed] = useState(8000);
+  const [inventory, setInventory] = useState<any[]>([]);
 
   useEffect(() => {
     loadOrders();
+    loadInventory();
     
     // Realtime subscription
     const channel = supabase
       .channel('kitchen-orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         loadOrders();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        loadInventory();
       })
       .subscribe();
 
@@ -36,7 +41,7 @@ export default function MonitorCozinha() {
         .from('orders')
         .select(`
           *,
-          order_items(*),
+          order_items(*, menu_items(preparation_time)),
           tables(number)
         `)
         .in('status', ['new', 'preparing', 'ready'])
@@ -46,6 +51,22 @@ export default function MonitorCozinha() {
       setOrders(data || []);
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
+    }
+  };
+
+  const loadInventory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .lt('current_quantity', 'min_quantity')
+        .order('current_quantity', { ascending: true })
+        .limit(5);
+
+      if (error) throw error;
+      setInventory(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar estoque:', error);
     }
   };
 
@@ -76,11 +97,12 @@ export default function MonitorCozinha() {
   });
 
   const slides = [
-    { title: "Pedidos em Análise", icon: Package, data: newOrders, color: "status-new" },
-    { title: "Pedidos em Produção", icon: ChefHat, data: preparingOrders, color: "status-preparing" },
-    { title: "Prontos para Entrega", icon: CheckCircle, data: readyOrders, color: "status-ready" },
-    { title: "Pedidos Atrasados", icon: AlertTriangle, data: delayedOrders, color: "destructive" },
-    { title: "Status Geral", icon: Clock, data: [], color: "primary" },
+    { title: "Pedidos em Análise", icon: Package, data: newOrders, color: "status-new", type: "orders" },
+    { title: "Pedidos em Produção", icon: ChefHat, data: preparingOrders, color: "status-preparing", type: "orders" },
+    { title: "Prontos para Entrega", icon: CheckCircle, data: readyOrders, color: "status-ready", type: "orders" },
+    { title: "Pedidos Atrasados", icon: AlertTriangle, data: delayedOrders, color: "destructive", type: "orders" },
+    { title: "Status Geral", icon: Clock, data: [], color: "primary", type: "summary" },
+    { title: "Estoque Baixo", icon: AlertTriangle, data: inventory, color: "destructive", type: "inventory" },
   ];
 
   useEffect(() => {
@@ -100,9 +122,43 @@ export default function MonitorCozinha() {
     return `${diff} min`;
   };
 
+  const getOrderPrepTime = (order: any) => {
+    const maxPrepTime = Math.max(
+      ...order.order_items.map((item: any) => item.menu_items?.preparation_time || 20)
+    );
+    return maxPrepTime;
+  };
+
+  const getOrderDelayStatus = (order: any) => {
+    const createdAt = new Date(order.created_at);
+    const now = new Date();
+    const elapsed = (now.getTime() - createdAt.getTime()) / 60000;
+    const prepTime = getOrderPrepTime(order);
+    
+    if (elapsed > prepTime * 1.5) return 'critical'; // Muito atrasado (>150% do tempo)
+    if (elapsed > prepTime) return 'warning'; // Atrasado (>100% do tempo)
+    return 'normal';
+  };
+
+  const getDelayColor = (status: string) => {
+    if (status === 'critical') return 'bg-red-500 animate-pulse';
+    if (status === 'warning') return 'bg-orange-500';
+    return 'bg-green-500';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-dark p-8">
       <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button 
+          size="sm" 
+          variant="outline" 
+          className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+          onClick={() => window.open('/monitor-cozinha-externo', '_blank', 'width=1920,height=1080')}
+        >
+          <ChefHat className="h-4 w-4 mr-2" />
+          Monitor Externo
+        </Button>
+
         <Dialog>
           <DialogTrigger asChild>
             <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/20">
@@ -150,7 +206,7 @@ export default function MonitorCozinha() {
             <Icon className="h-12 w-12" />
             <div>
               <h1 className="text-4xl font-bold">{currentSlideData.title}</h1>
-              <p className="text-lg opacity-90">Monitor de Cozinha - Slide {currentSlide + 1}/5</p>
+              <p className="text-lg opacity-90">Monitor de Cozinha - Slide {currentSlide + 1}/{slides.length}</p>
             </div>
           </div>
           <div className="text-right">
@@ -160,7 +216,7 @@ export default function MonitorCozinha() {
         </div>
       </div>
 
-      {currentSlide === 4 ? (
+      {currentSlideData.type === 'summary' ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card className="p-8 text-center bg-card">
             <Package className="h-16 w-16 mx-auto mb-4 text-status-new" />
@@ -183,7 +239,7 @@ export default function MonitorCozinha() {
               {orders.length > 0
                 ? Math.round(
                     orders.reduce((sum, o) => {
-                      const diff = (new Date().getTime() - new Date(o.createdAt).getTime()) / 60000;
+                      const diff = (new Date().getTime() - new Date(o.created_at).getTime()) / 60000;
                       return sum + diff;
                     }, 0) / orders.length
                   )
@@ -191,6 +247,50 @@ export default function MonitorCozinha() {
             </p>
             <p className="text-lg text-muted-foreground">Tempo Médio (min)</p>
           </Card>
+        </div>
+      ) : currentSlideData.type === 'inventory' ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {inventory.length === 0 ? (
+            <Card className="col-span-full p-16 text-center bg-card">
+              <AlertTriangle className="h-24 w-24 mx-auto mb-6 text-muted-foreground/20" />
+              <p className="text-2xl font-medium text-muted-foreground">
+                Estoque em níveis adequados
+              </p>
+            </Card>
+          ) : (
+            inventory.map((item) => (
+              <Card key={item.id} className="p-6 bg-card border-l-4 border-l-destructive">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold">{item.name}</h3>
+                    <Badge variant="destructive" className="mt-2">
+                      Estoque Baixo
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-lg">
+                    <span className="text-muted-foreground">Atual:</span>
+                    <span className="font-bold text-destructive">
+                      {item.current_quantity} {item.unit}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-lg">
+                    <span className="text-muted-foreground">Mínimo:</span>
+                    <span className="font-medium">
+                      {item.min_quantity} {item.unit}
+                    </span>
+                  </div>
+                  {item.category && (
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-muted-foreground">Categoria:</span>
+                      <span>{item.category}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))
+          )}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -202,8 +302,15 @@ export default function MonitorCozinha() {
               </p>
             </Card>
           ) : (
-            currentSlideData.data.map((order) => (
-              <Card key={order.id} className="p-6 bg-card">
+            currentSlideData.data.map((order) => {
+              const delayStatus = getOrderDelayStatus(order);
+              const prepTime = getOrderPrepTime(order);
+              const createdAt = new Date(order.created_at);
+              const estimatedReady = new Date(createdAt.getTime() + prepTime * 60000);
+              
+              return (
+              <Card key={order.id} className="p-6 bg-card relative">
+                <div className={`absolute top-0 right-0 w-4 h-4 rounded-bl-lg ${getDelayColor(delayStatus)}`} />
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="text-3xl font-bold">#{order.order_number}</h3>
@@ -213,10 +320,16 @@ export default function MonitorCozinha() {
                       </Badge>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right space-y-1">
                     <Badge className={`bg-${currentSlideData.color}`}>
                       {formatTime(order.created_at)}
                     </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      Preparo: {prepTime}min
+                    </div>
+                    <div className="text-xs font-medium">
+                      Pronto: {estimatedReady.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2 mb-4">
@@ -273,7 +386,8 @@ export default function MonitorCozinha() {
                   )}
                 </div>
               </Card>
-            ))
+            );
+          })
           )}
         </div>
       )}

@@ -198,7 +198,21 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
             />
           </div>
           <div className="space-y-3">
-            <Label>Horário de Disponibilidade</Label>
+            <div className="flex items-center justify-between">
+              <Label>Horário de Disponibilidade</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setAvailableHours({
+                  start: "00:00",
+                  end: "23:59",
+                  days: [0, 1, 2, 3, 4, 5, 6]
+                })}
+              >
+                Sempre Disponível
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start-time">Início</Label>
@@ -244,7 +258,7 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Adicionando...' : 'Adicionar'}
+            {loading ? 'Adicionando...' : 'Adicionar e Gerenciar Variações'}
           </Button>
         </DialogFooter>
       </DialogContent>
