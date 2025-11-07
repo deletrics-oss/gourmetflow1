@@ -8,6 +8,7 @@ import { Plus, Minus, ShoppingCart, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { CustomizeItemDialog } from "./CustomizeItemDialog";
 
 interface AddItemsToComandaDialogProps {
   open: boolean;
@@ -21,6 +22,9 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  customizations?: any[];
+  finalPrice?: number;
+  customizationsText?: string;
 }
 
 export function AddItemsToComandaDialog({
@@ -37,12 +41,14 @@ export function AddItemsToComandaDialog({
   const [loading, setLoading] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
       loadMenuItems();
     }
-  }, [open]);
+  }, []);
 
   const loadMenuItems = async () => {
     try {
@@ -69,7 +75,7 @@ export function AddItemsToComandaDialog({
     }
   };
 
-  const addToCart = async (item: any) => {
+  const addToCart = async (item: any, customizations: any[] = []) => {
     // Check if item has variations
     const { data: variations } = await supabase
       .from('item_variations')
@@ -77,25 +83,42 @@ export function AddItemsToComandaDialog({
       .eq('menu_item_id', item.id)
       .eq('is_active', true);
 
-    if (variations && variations.length > 0) {
-      toast.info('Este item possui variações. Funcionalidade em desenvolvimento.');
+    if (variations && variations.length > 0 && customizations.length === 0) {
+      // Open customization dialog
+      setSelectedItem(item);
+      setCustomizeDialogOpen(true);
       return;
     }
 
+    // Calculate price with variations
+    const variationsPrice = customizations.reduce((sum, v) => sum + (v.price_adjustment || 0), 0);
+    const finalPrice = (item.promotional_price || item.price) + variationsPrice;
+
+    const cartItem = {
+      id: item.id,
+      name: item.name,
+      price: item.promotional_price || item.price,
+      quantity: 1,
+      customizations,
+      finalPrice,
+      customizationsText: customizations.map(c => c.name).join(', ')
+    };
+
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
+      const existingIndex = prev.findIndex(i => 
+        i.id === item.id && 
+        JSON.stringify(i.customizations) === JSON.stringify(customizations)
+      );
+      
+      if (existingIndex >= 0) {
+        const newCart = [...prev];
+        newCart[existingIndex].quantity += 1;
+        return newCart;
       }
-      return [...prev, { 
-        id: item.id, 
-        name: item.name, 
-        price: item.promotional_price || item.price, 
-        quantity: 1 
-      }];
+      return [...prev, cartItem];
     });
+    
+    toast.success(`${item.name} adicionado!`);
   };
 
   const updateQuantity = (id: string, delta: number) => {
@@ -122,8 +145,9 @@ export function AddItemsToComandaDialog({
         menu_item_id: item.id,
         name: item.name,
         quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity
+        unit_price: item.finalPrice || item.price,
+        total_price: (item.finalPrice || item.price) * item.quantity,
+        notes: item.customizationsText || null
       }));
 
       const { error: itemsError } = await supabase
@@ -190,7 +214,10 @@ export function AddItemsToComandaDialog({
         return;
       }
 
-      const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const subtotal = cart.reduce((sum, item) => {
+        const price = item.finalPrice || item.price;
+        return sum + price * item.quantity;
+      }, 0);
       
       if (subtotal < data.min_order_value) {
         toast.error(`Pedido mínimo de R$ ${data.min_order_value.toFixed(2)}`);
@@ -205,7 +232,10 @@ export function AddItemsToComandaDialog({
     }
   };
 
-  const subtotalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotalAmount = cart.reduce((sum, item) => {
+    const price = item.finalPrice || item.price;
+    return sum + price * item.quantity;
+  }, 0);
   
   const couponDiscount = appliedCoupon 
     ? appliedCoupon.type === 'percentage' 
@@ -282,17 +312,22 @@ export function AddItemsToComandaDialog({
                   Nenhum item adicionado
                 </p>
               ) : (
-                cart.map((item) => (
-                  <Card key={item.id} className="p-3">
+                cart.map((item, index) => (
+                  <Card key={`${item.id}-${index}`} className="p-3">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1 text-sm">
                         <p className="font-medium">{item.name}</p>
                         <p className="text-muted-foreground">
-                          R$ {item.price.toFixed(2)} x {item.quantity}
+                          R$ {(item.finalPrice || item.price).toFixed(2)} x {item.quantity}
                         </p>
+                        {item.customizationsText && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            + {item.customizationsText}
+                          </p>
+                        )}
                       </div>
                       <p className="font-bold text-sm">
-                        R$ {(item.price * item.quantity).toFixed(2)}
+                        R$ {((item.finalPrice || item.price) * item.quantity).toFixed(2)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -366,6 +401,13 @@ export function AddItemsToComandaDialog({
           </div>
         </div>
       </DialogContent>
+
+      <CustomizeItemDialog
+        open={customizeDialogOpen}
+        onOpenChange={setCustomizeDialogOpen}
+        item={selectedItem}
+        onAddToCart={addToCart}
+      />
     </Dialog>
   );
 }

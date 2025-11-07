@@ -26,6 +26,7 @@ export default function MonitorGestorExterno() {
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
+      loadData(); // Refresh data
       setCurrentSlide(prev => (prev + 1) % 3); // 3 slides
     }, 5000); // Muda a cada 5 segundos
 
@@ -43,10 +44,21 @@ export default function MonitorGestorExterno() {
 
   const loadData = async () => {
     try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       const [ordersRes, itemsRes, cashRes] = await Promise.all([
-        supabase.from('orders').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('orders')
+          .select('*')
+          .gte('created_at', today.toISOString())
+          .order('created_at', { ascending: false }),
         supabase.from('menu_items').select('*'),
-        supabase.from('cash_movements').select('*').order('created_at', { ascending: false })
+        supabase
+          .from('cash_movements')
+          .select('*')
+          .gte('created_at', today.toISOString())
+          .order('created_at', { ascending: false })
       ]);
 
       if (ordersRes.data) setOrders(ordersRes.data);

@@ -202,14 +202,36 @@ export default function CustomerMenu() {
     }
   };
 
-  const addToCart = (item: MenuItem, selectedVariations?: any[]) => {
+  const addToCart = (item: MenuItem, customizations: any[] = []) => {
+    // Calculate price with variations
+    const variationsPrice = customizations.reduce((sum, v) => sum + (v.price_adjustment || 0), 0);
+    const finalPrice = (item.promotional_price || item.price) + variationsPrice;
+
+    const cartItem: any = {
+      ...item,
+      quantity: 1,
+      customizations,
+      finalPrice,
+      customizationsText: customizations.map(c => c.name).join(', ')
+    };
+
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+      const existingIndex = prev.findIndex((i: any) => 
+        i.id === item.id && 
+        JSON.stringify(i.customizations) === JSON.stringify(customizations)
+      );
+      
+      if (existingIndex >= 0) {
+        const newCart = [...prev];
+        newCart[existingIndex] = {
+          ...newCart[existingIndex],
+          quantity: newCart[existingIndex].quantity + 1
+        };
+        return newCart;
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, cartItem];
     });
+    
     toast.success(`${item.name} adicionado ao carrinho!`);
   };
 
@@ -264,8 +286,8 @@ export default function CustomerMenu() {
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => {
-    const price = item.promotional_price || item.price;
+  const cartTotal = cart.reduce((sum, item: any) => {
+    const price = item.finalPrice || item.promotional_price || item.price;
     return sum + (price * item.quantity);
   }, 0);
 
@@ -360,13 +382,14 @@ export default function CustomerMenu() {
       if (orderError) throw orderError;
 
       // Insert order items
-      const orderItems = cart.map(item => ({
+      const orderItems = cart.map((item: any) => ({
         order_id: order.id,
         menu_item_id: item.id,
         name: item.name,
         quantity: item.quantity,
-        unit_price: item.promotional_price || item.price,
-        total_price: (item.promotional_price || item.price) * item.quantity,
+        unit_price: item.finalPrice || item.promotional_price || item.price,
+        total_price: (item.finalPrice || item.promotional_price || item.price) * item.quantity,
+        notes: item.customizationsText || null
       }));
 
       const { error: itemsError } = await supabase
@@ -660,8 +683,8 @@ export default function CustomerMenu() {
             </div>
           ) : (
             <div className="space-y-4">
-              {cart.map(item => (
-                <div key={item.id} className="flex items-center gap-3 pb-3 border-b">
+              {cart.map((item: any, index) => (
+                <div key={`${item.id}-${index}`} className="flex items-center gap-3 pb-3 border-b">
                   <div className="flex-shrink-0 w-16 h-16 bg-gray-200 rounded overflow-hidden">
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -674,8 +697,13 @@ export default function CustomerMenu() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      R$ {(item.promotional_price || item.price).toFixed(2)} cada
+                      R$ {(item.finalPrice || item.promotional_price || item.price).toFixed(2)} cada
                     </p>
+                    {item.customizationsText && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        + {item.customizationsText}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1077,17 +1105,12 @@ export default function CustomerMenu() {
       )}
 
       {/* Customize Item Dialog */}
-      {selectedItem && (
-        <CustomizeItemDialog
-          open={customizeDialogOpen}
-          onOpenChange={setCustomizeDialogOpen}
-          item={selectedItem}
-          onAddToCart={(item, variations) => {
-            addToCart(item, variations);
-            setCustomizeDialogOpen(false);
-          }}
-        />
-      )}
+      <CustomizeItemDialog
+        open={customizeDialogOpen}
+        onOpenChange={setCustomizeDialogOpen}
+        item={selectedItem}
+        onAddToCart={addToCart}
+      />
     </div>
   );
 }
