@@ -373,9 +373,20 @@ export default function Pedidos() {
                     <span className="font-semibold">Total:</span>
                     <span className="text-xl font-bold">R$ {order.total.toFixed(2)}</span>
                   </div>
-                  <Button className="w-full" onClick={() => updateOrderStatus(order.id, "completed")}>
-                    Concluir
-                  </Button>
+                   <Button 
+                     className="w-full" 
+                     onClick={() => {
+                       // Verifica se o pedido foi pago no PDV
+                       if (order.payment_method === 'pending') {
+                         toast.error('Este pedido ainda não foi pago no PDV!');
+                         return;
+                       }
+                       updateOrderStatus(order.id, "completed");
+                     }}
+                     disabled={order.payment_method === 'pending'}
+                   >
+                     {order.payment_method === 'pending' ? 'Aguardando Pagamento no PDV' : 'Concluir'}
+                   </Button>
                 </Card>
               ))}
             </div>

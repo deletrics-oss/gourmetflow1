@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Utensils } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import bcrypt from 'bcryptjs';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,10 +35,37 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Primeiro tenta login com system_users
+      const { data: systemUser, error: systemUserError } = await supabase
+        .from('system_users')
+        .select('*')
+        .eq('username', loginEmail)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (systemUser) {
+        // Usuário do sistema encontrado, verificar senha
+        const isValidPassword = await bcrypt.compare(loginPassword, systemUser.password_hash);
+        
+        if (isValidPassword) {
+          // Login bem-sucedido - salvar no localStorage
+          localStorage.setItem('system_user', JSON.stringify(systemUser));
+          toast.success('Login realizado com sucesso!');
+          navigate('/');
+          return;
+        } else {
+          toast.error('Credenciais inválidas');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Se não for system_user, tenta com Supabase Auth
       await signIn(loginEmail, loginPassword);
       navigate('/');
     } catch (error) {
       console.error('Login error:', error);
+      toast.error('Erro ao fazer login');
     } finally {
       setLoading(false);
     }
