@@ -37,7 +37,6 @@ const cadastrosNavItems: NavItem[] = [
 
 const monitorNavItems: NavItem[] = [
   { title: "Monitor Cozinha", href: "/monitor-cozinha", icon: Monitor },
-  { title: "Monitor Gestor", href: "/monitor-gestor", icon: TrendingUp },
 ];
 
 export function Sidebar() {
@@ -150,11 +149,6 @@ export function Sidebar() {
         <div className="mt-6 space-y-1 px-3">
           <p className="px-3 text-xs font-semibold text-muted-foreground">MONITORES</p>
           {monitorNavItems.map((item) => {
-            // Monitor Gestor só para admin/manager
-            if (item.href === '/monitor-gestor' && !isManager) {
-              return null;
-            }
-            
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             return (
@@ -173,6 +167,16 @@ export function Sidebar() {
               </Link>
             );
           })}
+          {isManager && (
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 px-3 py-2.5 text-sm"
+              onClick={() => window.open('/monitor-gestor-externo', 'Monitor Gestor', 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no')}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Monitor Gestor (Externo)
+            </Button>
+          )}
         </div>
 
         {isAdmin && (
@@ -189,18 +193,6 @@ export function Sidebar() {
             >
               <Users className="h-4 w-4" />
               Usuários
-            </Link>
-            <Link
-              to="/permissoes"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                location.pathname === "/permissoes"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
-              )}
-            >
-              <Shield className="h-4 w-4" />
-              Permissões
             </Link>
           </div>
         )}

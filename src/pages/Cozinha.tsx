@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChefHat, Clock, CheckCircle, Volume2 } from "lucide-react";
+import { ChefHat, Clock, CheckCircle, Volume2, Monitor } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -152,6 +152,10 @@ export default function Cozinha() {
     );
   }
 
+  const openKDSPopup = () => {
+    window.open('/cozinha-externo', 'KDS Monitor', 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-dark">
       
@@ -164,6 +168,15 @@ export default function Cozinha() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+            onClick={openKDSPopup}
+          >
+            <Monitor className="h-4 w-4 mr-2" />
+            Abrir em Monitor Externo
+          </Button>
           <Dialog>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/20">

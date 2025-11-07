@@ -35,6 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { CustomizeItemDialog } from '@/components/dialogs/CustomizeItemDialog';
 
 interface MenuItem {
   id: string;
@@ -67,6 +68,8 @@ export default function CustomerMenu() {
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
+  const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [restaurantSettings, setRestaurantSettings] = useState<any>(null);
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
   
@@ -181,7 +184,25 @@ export default function CustomerMenu() {
     return matchesCategory && matchesSearch;
   });
 
-  const addToCart = (item: MenuItem) => {
+  const handleAddToCart = async (item: MenuItem) => {
+    // Check if item has variations
+    const { data: variations } = await supabase
+      .from('item_variations')
+      .select('*')
+      .eq('menu_item_id', item.id)
+      .eq('is_active', true);
+
+    if (variations && variations.length > 0) {
+      // Open customization dialog
+      setSelectedItem(item);
+      setCustomizeDialogOpen(true);
+    } else {
+      // Add directly to cart
+      addToCart(item);
+    }
+  };
+
+  const addToCart = (item: MenuItem, selectedVariations?: any[]) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -603,13 +624,13 @@ export default function CustomerMenu() {
                       <p className="text-xl font-bold">R$ {item.price.toFixed(2)}</p>
                     )}
                   </div>
-                  <Button
-                    size="icon"
-                    onClick={() => addToCart(item)}
-                    className="rounded-full h-12 w-12"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </Button>
+                   <Button
+                     size="icon"
+                     onClick={() => handleAddToCart(item)}
+                     className="rounded-full h-12 w-12"
+                   >
+                     <Plus className="h-5 w-5" />
+                   </Button>
                 </div>
               </div>
             </Card>
@@ -1034,6 +1055,35 @@ export default function CustomerMenu() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Floating Cart Button */}
+      {cart.length > 0 && (
+        <Button
+          size="lg"
+          className="fixed bottom-6 right-6 z-50 h-16 w-16 rounded-full shadow-2xl hover:scale-110 transition-transform"
+          onClick={() => setCartOpen(true)}
+        >
+          <div className="relative">
+            <ShoppingCart className="h-6 w-6" />
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
+          </div>
+        </Button>
+      )}
+
+      {/* Customize Item Dialog */}
+      {selectedItem && (
+        <CustomizeItemDialog
+          open={customizeDialogOpen}
+          onOpenChange={setCustomizeDialogOpen}
+          item={selectedItem}
+          onAddToCart={(item, variations) => {
+            addToCart(item, variations);
+            setCustomizeDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
