@@ -59,6 +59,7 @@ export default function PDV() {
   const [includeServiceFee, setIncludeServiceFee] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<any | null>(null);
   const [printOnClose, setPrintOnClose] = useState(true);
+  const [shouldPrint, setShouldPrint] = useState(true);
   const [selectedClosedOrder, setSelectedClosedOrder] = useState<any | null>(null);
   const [closedOrderDialogOpen, setClosedOrderDialogOpen] = useState(false);
   const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
@@ -396,15 +397,29 @@ export default function PDV() {
         throw itemsError;
       }
 
-      // Registrar movimentação no caixa
-      await supabase.from('cash_movements').insert([{
+      // Registrar movimentação no caixa com status completed
+      const { error: cashError } = await supabase.from('cash_movements').insert([{
         type: 'entrada',
-        description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : 'Online'}`,
+        description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
         amount: total,
         movement_date: new Date().toISOString().split('T')[0],
         payment_method: paymentMethod,
-        category: 'Venda'
+        category: 'Venda',
+        created_by: (await supabase.auth.getUser()).data.user?.id
       }]);
+
+      if (cashError) {
+        console.error('Erro ao registrar movimentação no caixa:', cashError);
+      }
+
+      // Atualizar pedido para completed
+      await supabase
+        .from('orders')
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', orderData.id);
 
 
       // Atualizar status da mesa se for pedido no local
@@ -440,17 +455,21 @@ export default function PDV() {
         }))
       };
 
-      // Imprimir recibo
-      const tableNum = deliveryType === "dine_in" && selectedTable 
-        ? tables.find(t => t.id === selectedTable)?.number 
-        : undefined;
-      generatePrintReceipt(orderForPrint, restaurantName, tableNum, 'customer');
+      // Imprimir recibo apenas se checkbox estiver marcado
+      if (shouldPrint) {
+        const tableNum = deliveryType === "dine_in" && selectedTable 
+          ? tables.find(t => t.id === selectedTable)?.number 
+          : undefined;
+        generatePrintReceipt(orderForPrint, restaurantName, tableNum, 'customer');
+      }
 
       // Limpar formulário
       setCart([]);
       setSelectedTable("");
       setCustomerName("");
       setCustomerPhone("");
+      setShouldPrint(true);
+      setDeliveryType("dine_in");
       loadTables();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
@@ -695,6 +714,18 @@ export default function PDV() {
               <div className="flex justify-between items-center mb-4 border-t pt-4">
                 <span className="text-lg font-semibold">Total:</span>
                 <span className="text-2xl font-bold text-green-600">R$ {total.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  id="shouldPrint"
+                  checked={shouldPrint}
+                  onChange={(e) => setShouldPrint(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="shouldPrint" className="cursor-pointer text-sm">
+                  Imprimir recibo ao finalizar
+                </Label>
               </div>
               <div className="flex gap-2">
                 <Button

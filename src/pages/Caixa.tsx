@@ -118,9 +118,13 @@ export default function Caixa() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-background text-foreground"
                 />
               </div>
-              <Button variant="outline">
+              <Button 
+                variant="outline"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['cash-movements'] })}
+              >
                 <Calendar className="h-4 w-4 mr-2" />
                 Filtrar
               </Button>
@@ -276,11 +280,21 @@ export default function Caixa() {
                       </Badge>
                     </TableCell>
                     <TableCell>{movement.description || '-'}</TableCell>
-                    <TableCell>{movement.category}</TableCell>
+                    <TableCell className="bg-background text-foreground">
+                      <Badge variant="outline" className="bg-background text-foreground">
+                        {movement.category}
+                      </Badge>
+                    </TableCell>
                     <TableCell className={isEntrada ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                       {isEntrada ? '+' : '-'} R$ {movement.amount?.toFixed(2)}
                     </TableCell>
-                    <TableCell>{movement.payment_method || '-'}</TableCell>
+                    <TableCell className="bg-background text-foreground">
+                      {movement.payment_method === 'pix' ? 'PIX' : 
+                       movement.payment_method === 'cash' ? 'Dinheiro' :
+                       movement.payment_method === 'credit_card' ? 'Cartão de Crédito' :
+                       movement.payment_method === 'debit_card' ? 'Cartão de Débito' :
+                       movement.payment_method || '-'}
+                    </TableCell>
                   </TableRow>
                 );
               })}
