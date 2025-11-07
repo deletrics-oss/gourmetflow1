@@ -236,10 +236,56 @@ export type Database = {
         }
         Relationships: []
       }
+      item_variations: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_required: boolean | null
+          menu_item_id: string | null
+          name: string
+          price_adjustment: number | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_required?: boolean | null
+          menu_item_id?: string | null
+          name: string
+          price_adjustment?: number | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_required?: boolean | null
+          menu_item_id?: string | null
+          name?: string
+          price_adjustment?: number | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_variations_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
+          available_hours: Json | null
           category_id: string | null
           created_at: string | null
+          demo_images: Json | null
           description: string | null
           id: string
           image_url: string | null
@@ -252,8 +298,10 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          available_hours?: Json | null
           category_id?: string | null
           created_at?: string | null
+          demo_images?: Json | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -266,8 +314,10 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          available_hours?: Json | null
           category_id?: string | null
           created_at?: string | null
+          demo_images?: Json | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -366,6 +416,41 @@ export type Database = {
           },
           {
             foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_status_history: {
+        Row: {
+          created_at: string | null
+          customer_notified: boolean | null
+          id: string
+          new_status: string
+          old_status: string | null
+          order_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_notified?: boolean | null
+          id?: string
+          new_status: string
+          old_status?: string | null
+          order_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_notified?: boolean | null
+          id?: string
+          new_status?: string
+          old_status?: string | null
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
