@@ -1,352 +1,293 @@
-import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  Plus, 
-  ArrowUpCircle, 
-  ArrowDownCircle,
-  Calendar
-} from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, Plus, Printer, Calendar } from "lucide-react";
+import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-
-interface CashMovement {
-  id: string;
-  type: 'entry' | 'exit';
-  amount: number;
-  category: string;
-  description: string;
-  payment_method: string;
-  created_at: string;
-  created_by: string;
-}
 
 export default function Caixa() {
-  const [movements, setMovements] = useState<CashMovement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    type: 'entry' as 'entry' | 'exit',
-    amount: 0,
-    category: '',
-    description: '',
-    payment_method: 'money'
-  });
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  useEffect(() => {
-    loadMovements();
-  }, []);
-
-  const loadMovements = async () => {
-    try {
+  // Buscar movimentações de caixa
+  const { data: cashMovements = [] } = useQuery({
+    queryKey: ['cash-movements', startDate, endDate],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('cash_movements')
         .select('*')
-        .order('created_at', { ascending: false });
-
+        .gte('movement_date', startDate)
+        .lte('movement_date', endDate)
+        .order('movement_date', { ascending: false });
       if (error) throw error;
-      setMovements((data as CashMovement[]) || []);
-    } catch (error) {
-      console.error('Erro ao carregar movimentos:', error);
-      toast.error('Erro ao carregar movimentos do caixa');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data || [];
+    },
+  });
 
-  const handleAddMovement = async () => {
-    if (!formData.amount || !formData.category) {
-      toast.error('Preencha todos os campos obrigatórios');
-      return;
-    }
+  // Calcular totais
+  const totalEntradas = cashMovements
+    .filter((m: any) => m.type === 'entrada')
+    .reduce((sum: number, m: any) => sum + (m.amount || 0), 0);
+  
+  const totalSaidas = cashMovements
+    .filter((m: any) => m.type === 'saida')
+    .reduce((sum: number, m: any) => sum + (m.amount || 0), 0);
+  
+  const saldo = totalEntradas - totalSaidas;
 
-    try {
-      const { error } = await supabase
-        .from('cash_movements')
-        .insert([formData]);
-
+  // Mutation para criar movimentação
+  const createMovement = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase.from('cash_movements').insert([{
+        type: data.type,
+        description: data.description,
+        amount: Math.abs(parseFloat(data.value)),
+        movement_date: new Date().toISOString().split('T')[0],
+        payment_method: data.payment_method,
+        category: data.category
+      }]);
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
+      toast.success("Movimentação registrada!");
+      setShowForm(false);
+    },
+  });
 
-      toast.success('Movimento registrado com sucesso!');
-      setDialogOpen(false);
-      setFormData({
-        type: 'entry',
-        amount: 0,
-        category: '',
-        description: '',
-        payment_method: 'money'
-      });
-      loadMovements();
-    } catch (error) {
-      console.error('Erro ao adicionar movimento:', error);
-      toast.error('Erro ao registrar movimento');
-    }
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const type = formData.get('type') || 'entrada';
+    
+    createMovement.mutate({
+      type,
+      description: formData.get('description'),
+      value: formData.get('value'),
+      payment_method: formData.get('payment_method'),
+      category: formData.get('category')
+    });
   };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const todayMovements = movements.filter(
-    m => new Date(m.created_at) >= today
-  );
-
-  const totalEntries = todayMovements
-    .filter(m => m.type === 'entry')
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const totalExits = todayMovements
-    .filter(m => m.type === 'exit')
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const balance = totalEntries - totalExits;
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <DollarSign className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Gestão de Caixa</h1>
-        </div>
-        <p className="text-muted-foreground">Controle de entradas e saídas financeiras</p>
-      </div>
-
-      {/* Cards de Resumo */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Saldo do Dia</p>
-              <p className="text-3xl font-bold">R$ {balance.toFixed(2)}</p>
-            </div>
-            <DollarSign className="h-12 w-12 text-primary opacity-20" />
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Wallet className="h-8 w-8 text-primary" />
+              Gestão de Caixa
+            </h1>
+            <p className="text-muted-foreground">Controle completo de entradas e saídas</p>
           </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Entradas</p>
-              <p className="text-3xl font-bold text-green-600">R$ {totalEntries.toFixed(2)}</p>
-            </div>
-            <ArrowUpCircle className="h-12 w-12 text-green-500 opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Saídas</p>
-              <p className="text-3xl font-bold text-red-600">R$ {totalExits.toFixed(2)}</p>
-            </div>
-            <ArrowDownCircle className="h-12 w-12 text-red-500 opacity-20" />
-          </div>
-        </Card>
-      </div>
-
-      {/* Botão Adicionar */}
-      <div className="mb-6">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Movimento
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.print()} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Imprimir
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Registrar Movimento</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Tipo de Movimento *</Label>
-                <Select 
-                  value={formData.type} 
-                  onValueChange={(v: 'entry' | 'exit') => setFormData({ ...formData, type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entry">Entrada</SelectItem>
-                    <SelectItem value="exit">Saída</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Movimentação
+            </Button>
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <Label>Valor (R$) *</Label>
+        {/* Filtro de Período */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <Label>Data Início</Label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label>Categoria *</Label>
-                <Select 
-                  value={formData.category} 
-                  onValueChange={(v) => setFormData({ ...formData, category: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="venda">Venda</SelectItem>
-                    <SelectItem value="fornecedor">Fornecedor</SelectItem>
-                    <SelectItem value="salario">Salário</SelectItem>
-                    <SelectItem value="aluguel">Aluguel</SelectItem>
-                    <SelectItem value="conta">Conta (água, luz, etc)</SelectItem>
-                    <SelectItem value="outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Forma de Pagamento</Label>
-                <Select 
-                  value={formData.payment_method} 
-                  onValueChange={(v) => setFormData({ ...formData, payment_method: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="money">Dinheiro</SelectItem>
-                    <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                    <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="transfer">Transferência</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
+              <div className="flex-1">
+                <Label>Data Fim</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
-
-              <Button onClick={handleAddMovement} className="w-full">
-                Registrar Movimento
+              <Button variant="outline">
+                <Calendar className="h-4 w-4 mr-2" />
+                Filtrar
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Lista de Movimentos */}
-      <Tabs defaultValue="today" className="w-full">
-        <TabsList>
-          <TabsTrigger value="today">Hoje</TabsTrigger>
-          <TabsTrigger value="all">Todos</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Entradas</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">R$ {totalEntradas.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'entrada').length} transações</p>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="today" className="space-y-4">
-          {todayMovements.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
-              <p className="text-xl text-muted-foreground">Nenhum movimento registrado hoje</p>
-            </Card>
-          ) : (
-            todayMovements.map((movement) => (
-              <Card key={movement.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {movement.type === 'entry' ? (
-                      <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <ArrowUpCircle className="h-5 w-5 text-green-500" />
-                      </div>
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                        <ArrowDownCircle className="h-5 w-5 text-red-500" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold">{movement.category}</p>
-                      {movement.description && (
-                        <p className="text-sm text-muted-foreground">{movement.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(movement.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-2xl font-bold ${movement.type === 'entry' ? 'text-green-600' : 'text-red-600'}`}>
-                      {movement.type === 'entry' ? '+' : '-'} R$ {movement.amount.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{movement.payment_method}</p>
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
-        </TabsContent>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Saídas</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">R$ {totalSaidas.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'saida').length} transações</p>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="all" className="space-y-4">
-          {movements.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
-              <p className="text-xl text-muted-foreground">Nenhum movimento registrado</p>
-            </Card>
-          ) : (
-            movements.map((movement) => (
-              <Card key={movement.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {movement.type === 'entry' ? (
-                      <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <ArrowUpCircle className="h-5 w-5 text-green-500" />
-                      </div>
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                        <ArrowDownCircle className="h-5 w-5 text-red-500" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold">{movement.category}</p>
-                      {movement.description && (
-                        <p className="text-sm text-muted-foreground">{movement.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(movement.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-2xl font-bold ${movement.type === 'entry' ? 'text-green-600' : 'text-red-600'}`}>
-                      {movement.type === 'entry' ? '+' : '-'} R$ {movement.amount.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{movement.payment_method}</p>
-                  </div>
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Saldo em Caixa</CardTitle>
+            <Wallet className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              R$ {saldo.toFixed(2)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {saldo >= 0 ? 'Positivo' : 'Negativo'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {showForm && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Registrar Movimentação</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} id="cash-form" className="space-y-4">
+              <input type="hidden" name="type" id="movement-type" value="entrada" />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="value">Valor *</Label>
+                  <Input id="value" name="value" type="number" step="0.01" placeholder="0,00" required />
                 </div>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
+                <div>
+                  <Label htmlFor="category">Categoria *</Label>
+                  <select name="category" id="category" className="w-full p-2 border rounded" required>
+                    <option value="Venda">Venda</option>
+                    <option value="Retirada">Retirada</option>
+                    <option value="Deposito">Depósito</option>
+                    <option value="Pagamento">Pagamento</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="description">Descrição</Label>
+                <Input id="description" name="description" placeholder="Detalhes da movimentação..." />
+              </div>
+              
+              <div>
+                <Label htmlFor="payment_method">Método de Pagamento</Label>
+                <select name="payment_method" id="payment_method" className="w-full p-2 border rounded">
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="PIX">PIX</option>
+                  <option value="Cartão">Cartão</option>
+                  <option value="Transferência">Transferência</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  type="submit" 
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('movement-type')?.setAttribute('value', 'entrada');
+                    const form = document.getElementById('cash-form') as HTMLFormElement;
+                    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                  }}
+                >
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Entrada
+                </Button>
+                <Button 
+                  type="submit" 
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('movement-type')?.setAttribute('value', 'saida');
+                    const form = document.getElementById('cash-form') as HTMLFormElement;
+                    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                  }}
+                >
+                  <TrendingDown className="h-4 w-4 mr-2" />
+                  Saída
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Movimentações do Período</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Pagamento</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cashMovements.map((movement: any) => {
+                const isEntrada = movement.type === 'entrada';
+                return (
+                  <TableRow key={movement.id}>
+                    <TableCell>{format(new Date(movement.movement_date || movement.created_at), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>
+                      <Badge variant={isEntrada ? 'default' : 'destructive'}>
+                        {isEntrada ? (
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 mr-1" />
+                        )}
+                        {isEntrada ? 'Entrada' : 'Saída'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{movement.description || '-'}</TableCell>
+                    <TableCell>{movement.category}</TableCell>
+                    <TableCell className={isEntrada ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                      {isEntrada ? '+' : '-'} R$ {movement.amount?.toFixed(2)}
+                    </TableCell>
+                    <TableCell>{movement.payment_method || '-'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

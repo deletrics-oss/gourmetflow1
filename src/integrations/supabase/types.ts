@@ -55,6 +55,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          movement_date: string | null
           payment_method: string
           type: string
           updated_at: string | null
@@ -66,6 +67,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          movement_date?: string | null
           payment_method: string
           type: string
           updated_at?: string | null
@@ -77,6 +79,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          movement_date?: string | null
           payment_method?: string
           type?: string
           updated_at?: string | null
