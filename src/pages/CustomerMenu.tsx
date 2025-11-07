@@ -898,32 +898,30 @@ export default function CustomerMenu() {
               />
             </div>
 
-            {/* Coupon Section */}
-            {restaurantSettings?.loyalty_enabled && (
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Gift className="h-4 w-4" />
-                  Cupom de Desconto
-                </h3>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Digite o código do cupom"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                  />
-                  <Button onClick={applyCoupon} variant="outline">
-                    Aplicar
-                  </Button>
-                </div>
-                {appliedCoupon && (
-                  <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/20 rounded text-sm">
-                    <span className="font-medium text-green-800 dark:text-green-200">
-                      ✓ Cupom "{appliedCoupon.code}" aplicado! Desconto de R$ {couponDiscount.toFixed(2)}
-                    </span>
-                  </div>
-                )}
+            {/* Coupon Section - Always visible */}
+            <div>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Gift className="h-4 w-4" />
+                Cupom de Desconto
+              </h3>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Digite o código do cupom"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                />
+                <Button onClick={applyCoupon} variant="outline">
+                  Aplicar
+                </Button>
               </div>
-            )}
+              {appliedCoupon && (
+                <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/20 rounded text-sm">
+                  <span className="font-medium text-green-800 dark:text-green-200">
+                    ✓ Cupom "{appliedCoupon.code}" aplicado! Desconto de R$ {couponDiscount.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
 
             <Button
               className="w-full h-12"

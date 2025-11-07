@@ -170,14 +170,16 @@ export default function CozinhaExterno() {
                 </div>
 
                 <div className="p-4">
-                  <div className="flex items-center gap-2 mb-4 text-slate-300">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm">
-                      {new Date(order.created_at).toLocaleTimeString('pt-BR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm">
+                        Chegou: {new Date(order.created_at).toLocaleTimeString('pt-BR', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-3 mb-4">

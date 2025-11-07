@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChefHat, Clock, CheckCircle, Volume2, Monitor } from "lucide-react";
+import { ChefHat, Clock, CheckCircle, Volume2, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ interface OrderItem {
   name: string;
   quantity: number;
   notes?: string;
+  menu_item_id?: string;
 }
 
 interface KitchenOrder {
@@ -28,7 +29,10 @@ interface KitchenOrder {
 
 export default function Cozinha() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -56,6 +60,19 @@ export default function Cozinha() {
 
   const loadOrders = async () => {
     try {
+      // Load menu items
+      const { data: menuData } = await supabase
+        .from('menu_items')
+        .select('*');
+      if (menuData) setMenuItems(menuData);
+
+      // Load inventory
+      const { data: invData } = await supabase
+        .from('inventory')
+        .select('*')
+        .lte('current_quantity', 'min_quantity');
+      if (invData) setInventory(invData);
+
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*')
@@ -154,66 +171,75 @@ export default function Cozinha() {
     );
   }
 
-  const openKDSPopup = () => {
-    window.open('/cozinha-externo', 'KDS Monitor', 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no');
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-dark">
-      
-      <div className="bg-status-new px-8 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <ChefHat className="h-8 w-8 text-status-new-foreground" />
-          <div>
-            <h1 className="text-2xl font-bold text-status-new-foreground">Cozinha (KDS)</h1>
-            <p className="text-status-new-foreground/80 text-sm">Pedidos em Produção</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-            onClick={openKDSPopup}
-          >
-            <Monitor className="h-4 w-4 mr-2" />
-            Abrir em Monitor Externo
-          </Button>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/20">
-                <Volume2 className="h-4 w-4 mr-2" />
-                Áudio e Teste de Som
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Configurações de Áudio</DialogTitle>
-              </DialogHeader>
-              <AudioManager />
-              <div className="pt-4 border-t">
-                <Button 
-                  onClick={() => {
-                    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-                    audio.play();
-                  }}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Volume2 className="h-4 w-4 mr-2" />
-                  Testar Som
-                </Button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <header className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-6 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <ChefHat className="h-10 w-10" />
+              <div>
+                <h1 className="text-3xl font-bold">Cozinha (KDS)</h1>
+                <p className="text-orange-100">Pedidos em Produção</p>
               </div>
-            </DialogContent>
-          </Dialog>
-          <div className="text-right">
-            <p className="text-sm text-status-new-foreground/80">Pedidos na fila</p>
-            <p className="text-4xl font-bold text-status-new-foreground">{orders.length}</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+                onClick={() => window.open('/monitor-cozinha-externo', '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir em Monitor Externo
+              </Button>
+              <Dialog open={showSoundSettings} onOpenChange={setShowSoundSettings}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/20">
+                    <Volume2 className="h-4 w-4 mr-2" />
+                    Áudio e Teste de Som
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Configurações de Áudio</DialogTitle>
+                  </DialogHeader>
+                  <AudioManager />
+                  <div className="pt-4 border-t">
+                    <Button 
+                      onClick={() => {
+                        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                        audio.play();
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Volume2 className="h-4 w-4 mr-2" />
+                      Testar Som
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
+          
+          {/* Low Inventory Alert */}
+          {inventory.length > 0 && (
+            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded p-3">
+              <p className="font-semibold text-yellow-200 mb-1">⚠️ Estoque Baixo:</p>
+              <div className="flex flex-wrap gap-2">
+                {inventory.map((item) => (
+                  <span key={item.id} className="text-sm bg-yellow-600/30 px-2 py-1 rounded">
+                    {item.name} ({item.current_quantity} {item.unit})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </header>
 
-      <div className="p-8">
+      <div className="p-8 max-w-7xl mx-auto">
         {orders.length === 0 ? (
           <Card className="bg-slate-800 border-slate-700 p-16 text-center">
             <div className="flex flex-col items-center justify-center">
@@ -237,14 +263,29 @@ export default function Cozinha() {
                 </div>
 
                 <div className="p-4">
-                  <div className="flex items-center gap-2 mb-4 text-slate-300">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm">
-                      {new Date(order.created_at).toLocaleTimeString('pt-BR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm">
+                        Chegou: {new Date(order.created_at).toLocaleTimeString('pt-BR', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-blue-400 font-semibold">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm">
+                        {(() => {
+                          const prepTime = order.items.reduce((max, item) => {
+                            const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+                            return Math.max(max, menuItem?.preparation_time || 20);
+                          }, 20);
+                          const estimatedTime = new Date(new Date(order.created_at).getTime() + prepTime * 60000);
+                          return `Pronto: ${estimatedTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+                        })()}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-3 mb-4">

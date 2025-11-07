@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Minus, ShoppingCart } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
 
 interface AddItemsToComandaDialogProps {
   open: boolean;
@@ -34,6 +35,8 @@ export function AddItemsToComandaDialog({
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
@@ -66,7 +69,19 @@ export function AddItemsToComandaDialog({
     }
   };
 
-  const addToCart = (item: any) => {
+  const addToCart = async (item: any) => {
+    // Check if item has variations
+    const { data: variations } = await supabase
+      .from('item_variations')
+      .select('*')
+      .eq('menu_item_id', item.id)
+      .eq('is_active', true);
+
+    if (variations && variations.length > 0) {
+      toast.info('Este item possui variações. Funcionalidade em desenvolvimento.');
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -154,7 +169,51 @@ export function AddItemsToComandaDialog({
     return matchesSearch && matchesCategory;
   });
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const applyCoupon = async () => {
+    if (!couponCode) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error || !data) {
+        toast.error('Cupom inválido ou expirado');
+        return;
+      }
+
+      if (data.current_uses >= data.max_uses) {
+        toast.error('Cupom esgotado');
+        return;
+      }
+
+      const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      
+      if (subtotal < data.min_order_value) {
+        toast.error(`Pedido mínimo de R$ ${data.min_order_value.toFixed(2)}`);
+        return;
+      }
+
+      setAppliedCoupon(data);
+      toast.success('Cupom aplicado!');
+    } catch (error) {
+      console.error('Erro ao aplicar cupom:', error);
+      toast.error('Erro ao aplicar cupom');
+    }
+  };
+
+  const subtotalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  const couponDiscount = appliedCoupon 
+    ? appliedCoupon.type === 'percentage' 
+      ? (subtotalAmount * appliedCoupon.discount_value) / 100
+      : appliedCoupon.discount_value
+    : 0;
+
+  const totalAmount = subtotalAmount - couponDiscount;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -258,11 +317,44 @@ export function AddItemsToComandaDialog({
               )}
             </div>
 
-            <div className="border-t pt-4 mt-4">
-              <div className="flex justify-between items-center mb-4">
-                <span className="font-semibold">Total</span>
-                <span className="text-xl font-bold">R$ {totalAmount.toFixed(2)}</span>
+            <div className="border-t pt-4 mt-4 space-y-3">
+              {/* Cupom Section */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Cupom de Desconto</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Código do cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  />
+                  <Button onClick={applyCoupon} variant="outline" size="sm">
+                    Aplicar
+                  </Button>
+                </div>
+                {appliedCoupon && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Cupom "{appliedCoupon.code}" aplicado! -R$ {couponDiscount.toFixed(2)}
+                  </p>
+                )}
               </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>R$ {subtotalAmount.toFixed(2)}</span>
+                </div>
+                {couponDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Desconto</span>
+                    <span>-R$ {couponDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="font-semibold">Total</span>
+                  <span className="text-xl font-bold">R$ {totalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+              
               <Button
                 className="w-full"
                 onClick={handleAddItems}
