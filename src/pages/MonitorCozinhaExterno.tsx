@@ -1,18 +1,21 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { ChefHat, Clock, AlertTriangle, CheckCircle, Package } from "lucide-react";
+import { ChefHat, Clock, AlertTriangle, CheckCircle, Package, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { generatePrintReceipt } from "@/components/PrintReceipt";
 
 export default function MonitorCozinhaExterno() {
   const [orders, setOrders] = useState<any[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const slideSpeed = 8000;
+  const [restaurantName, setRestaurantName] = useState("Restaurante");
 
   useEffect(() => {
     loadOrders();
+    loadRestaurantSettings();
     
     const channel = supabase
       .channel('kitchen-orders-external')
@@ -25,6 +28,21 @@ export default function MonitorCozinhaExterno() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const loadRestaurantSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('restaurant_settings')
+        .select('name')
+        .maybeSingle();
+
+      if (data?.name) {
+        setRestaurantName(data.name);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -67,6 +85,12 @@ export default function MonitorCozinhaExterno() {
     if (status === 'critical') return 'bg-red-500 animate-pulse';
     if (status === 'warning') return 'bg-orange-500';
     return 'bg-green-500';
+  };
+
+  const handlePrintOrder = async (order: any) => {
+    const tableNum = order.table_id && order.tables ? order.tables.number : undefined;
+    generatePrintReceipt(order, restaurantName, tableNum, 'kitchen');
+    toast.success('Imprimindo pedido...');
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -208,6 +232,14 @@ export default function MonitorCozinhaExterno() {
               </div>
 
               <div className="flex gap-2">
+                <Button 
+                  size="icon"
+                  variant="outline"
+                  onClick={() => handlePrintOrder(order)}
+                  title="Imprimir"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
                 {order.status === 'new' && (
                   <Button 
                     className="flex-1"

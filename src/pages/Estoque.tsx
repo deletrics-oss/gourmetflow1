@@ -11,8 +11,11 @@ import {
   TrendingDown,
   TrendingUp,
   Edit,
-  Trash2
+  Trash2,
+  Copy
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,57 +34,47 @@ interface StockItem {
 
 export default function Estoque() {
   const { toast } = useToast();
-  const [stockItems, setStockItems] = useState<StockItem[]>([
-    {
-      id: "1",
-      name: "Tomate",
-      quantity: 15,
-      unit: "kg",
-      minQuantity: 10,
-      category: "Vegetais",
-      lastUpdate: new Date(),
-    },
-    {
-      id: "2",
-      name: "Queijo Mussarela",
-      quantity: 8,
-      unit: "kg",
-      minQuantity: 12,
-      category: "Laticínios",
-      lastUpdate: new Date(),
-    },
-    {
-      id: "3",
-      name: "Carne Moída",
-      quantity: 25,
-      unit: "kg",
-      minQuantity: 15,
-      category: "Carnes",
-      lastUpdate: new Date(),
-    },
-    {
-      id: "4",
-      name: "Refrigerante 2L",
-      quantity: 45,
-      unit: "un",
-      minQuantity: 30,
-      category: "Bebidas",
-      lastUpdate: new Date(),
-    },
-  ]);
+  const [stockItems, setStockItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [newItem, setNewItem] = useState({
     name: "",
-    quantity: 0,
+    current_quantity: 0,
     unit: "kg",
-    minQuantity: 0,
+    min_quantity: 0,
     category: "",
   });
 
-  const categories = Array.from(new Set(stockItems.map(item => item.category)));
+  useEffect(() => {
+    loadInventory();
+  }, []);
+
+  const loadInventory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      setStockItems(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar estoque:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar estoque",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const categories = Array.from(new Set(stockItems.map(item => item.category).filter(Boolean)));
   
   const filteredItems = stockItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -89,11 +82,11 @@ export default function Estoque() {
     return matchesSearch && matchesCategory;
   });
 
-  const lowStockItems = stockItems.filter(item => item.quantity < item.minQuantity);
+  const lowStockItems = stockItems.filter(item => item.current_quantity < item.min_quantity);
   const totalItems = stockItems.length;
-  const totalValue = stockItems.reduce((acc, item) => acc + item.quantity, 0);
+  const totalValue = stockItems.reduce((acc, item) => acc + item.current_quantity, 0);
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!newItem.name || !newItem.category) {
       toast({
         title: "Campos obrigatórios",
@@ -103,43 +96,168 @@ export default function Estoque() {
       return;
     }
 
-    const item: StockItem = {
-      id: Date.now().toString(),
-      ...newItem,
-      lastUpdate: new Date(),
-    };
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .insert([newItem]);
 
-    setStockItems([...stockItems, item]);
-    setIsAddDialogOpen(false);
-    setNewItem({ name: "", quantity: 0, unit: "kg", minQuantity: 0, category: "" });
-    
-    toast({
-      title: "Item adicionado!",
-      description: `${item.name} foi adicionado ao estoque`,
-    });
+      if (error) throw error;
+
+      toast({
+        title: "Item adicionado!",
+        description: `${newItem.name} foi adicionado ao estoque`,
+      });
+
+      setIsAddDialogOpen(false);
+      setNewItem({ name: "", current_quantity: 0, unit: "kg", min_quantity: 0, category: "" });
+      loadInventory();
+    } catch (error) {
+      console.error('Erro ao adicionar item:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao adicionar item",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUpdateQuantity = (id: string, delta: number) => {
-    setStockItems(prev =>
-      prev.map(item =>
-        item.id === id
-          ? { ...item, quantity: Math.max(0, item.quantity + delta), lastUpdate: new Date() }
-          : item
-      )
-    );
+  const handleUpdateQuantity = async (id: string, delta: number) => {
+    try {
+      const item = stockItems.find(i => i.id === id);
+      if (!item) return;
 
-    toast({
-      title: "Estoque atualizado",
-      description: delta > 0 ? "Item adicionado ao estoque" : "Item removido do estoque",
-    });
+      const newQuantity = Math.max(0, item.current_quantity + delta);
+      
+      const { error } = await supabase
+        .from('inventory')
+        .update({ 
+          current_quantity: newQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Estoque atualizado",
+        description: delta > 0 ? "Item adicionado ao estoque" : "Item removido do estoque",
+      });
+
+      loadInventory();
+    } catch (error) {
+      console.error('Erro ao atualizar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar estoque",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setStockItems(prev => prev.filter(item => item.id !== id));
-    toast({
-      title: "Item removido",
-      description: "Item excluído do estoque",
+  const handleDeleteItem = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Item removido",
+        description: "Item excluído do estoque",
+      });
+
+      loadInventory();
+    } catch (error) {
+      console.error('Erro ao deletar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao deletar item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCloneItem = async (item: any) => {
+    try {
+      const clonedItem = {
+        name: `${item.name} (Cópia)`,
+        current_quantity: item.current_quantity,
+        unit: item.unit,
+        min_quantity: item.min_quantity,
+        category: item.category
+      };
+
+      const { error } = await supabase
+        .from('inventory')
+        .insert([clonedItem]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Item clonado!",
+        description: `${clonedItem.name} foi adicionado ao estoque`,
+      });
+
+      loadInventory();
+    } catch (error) {
+      console.error('Erro ao clonar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao clonar item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditItem = (item: any) => {
+    setEditingItem(item);
+    setNewItem({
+      name: item.name,
+      current_quantity: item.current_quantity,
+      unit: item.unit,
+      min_quantity: item.min_quantity,
+      category: item.category
     });
+    setIsAddDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return handleAddItem();
+
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .update({
+          name: newItem.name,
+          current_quantity: newItem.current_quantity,
+          unit: newItem.unit,
+          min_quantity: newItem.min_quantity,
+          category: newItem.category,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingItem.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Item atualizado!",
+        description: `${newItem.name} foi atualizado`,
+      });
+
+      setIsAddDialogOpen(false);
+      setEditingItem(null);
+      setNewItem({ name: "", current_quantity: 0, unit: "kg", min_quantity: 0, category: "" });
+      loadInventory();
+    } catch (error) {
+      console.error('Erro ao atualizar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar item",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleBarcodeScanned = (code: string) => {
@@ -162,6 +280,14 @@ export default function Estoque() {
       });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -251,7 +377,7 @@ export default function Estoque() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Novo Item no Estoque</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Item' : 'Novo Item no Estoque'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -268,8 +394,8 @@ export default function Estoque() {
                   <Label>Quantidade</Label>
                   <Input
                     type="number"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                    value={newItem.current_quantity}
+                    onChange={(e) => setNewItem({ ...newItem, current_quantity: Number(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -292,8 +418,8 @@ export default function Estoque() {
                 <Label>Quantidade Mínima</Label>
                 <Input
                   type="number"
-                  value={newItem.minQuantity}
-                  onChange={(e) => setNewItem({ ...newItem, minQuantity: Number(e.target.value) })}
+                  value={newItem.min_quantity}
+                  onChange={(e) => setNewItem({ ...newItem, min_quantity: Number(e.target.value) })}
                 />
               </div>
 
@@ -306,9 +432,18 @@ export default function Estoque() {
                 />
               </div>
 
-              <Button onClick={handleAddItem} className="w-full">
-                Adicionar Item
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  setIsAddDialogOpen(false);
+                  setEditingItem(null);
+                  setNewItem({ name: "", current_quantity: 0, unit: "kg", min_quantity: 0, category: "" });
+                }} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveEdit} className="flex-1">
+                  {editingItem ? 'Atualizar' : 'Adicionar'}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -340,7 +475,7 @@ export default function Estoque() {
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xl font-bold">{item.name}</h3>
                   <Badge variant="outline">{item.category}</Badge>
-                  {item.quantity < item.minQuantity && (
+                  {item.current_quantity < item.min_quantity && (
                     <Badge variant="destructive" className="gap-1">
                       <AlertTriangle className="h-3 w-3" />
                       Estoque Baixo
@@ -348,9 +483,9 @@ export default function Estoque() {
                   )}
                 </div>
                 <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                  <span>Quantidade: <strong className="text-foreground">{item.quantity} {item.unit}</strong></span>
-                  <span>Mínimo: {item.minQuantity} {item.unit}</span>
-                  <span>Atualizado: {item.lastUpdate.toLocaleDateString()}</span>
+                  <span>Quantidade: <strong className="text-foreground">{item.current_quantity} {item.unit}</strong></span>
+                  <span>Mínimo: {item.min_quantity} {item.unit}</span>
+                  <span>Atualizado: {new Date(item.updated_at || item.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
 
@@ -364,7 +499,7 @@ export default function Estoque() {
                     <TrendingDown className="h-4 w-4" />
                   </Button>
                   <span className="text-2xl font-bold w-20 text-center">
-                    {item.quantity}
+                    {item.current_quantity}
                   </span>
                   <Button
                     size="icon"
@@ -375,14 +510,23 @@ export default function Estoque() {
                   </Button>
                 </div>
 
-                <Button size="icon" variant="ghost">
+                <Button size="icon" variant="ghost" onClick={() => handleEditItem(item)} title="Editar">
                   <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleCloneItem(item)}
+                  title="Clonar"
+                >
+                  <Package className="h-4 w-4" />
                 </Button>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="text-destructive"
                   onClick={() => handleDeleteItem(item.id)}
+                  title="Deletar"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

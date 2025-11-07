@@ -59,57 +59,82 @@ export default function Pedidos() {
 
       if (!order) throw new Error('Pedido não encontrado');
 
-      // Atualizar status do pedido
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+      // Se está tentando concluir, verificar se o pagamento foi feito
+      if (newStatus === 'completed') {
+        // Apenas permite concluir se o payment_method não for 'pending'
+        if (order.payment_method === 'pending') {
+          toast.error('Pedido não pode ser concluído sem pagamento confirmado. Use o PDV ou aguarde pagamento online.');
+          return;
+        }
 
-      if (error) throw error;
+        // Atualizar status do pedido
+        const { error } = await supabase
+          .from('orders')
+          .update({ 
+            status: newStatus,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
 
-      // Se o pedido está sendo concluído E tem pontos de fidelidade, creditar os pontos
-      if (newStatus === 'completed' && order.loyalty_points_earned > 0 && order.customer_phone) {
-        // Buscar ou criar cliente
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('phone', order.customer_phone)
-          .maybeSingle();
+        if (error) throw error;
 
-        if (customer) {
-          // Verificar se os pontos já foram creditados
-          const { data: existingTransaction } = await supabase
-            .from('loyalty_transactions')
+        // Liberar mesa se for pedido no local
+        if (order.table_id) {
+          await supabase
+            .from('tables')
+            .update({ status: 'free' })
+            .eq('id', order.table_id);
+        }
+
+        // Se tem pontos de fidelidade, creditar os pontos
+        if (order.loyalty_points_earned > 0 && order.customer_phone) {
+          const { data: customer } = await supabase
+            .from('customers')
             .select('*')
-            .eq('order_id', orderId)
-            .eq('type', 'earned')
+            .eq('phone', order.customer_phone)
             .maybeSingle();
 
-          if (!existingTransaction) {
-            // Atualizar pontos do cliente
-            const newPoints = (customer.loyalty_points || 0) + order.loyalty_points_earned;
-            await supabase
-              .from('customers')
-              .update({ loyalty_points: newPoints })
-              .eq('id', customer.id);
-
-            // Criar transação de pontos
-            await supabase
+          if (customer) {
+            const { data: existingTransaction } = await supabase
               .from('loyalty_transactions')
-              .insert({
-                customer_id: customer.id,
-                order_id: orderId,
-                points: order.loyalty_points_earned,
-                type: 'earned',
-                description: `Pontos ganhos no pedido ${order.order_number}`
-              });
+              .select('*')
+              .eq('order_id', orderId)
+              .eq('type', 'earned')
+              .maybeSingle();
 
-            toast.success(`Status atualizado! Cliente ganhou ${order.loyalty_points_earned} pontos!`);
-          } else {
-            toast.success('Status atualizado!');
+            if (!existingTransaction) {
+              const newPoints = (customer.loyalty_points || 0) + order.loyalty_points_earned;
+              await supabase
+                .from('customers')
+                .update({ loyalty_points: newPoints })
+                .eq('id', customer.id);
+
+              await supabase
+                .from('loyalty_transactions')
+                .insert({
+                  customer_id: customer.id,
+                  order_id: orderId,
+                  points: order.loyalty_points_earned,
+                  type: 'earned',
+                  description: `Pontos ganhos no pedido ${order.order_number}`
+                });
+
+              toast.success(`Pedido concluído! Cliente ganhou ${order.loyalty_points_earned} pontos!`);
+            } else {
+              toast.success('Pedido concluído!');
+            }
           }
+        } else {
+          toast.success('Pedido concluído!');
         }
       } else {
+        // Para outros status (preparing, ready), apenas atualizar
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: newStatus })
+          .eq('id', orderId);
+
+        if (error) throw error;
         toast.success('Status atualizado!');
       }
       

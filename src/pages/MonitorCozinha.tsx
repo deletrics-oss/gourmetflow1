@@ -1,29 +1,39 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { ChefHat, Clock, AlertTriangle, CheckCircle, Package, Volume2, Gauge } from "lucide-react";
+import { ChefHat, Clock, AlertTriangle, CheckCircle, Package, Volume2, Gauge, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AudioManager } from "@/components/AudioManager";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { generatePrintReceipt } from "@/components/PrintReceipt";
 
 export default function MonitorCozinha() {
   const [orders, setOrders] = useState<any[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideSpeed, setSlideSpeed] = useState(8000);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [restaurantName, setRestaurantName] = useState("Restaurante");
 
   useEffect(() => {
     loadOrders();
     loadInventory();
+    loadRestaurantSettings();
     
     // Realtime subscription
     const channel = supabase
       .channel('kitchen-orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         loadOrders();
+        // Auto-imprimir quando novo pedido entra em "preparing"
+        if (autoPrint && payload.eventType === 'UPDATE' && payload.new.status === 'preparing') {
+          handleAutoPrint(payload.new);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
         loadInventory();
@@ -33,7 +43,22 @@ export default function MonitorCozinha() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [autoPrint]);
+
+  const loadRestaurantSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('restaurant_settings')
+        .select('name')
+        .maybeSingle();
+
+      if (data?.name) {
+        setRestaurantName(data.name);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -68,6 +93,29 @@ export default function MonitorCozinha() {
     } catch (error) {
       console.error('Erro ao carregar estoque:', error);
     }
+  };
+
+  const handleAutoPrint = async (order: any) => {
+    try {
+      const { data: fullOrder } = await supabase
+        .from('orders')
+        .select(`*, order_items(*), tables(number)`)
+        .eq('id', order.id)
+        .single();
+
+      if (fullOrder) {
+        const tableNum = fullOrder.table_id && fullOrder.tables ? fullOrder.tables.number : undefined;
+        generatePrintReceipt(fullOrder, restaurantName, tableNum, 'kitchen');
+      }
+    } catch (error) {
+      console.error('Erro ao imprimir:', error);
+    }
+  };
+
+  const handlePrintOrder = async (order: any) => {
+    const tableNum = order.table_id && order.tables ? order.tables.number : undefined;
+    generatePrintReceipt(order, restaurantName, tableNum, 'kitchen');
+    toast.success('Imprimindo pedido...');
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -167,9 +215,17 @@ export default function MonitorCozinha() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Configurações de Áudio</DialogTitle>
+              <DialogTitle>Configurações de Áudio e Impressão</DialogTitle>
             </DialogHeader>
             <AudioManager />
+            <div className="flex items-center justify-between py-4 border-t">
+              <Label htmlFor="auto-print">Impressão Automática ao Iniciar Preparo</Label>
+              <Switch
+                id="auto-print"
+                checked={autoPrint}
+                onCheckedChange={setAutoPrint}
+              />
+            </div>
           </DialogContent>
         </Dialog>
         
@@ -367,6 +423,14 @@ export default function MonitorCozinha() {
 
                 {/* Botões de ação */}
                 <div className="flex gap-2">
+                  <Button 
+                    size="icon"
+                    variant="outline"
+                    onClick={() => handlePrintOrder(order)}
+                    title="Imprimir"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
                   {order.status === 'new' && (
                     <Button 
                       className="flex-1"

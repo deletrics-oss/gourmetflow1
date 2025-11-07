@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { DollarSign, ShoppingBag, TrendingUp, Calendar as CalendarIcon, BarChart3, CreditCard } from "lucide-react";
+import { DollarSign, ShoppingBag, TrendingUp, Calendar as CalendarIcon, BarChart3, CreditCard, Printer } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -94,6 +95,10 @@ export default function Relatorios() {
     );
   }
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mb-6 flex items-center justify-between">
@@ -104,6 +109,10 @@ export default function Relatorios() {
           </div>
           <p className="text-muted-foreground">Análise completa de vendas e caixa</p>
         </div>
+        <Button onClick={handlePrint} className="gap-2">
+          <Printer className="h-4 w-4" />
+          Imprimir Relatório
+        </Button>
       </div>
 
       <Tabs defaultValue="day" className="mb-6" onValueChange={(v: any) => setPeriod(v)}>
