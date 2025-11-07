@@ -32,6 +32,7 @@ export default function Configuracoes() {
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyPointsPerReal, setLoyaltyPointsPerReal] = useState(1);
   const [loyaltyRedemptionValue, setLoyaltyRedemptionValue] = useState(0.01);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -62,6 +63,10 @@ export default function Configuracoes() {
           zipcode: data.zipcode || "",
           complement: data.complement || ""
         });
+        setWhatsappNumber(data.phone || "");
+        setLoyaltyEnabled(data.loyalty_enabled || false);
+        setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
+        setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
@@ -76,17 +81,24 @@ export default function Configuracoes() {
         .select('id')
         .maybeSingle();
 
+      const dataToSave = {
+        ...settings,
+        loyalty_enabled: loyaltyEnabled,
+        loyalty_points_per_real: loyaltyPointsPerReal,
+        loyalty_redemption_value: loyaltyRedemptionValue,
+      };
+
       if (existing) {
         const { error } = await supabase
           .from('restaurant_settings' as any)
-          .update(settings)
+          .update(dataToSave)
           .eq('id', existing.id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('restaurant_settings' as any)
-          .insert(settings);
+          .insert(dataToSave);
 
         if (error) throw error;
       }
@@ -360,9 +372,9 @@ export default function Configuracoes() {
                     </p>
                   </div>
 
-                  <Button className="w-full">
+                   <Button className="w-full" onClick={handleSaveSettings} disabled={loading}>
                     <Gift className="h-4 w-4 mr-2" />
-                    Salvar Configurações de Fidelidade
+                    {loading ? "Salvando..." : "Salvar Configurações de Fidelidade"}
                   </Button>
                 </>
               )}

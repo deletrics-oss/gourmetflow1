@@ -25,12 +25,13 @@ interface AudioAlert {
 }
 
 const eventOptions = [
-  { value: 'order_ready', label: 'Pedido Pronto' },
-  { value: 'new_order', label: 'Novo Pedido' },
-  { value: 'table_delay', label: 'Atraso na Mesa' },
-  { value: 'low_stock', label: 'Estoque Baixo' },
-  { value: 'order_cancelled', label: 'Pedido Cancelado' },
-  { value: 'payment_received', label: 'Pagamento Recebido' },
+  { value: 'new_order', label: 'Novo Pedido', defaultAudio: '/audios/novopedido.mp3' },
+  { value: 'new_order_online', label: 'Novo Pedido Online', defaultAudio: '/audios/novopedidoonline.mp3' },
+  { value: 'kitchen_delay', label: 'Atraso na Cozinha', defaultAudio: '/audios/atrasocozinha.mp3' },
+  { value: 'table_delay', label: 'Atraso na Mesa', defaultAudio: '/audios/atrasomesa.mp3' },
+  { value: 'low_stock', label: 'Estoque Baixo', defaultAudio: '/audios/estoquebaixo.mp3' },
+  { value: 'order_cancelled', label: 'Pedido Cancelado', defaultAudio: '' },
+  { value: 'payment_received', label: 'Pagamento Recebido', defaultAudio: '' },
 ];
 
 export function AudioManager() {
@@ -64,6 +65,16 @@ export function AudioManager() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEventChange = (eventValue: string) => {
+    const event = eventOptions.find(e => e.value === eventValue);
+    setFormData({ 
+      ...formData, 
+      trigger_event: eventValue,
+      audio_url: event?.defaultAudio || formData.audio_url,
+      name: event?.label || formData.name,
+    });
   };
 
   const handleSave = async () => {
@@ -169,6 +180,25 @@ export function AudioManager() {
 
         <div className="grid gap-4">
           <div className="space-y-2">
+            <Label htmlFor="trigger_event">Tipo de Evento *</Label>
+            <Select
+              value={formData.trigger_event}
+              onValueChange={handleEventChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o evento" />
+              </SelectTrigger>
+              <SelectContent>
+                {eventOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="name">Nome do Alerta *</Label>
             <Input
               id="name"
@@ -189,32 +219,13 @@ export function AudioManager() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="trigger_event">Tipo de Evento *</Label>
-            <Select
-              value={formData.trigger_event}
-              onValueChange={(value) => setFormData({ ...formData, trigger_event: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o evento" />
-              </SelectTrigger>
-              <SelectContent>
-                {eventOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="audio_url">URL do Áudio</Label>
+            <Label htmlFor="audio_url">URL/Caminho do Áudio</Label>
             <div className="flex gap-2">
               <Input
                 id="audio_url"
                 value={formData.audio_url}
                 onChange={(e) => setFormData({ ...formData, audio_url: e.target.value })}
-                placeholder="https://exemplo.com/audio.mp3"
+                placeholder="/audios/novopedido.mp3"
               />
               <Button
                 variant="outline"
@@ -226,7 +237,7 @@ export function AudioManager() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Cole a URL de um arquivo de áudio MP3 hospedado online
+              Use /audios/[nome].mp3 para arquivos locais ou URL externa
             </p>
           </div>
 

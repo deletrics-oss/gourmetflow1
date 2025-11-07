@@ -33,22 +33,28 @@ export function FloatingAISearch({ onClose }: { onClose?: () => void }) {
   const performSearch = async () => {
     setIsSearching(true);
     try {
-      const searches = await Promise.all([
-        supabase.from('menu_items').select('*').ilike('name', `%${searchTerm}%`).limit(5),
-        supabase.from('orders').select('*').ilike('order_number', `%${searchTerm}%`).limit(5),
-        supabase.from('categories').select('*').ilike('name', `%${searchTerm}%`).limit(5),
-        supabase.from('customers').select('*').ilike('name', `%${searchTerm}%`).limit(5),
-        supabase.from('suppliers').select('*').ilike('name', `%${searchTerm}%`).limit(5),
-        supabase.from('tables').select('*').limit(5),
+      const [menuItems, orders, categories, customers, suppliers, tables, inventory, coupons, users] = await Promise.all([
+        supabase.from('menu_items').select('id, name, description, price').ilike('name', `%${searchTerm}%`).limit(5),
+        supabase.from('orders').select('id, order_number, customer_name, total, status').or(`order_number.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%`).limit(5),
+        supabase.from('categories').select('id, name, description').ilike('name', `%${searchTerm}%`).limit(3),
+        supabase.from('customers').select('id, name, phone').or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`).limit(3),
+        supabase.from('suppliers').select('id, name, phone').or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`).limit(3),
+        supabase.from('tables').select('id, number, status').limit(5),
+        supabase.from('inventory').select('id, name, current_quantity, unit').ilike('name', `%${searchTerm}%`).limit(3),
+        supabase.from('coupons').select('id, code, type, discount_value').ilike('code', `%${searchTerm}%`).limit(3),
+        supabase.from('profiles').select('id, full_name, phone').or(`full_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`).limit(3),
       ]);
 
       const allResults = [
-        ...searches[0].data?.map(item => ({ ...item, type: 'Item do Cardápio', route: '/cardapio', name: item.name })) || [],
-        ...searches[1].data?.map(item => ({ ...item, type: 'Pedido', route: '/pedidos', name: item.order_number })) || [],
-        ...searches[2].data?.map(item => ({ ...item, type: 'Categoria', route: '/cardapio', name: item.name })) || [],
-        ...searches[3].data?.map(item => ({ ...item, type: 'Cliente', route: '/clientes', name: item.name })) || [],
-        ...searches[4].data?.map(item => ({ ...item, type: 'Fornecedor', route: '/fornecedores', name: item.name })) || [],
-        ...searches[5].data?.map(item => ({ ...item, type: 'Mesa', route: '/salao', name: `Mesa ${item.number}` })) || [],
+        ...menuItems.data?.map(item => ({ ...item, type: 'Item do Cardápio', route: '/cardapio', name: item.name, description: item.description })) || [],
+        ...orders.data?.map(order => ({ ...order, type: 'Pedido', route: '/pedidos', name: order.order_number, description: `${order.customer_name} - R$ ${order.total.toFixed(2)} - ${order.status}` })) || [],
+        ...categories.data?.map(cat => ({ ...cat, type: 'Categoria', route: '/cardapio', name: cat.name, description: cat.description })) || [],
+        ...customers.data?.map(customer => ({ ...customer, type: 'Cliente', route: '/clientes', name: customer.name, description: customer.phone })) || [],
+        ...suppliers.data?.map(supplier => ({ ...supplier, type: 'Fornecedor', route: '/fornecedores', name: supplier.name, description: supplier.phone })) || [],
+        ...tables.data?.map(table => ({ ...table, type: 'Mesa', route: '/salao', name: `Mesa ${table.number}`, description: table.status })) || [],
+        ...inventory.data?.map(inv => ({ ...inv, type: 'Estoque', route: '/estoque', name: inv.name, description: `${inv.current_quantity} ${inv.unit}` })) || [],
+        ...coupons.data?.map(coupon => ({ ...coupon, type: 'Cupom', route: '/cupons', name: coupon.code, description: `${coupon.type === 'percentage' ? coupon.discount_value + '%' : 'R$ ' + coupon.discount_value}` })) || [],
+        ...users.data?.map(user => ({ ...user, type: 'Usuário', route: '/usuarios', name: user.full_name, description: user.phone })) || [],
       ];
 
       setResults(allResults);
@@ -129,7 +135,7 @@ export function FloatingAISearch({ onClose }: { onClose?: () => void }) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Busque pedidos, clientes, produtos, mesas..."
+            placeholder="Busque pedidos, clientes, produtos, mesas, cupons, estoque, usuários..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"

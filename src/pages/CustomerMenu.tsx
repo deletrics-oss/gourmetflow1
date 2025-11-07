@@ -84,6 +84,9 @@ export default function CustomerMenu() {
     reference: ''
   });
   const [observations, setObservations] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -185,13 +188,53 @@ export default function CustomerMenu() {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
+  const applyCoupon = async () => {
+    if (!couponCode) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.toUpperCase())
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        toast.error('Cupom inválido ou expirado');
+        return;
+      }
+
+      if (data.current_uses >= data.max_uses) {
+        toast.error('Cupom esgotado');
+        return;
+      }
+
+      if (cartTotal < data.min_order_value) {
+        toast.error(`Pedido mínimo de R$ ${data.min_order_value.toFixed(2)}`);
+        return;
+      }
+
+      setAppliedCoupon(data);
+      toast.success('Cupom aplicado!');
+    } catch (error) {
+      console.error('Erro ao aplicar cupom:', error);
+      toast.error('Erro ao aplicar cupom');
+    }
+  };
+
   const cartTotal = cart.reduce((sum, item) => {
     const price = item.promotional_price || item.price;
     return sum + (price * item.quantity);
   }, 0);
 
+  const couponDiscount = appliedCoupon 
+    ? appliedCoupon.type === 'percentage' 
+      ? (cartTotal * appliedCoupon.discount_value) / 100
+      : appliedCoupon.discount_value
+    : 0;
+
   const deliveryFee = deliveryType === 'delivery' ? 5.00 : 0;
-  const total = cartTotal + deliveryFee;
+  const total = cartTotal + deliveryFee - couponDiscount;
 
   const handleCheckout = async () => {
     if (!customerName || !customerPhone) {
@@ -332,13 +375,12 @@ export default function CustomerMenu() {
   };
 
   const openMap = () => {
-    if (!restaurantSettings?.address) {
+    if (!restaurantSettings?.zipcode && !restaurantSettings?.street) {
       toast.error('Endereço do restaurante não configurado');
       return;
     }
     
-    const addr = restaurantSettings.address;
-    const fullAddress = `${addr.street || ''}, ${addr.number || ''}, ${addr.neighborhood || ''}, ${addr.city || ''}, ${addr.state || ''}`;
+    const fullAddress = `${restaurantSettings.street || ''}, ${restaurantSettings.number || ''}, ${restaurantSettings.neighborhood || ''}, ${restaurantSettings.city || ''}, ${restaurantSettings.state || ''}, ${restaurantSettings.zipcode || ''}`;
     const encodedAddress = encodeURIComponent(fullAddress);
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
   };
