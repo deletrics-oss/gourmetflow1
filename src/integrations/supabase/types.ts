@@ -168,6 +168,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_suspicious: boolean | null
+          loyalty_points: number | null
           name: string
           notes: string | null
           phone: string
@@ -179,6 +180,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_suspicious?: boolean | null
+          loyalty_points?: number | null
           name: string
           notes?: string | null
           phone: string
@@ -190,6 +192,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_suspicious?: boolean | null
+          loyalty_points?: number | null
           name?: string
           notes?: string | null
           phone?: string
@@ -276,6 +279,58 @@ export type Database = {
             columns: ["menu_item_id"]
             isOneToOne: false
             referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_transactions: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          description: string | null
+          id: string
+          order_id: string | null
+          points: number
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          id?: string
+          order_id?: string | null
+          points: number
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          id?: string
+          order_id?: string | null
+          points?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_order_history"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -473,6 +528,8 @@ export type Database = {
           delivery_type: Database["public"]["Enums"]["delivery_type"]
           discount: number | null
           id: string
+          loyalty_points_earned: number | null
+          loyalty_points_used: number | null
           notes: string | null
           order_number: string
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -498,6 +555,8 @@ export type Database = {
           delivery_type: Database["public"]["Enums"]["delivery_type"]
           discount?: number | null
           id?: string
+          loyalty_points_earned?: number | null
+          loyalty_points_used?: number | null
           notes?: string | null
           order_number: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -523,6 +582,8 @@ export type Database = {
           delivery_type?: Database["public"]["Enums"]["delivery_type"]
           discount?: number | null
           id?: string
+          loyalty_points_earned?: number | null
+          loyalty_points_used?: number | null
           notes?: string | null
           order_number?: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -586,6 +647,9 @@ export type Database = {
           instagram: string | null
           is_active: boolean | null
           logo_url: string | null
+          loyalty_enabled: boolean | null
+          loyalty_points_per_real: number | null
+          loyalty_redemption_value: number | null
           name: string
           neighborhood: string | null
           number: string | null
@@ -614,6 +678,9 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean | null
           logo_url?: string | null
+          loyalty_enabled?: boolean | null
+          loyalty_points_per_real?: number | null
+          loyalty_redemption_value?: number | null
           name: string
           neighborhood?: string | null
           number?: string | null
@@ -642,6 +709,9 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean | null
           logo_url?: string | null
+          loyalty_enabled?: boolean | null
+          loyalty_points_per_real?: number | null
+          loyalty_redemption_value?: number | null
           name?: string
           neighborhood?: string | null
           number?: string | null
