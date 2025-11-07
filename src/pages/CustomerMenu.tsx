@@ -481,16 +481,26 @@ export default function CustomerMenu() {
   };
 
   const openMap = () => {
-    if (!restaurantSettings?.zipcode && !restaurantSettings?.number) {
+    if (!restaurantSettings) {
+      toast.error('Configurações do restaurante não disponíveis');
+      return;
+    }
+    
+    // Montar endereço completo para o Maps
+    const parts = [];
+    if (restaurantSettings.street) parts.push(restaurantSettings.street);
+    if (restaurantSettings.number) parts.push(restaurantSettings.number);
+    if (restaurantSettings.neighborhood) parts.push(restaurantSettings.neighborhood);
+    if (restaurantSettings.city) parts.push(restaurantSettings.city);
+    if (restaurantSettings.state) parts.push(restaurantSettings.state);
+    if (restaurantSettings.zipcode) parts.push(restaurantSettings.zipcode);
+    
+    if (parts.length === 0) {
       toast.error('Endereço do restaurante não configurado');
       return;
     }
     
-    // Usar CEP, número e complemento para abrir no Google Maps
-    const cep = restaurantSettings.zipcode || '';
-    const numero = restaurantSettings.number || '';
-    const complemento = restaurantSettings.complement || '';
-    const endereco = encodeURIComponent(`${cep} ${numero} ${complemento}`.trim());
+    const endereco = encodeURIComponent(parts.join(', '));
     window.open(`https://www.google.com/maps/search/?api=1&query=${endereco}`, '_blank');
   };
 

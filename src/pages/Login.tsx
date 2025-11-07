@@ -45,7 +45,25 @@ export default function Login() {
 
       if (systemUser) {
         // Usuário do sistema encontrado, verificar senha
-        const isValidPassword = await bcrypt.compare(loginPassword, systemUser.password_hash);
+        // Suporta tanto hash bcrypt quanto senha em texto plano (temporário para migração)
+        let isValidPassword = false;
+        
+        if (systemUser.password_hash.startsWith('$2a$') || systemUser.password_hash.startsWith('$2b$')) {
+          // É um hash bcrypt
+          isValidPassword = await bcrypt.compare(loginPassword, systemUser.password_hash);
+        } else {
+          // É texto plano (temporário)
+          isValidPassword = loginPassword === systemUser.password_hash;
+          
+          // Se for válido, atualizar para bcrypt
+          if (isValidPassword) {
+            const hashedPassword = await bcrypt.hash(loginPassword, 10);
+            await supabase
+              .from('system_users')
+              .update({ password_hash: hashedPassword })
+              .eq('id', systemUser.id);
+          }
+        }
         
         if (isValidPassword) {
           // Login bem-sucedido - salvar no localStorage
