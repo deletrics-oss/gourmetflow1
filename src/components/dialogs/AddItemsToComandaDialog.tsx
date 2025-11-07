@@ -47,8 +47,13 @@ export function AddItemsToComandaDialog({
   useEffect(() => {
     if (open) {
       loadMenuItems();
+      setCart([]);
+      setCouponCode('');
+      setAppliedCoupon(null);
+      setSearchTerm('');
+      setSelectedCategory('all');
     }
-  }, []);
+  }, [open]);
 
   const loadMenuItems = async () => {
     try {
