@@ -406,17 +406,40 @@ export default function CustomerMenu() {
           .eq('id', appliedCoupon.id);
       }
 
-      // Create loyalty transaction
-      if (earnedPoints > 0 && customerId) {
-        await supabase
-          .from('loyalty_transactions')
-          .insert({
-            customer_id: customerId,
-            order_id: order.id,
-            points: earnedPoints,
-            type: 'earned',
-            description: `Pontos ganhos no pedido ${orderNumber}`
-          });
+      // Create loyalty transactions
+      if (customerId && restaurantSettings?.loyalty_enabled) {
+        // Points earned
+        if (earnedPoints > 0) {
+          await supabase
+            .from('loyalty_transactions')
+            .insert({
+              customer_id: customerId,
+              order_id: order.id,
+              points: earnedPoints,
+              type: 'earned',
+              description: `Pontos ganhos no pedido ${orderNumber}`
+            });
+        }
+        
+        // Points redeemed (if loyalty points were used)
+        if (loyaltyPoints > 0) {
+          // Deduct used points
+          const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - loyaltyPoints);
+          await supabase
+            .from('customers')
+            .update({ loyalty_points: updatedPoints })
+            .eq('id', customerId);
+          
+          await supabase
+            .from('loyalty_transactions')
+            .insert({
+              customer_id: customerId,
+              order_id: order.id,
+              points: -loyaltyPoints,
+              type: 'redeemed',
+              description: `Pontos usados no pedido ${orderNumber}`
+            });
+        }
       }
 
       // Save customer data
@@ -458,14 +481,17 @@ export default function CustomerMenu() {
   };
 
   const openMap = () => {
-    if (!restaurantSettings?.zipcode && !restaurantSettings?.street) {
+    if (!restaurantSettings?.zipcode && !restaurantSettings?.number) {
       toast.error('Endereço do restaurante não configurado');
       return;
     }
     
-    const fullAddress = `${restaurantSettings.street || ''}, ${restaurantSettings.number || ''}, ${restaurantSettings.neighborhood || ''}, ${restaurantSettings.city || ''}, ${restaurantSettings.state || ''}, ${restaurantSettings.zipcode || ''}`;
-    const encodedAddress = encodeURIComponent(fullAddress);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
+    // Usar CEP, número e complemento para abrir no Google Maps
+    const cep = restaurantSettings.zipcode || '';
+    const numero = restaurantSettings.number || '';
+    const complemento = restaurantSettings.complement || '';
+    const endereco = encodeURIComponent(`${cep} ${numero} ${complemento}`.trim());
+    window.open(`https://www.google.com/maps/search/?api=1&query=${endereco}`, '_blank');
   };
 
   const openWhatsApp = () => {

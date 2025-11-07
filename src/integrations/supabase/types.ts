@@ -770,6 +770,68 @@ export type Database = {
         }
         Relationships: []
       }
+      system_user_permissions: {
+        Row: {
+          created_at: string | null
+          id: string
+          screen_id: string
+          screen_name: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          screen_id: string
+          screen_name: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          screen_id?: string
+          screen_name?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "system_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_users: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          password_hash: string
+          updated_at: string | null
+          user_type: string
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          password_hash: string
+          updated_at?: string | null
+          user_type?: string
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          password_hash?: string
+          updated_at?: string | null
+          user_type?: string
+          username?: string
+        }
+        Relationships: []
+      }
       tables: {
         Row: {
           capacity: number | null

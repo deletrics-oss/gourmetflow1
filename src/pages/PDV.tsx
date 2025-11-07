@@ -346,13 +346,22 @@ export default function PDV() {
     }
 
     try {
-      // Criar pedido
+      // Criar pedido - CORRIGIDO: validar delivery_type
       const orderNumber = `PDV${Date.now().toString().slice(-6)}`;
+      
+      // Mapear delivery_type corretamente
+      let finalDeliveryType: 'delivery' | 'pickup' | 'dine_in' = 'dine_in';
+      if (deliveryType === "online" || deliveryType === "delivery") {
+        finalDeliveryType = "delivery";
+      } else if (deliveryType === "pickup") {
+        finalDeliveryType = "pickup";
+      }
+      
       const { data: orderData, error: orderError } = await supabase
         .from('orders' as any)
         .insert([{
           order_number: orderNumber,
-          delivery_type: deliveryType === "online" ? "delivery" : deliveryType,
+          delivery_type: finalDeliveryType,
           table_id: deliveryType === "dine_in" ? selectedTable : null,
           status: 'new',
           payment_method: paymentMethod,
