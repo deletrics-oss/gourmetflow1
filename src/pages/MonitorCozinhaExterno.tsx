@@ -185,12 +185,19 @@ export default function MonitorCozinhaExterno() {
                     {item.notes && (
                       <div className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded text-sm">
                         <span className="font-medium text-yellow-800 dark:text-yellow-200">
-                          Obs: {item.notes}
+                          📝 {item.notes}
                         </span>
                       </div>
                     )}
                   </div>
                 ))}
+                {order.notes && (
+                  <div className="mt-2 p-3 bg-blue-100 dark:bg-blue-900/20 rounded border-l-4 border-l-blue-500">
+                    <span className="font-semibold text-blue-800 dark:text-blue-200 text-sm">
+                      💬 Observação do Pedido: {order.notes}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="border-t pt-3 mb-4 flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">

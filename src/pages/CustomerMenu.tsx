@@ -469,7 +469,12 @@ export default function CustomerMenu() {
   };
 
   const openWhatsApp = () => {
-    let phone = restaurantSettings?.phone || '';
+    if (!restaurantSettings?.phone) {
+      toast.error('Telefone do restaurante não configurado');
+      return;
+    }
+    
+    let phone = restaurantSettings.phone;
     // Remove all non-numeric characters
     phone = phone.replace(/\D/g, '');
     // If doesn't start with country code, add Brazil's
