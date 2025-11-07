@@ -33,6 +33,8 @@ import Fornecedores from "./pages/Fornecedores";
 import NotFound from "./pages/NotFound";
 import CustomerMenu from "./pages/CustomerMenu";
 import TableCustomerMenu from "./pages/TableCustomerMenu";
+import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
+import CozinhaExterno from "./pages/CozinhaExterno";
 
 const queryClient = new QueryClient();
 
@@ -63,7 +65,10 @@ const App = () => {
               <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            {/* Public Routes */}
+            {/* Public Routes - Monitores Externos */}
+            <Route path="/monitor-cozinha-externo" element={<MonitorCozinhaExterno />} />
+            <Route path="/cozinha-externo" element={<CozinhaExterno />} />
+            {/* Public Routes - Cardápio do Cliente */}
             <Route path="/customer-menu" element={<CustomerMenu />} />
             <Route path="/table-menu" element={<TableCustomerMenu />} />
             

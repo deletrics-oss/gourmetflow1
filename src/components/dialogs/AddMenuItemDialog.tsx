@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { ManageVariationsDialog } from "./ManageVariationsDialog";
 
 interface AddMenuItemDialogProps {
   open: boolean;
@@ -22,6 +23,9 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   const [image, setImage] = useState("");
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showVariations, setShowVariations] = useState(false);
+  const [createdItemId, setCreatedItemId] = useState<string | null>(null);
+  const [createdItemName, setCreatedItemName] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -52,7 +56,7 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('menu_items')
         .insert({
           name: name.trim(),
@@ -62,11 +66,18 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
           category_id: category,
           image_url: image.trim() || null,
           is_available: true
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      toast.success("Item adicionado ao cardápio");
+      toast.success("Item adicionado! Deseja adicionar variações?");
+      
+      // Salvar ID e nome do item criado para gerenciar variações
+      setCreatedItemId(data.id);
+      setCreatedItemName(data.name);
+      
       setName("");
       setDescription("");
       setPrice("");
@@ -74,6 +85,9 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
       setCategory("");
       setImage("");
       onOpenChange(false);
+      
+      // Abrir dialog de variações
+      setShowVariations(true);
     } catch (error) {
       console.error('Erro ao adicionar item:', error);
       toast.error("Erro ao adicionar item");
@@ -83,8 +97,9 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Novo Item do Menu</DialogTitle>
         </DialogHeader>
@@ -168,5 +183,15 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {createdItemId && (
+      <ManageVariationsDialog
+        open={showVariations}
+        onOpenChange={setShowVariations}
+        menuItemId={createdItemId}
+        menuItemName={createdItemName}
+      />
+    )}
+    </>
   );
 }

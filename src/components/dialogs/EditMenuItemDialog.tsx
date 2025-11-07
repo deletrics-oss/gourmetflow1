@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { ManageVariationsDialog } from "./ManageVariationsDialog";
+import { Settings } from "lucide-react";
 
 interface EditMenuItemDialogProps {
   open: boolean;
@@ -24,6 +26,7 @@ export function EditMenuItemDialog({
   onSuccess
 }: EditMenuItemDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [showVariations, setShowVariations] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -76,8 +79,9 @@ export function EditMenuItemDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Editar Item</DialogTitle>
         </DialogHeader>
@@ -173,15 +177,34 @@ export function EditMenuItemDialog({
           </div>
 
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setShowVariations(true)}
+              className="flex-1"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Gerenciar Variações
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? "Salvando..." : "Salvar Alterações"}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
+
+    {item && (
+      <ManageVariationsDialog
+        open={showVariations}
+        onOpenChange={setShowVariations}
+        menuItemId={item.id}
+        menuItemName={item.name}
+      />
+    )}
+    </>
   );
 }

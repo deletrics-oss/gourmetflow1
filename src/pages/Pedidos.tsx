@@ -234,9 +234,18 @@ export default function Pedidos() {
                   <div className="space-y-2 mb-4">
                     {order.order_items && order.order_items.length > 0 ? (
                       order.order_items.map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-sm">
-                          <span>{item.quantity}x {item.name}</span>
-                          <span>R$ {item.total_price.toFixed(2)}</span>
+                        <div key={item.id} className="border-b pb-2">
+                          <div className="flex justify-between text-sm">
+                            <span>{item.quantity}x {item.name}</span>
+                            <span>R$ {item.total_price.toFixed(2)}</span>
+                          </div>
+                          {item.notes && (
+                            <div className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded text-xs">
+                              <span className="font-medium text-yellow-800 dark:text-yellow-200">
+                                Obs: {item.notes}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (
