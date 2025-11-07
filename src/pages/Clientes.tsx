@@ -11,6 +11,7 @@ import { Plus, Edit, Trash2, Search, User, AlertTriangle, Copy } from "lucide-re
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useCEP } from "@/hooks/useCEP";
 
 export default function Clientes() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -21,10 +22,12 @@ export default function Clientes() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const { buscarCEP, loading: cepLoading } = useCEP();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     cpf: "",
+    zipcode: "",
     address: { street: "", number: "", neighborhood: "", city: "", state: "" },
     notes: "",
     is_suspicious: false
@@ -148,6 +151,7 @@ export default function Clientes() {
       name: customer.name + ' (Cópia)',
       phone: '',
       cpf: '',
+      zipcode: customer.zipcode || '',
       address: customer.address || { street: "", number: "", neighborhood: "", city: "", state: "" },
       notes: customer.notes || "",
       is_suspicious: false
@@ -193,6 +197,7 @@ export default function Clientes() {
       name: customer.name,
       phone: customer.phone,
       cpf: customer.cpf || "",
+      zipcode: customer.zipcode || "",
       address: customer.address || { street: "", number: "", neighborhood: "", city: "", state: "" },
       notes: customer.notes || "",
       is_suspicious: customer.is_suspicious || false
@@ -205,11 +210,33 @@ export default function Clientes() {
       name: "",
       phone: "",
       cpf: "",
+      zipcode: "",
       address: { street: "", number: "", neighborhood: "", city: "", state: "" },
       notes: "",
       is_suspicious: false
     });
     setEditingCustomer(null);
+  };
+
+  const handleCEPSearch = async () => {
+    if (!formData.zipcode) {
+      toast.error('Digite um CEP');
+      return;
+    }
+
+    const cepData = await buscarCEP(formData.zipcode);
+    if (cepData) {
+      setFormData({
+        ...formData,
+        address: {
+          street: cepData.street,
+          number: formData.address.number,
+          neighborhood: cepData.neighborhood,
+          city: cepData.city,
+          state: cepData.state
+        }
+      });
+    }
   };
 
   const filteredCustomers = customers.filter(c =>
@@ -412,6 +439,26 @@ export default function Clientes() {
             <div className="space-y-3">
               <h3 className="font-semibold">Endereço</h3>
               <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <Label>CEP</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.zipcode}
+                      onChange={(e) => setFormData({ ...formData, zipcode: e.target.value })}
+                      placeholder="00000-000"
+                      maxLength={9}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={handleCEPSearch}
+                      disabled={cepLoading}
+                    >
+                      {cepLoading ? "..." : "Buscar"}
+                    </Button>
+                  </div>
+                </div>
+                <div></div>
                 <div className="col-span-2">
                   <Label>Rua</Label>
                   <Input

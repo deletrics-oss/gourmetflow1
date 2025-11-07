@@ -430,6 +430,39 @@ export type Database = {
         }
         Relationships: []
       }
+      motoboys: {
+        Row: {
+          cnh: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          phone: string | null
+          updated_at: string | null
+          vehicle_plate: string | null
+        }
+        Insert: {
+          cnh?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          phone?: string | null
+          updated_at?: string | null
+          vehicle_plate?: string | null
+        }
+        Update: {
+          cnh?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          phone?: string | null
+          updated_at?: string | null
+          vehicle_plate?: string | null
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string | null

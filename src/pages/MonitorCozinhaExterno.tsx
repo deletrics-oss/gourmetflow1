@@ -3,9 +3,11 @@ import { Card } from "@/components/ui/card";
 import { ChefHat, Clock, AlertTriangle, CheckCircle, Package, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { generatePrintReceipt } from "@/components/PrintReceipt";
+import { PrintReceipt } from "@/components/PrintReceipt";
 
 export default function MonitorCozinhaExterno() {
   const [orders, setOrders] = useState<any[]>([]);

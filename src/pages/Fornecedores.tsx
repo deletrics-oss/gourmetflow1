@@ -9,17 +9,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash2, Search, Truck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useCEP } from "@/hooks/useCEP";
 
 export default function Fornecedores() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const { buscarCEP, loading: cepLoading } = useCEP();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     email: "",
     cnpj_cpf: "",
+    zipcode: "",
     address: { street: "", number: "", neighborhood: "", city: "", state: "" },
     notes: ""
   });
@@ -101,6 +104,7 @@ export default function Fornecedores() {
       phone: supplier.phone || "",
       email: supplier.email || "",
       cnpj_cpf: supplier.cnpj_cpf || "",
+      zipcode: supplier.zipcode || "",
       address: supplier.address || { street: "", number: "", neighborhood: "", city: "", state: "" },
       notes: supplier.notes || ""
     });
@@ -113,10 +117,32 @@ export default function Fornecedores() {
       phone: "",
       email: "",
       cnpj_cpf: "",
+      zipcode: "",
       address: { street: "", number: "", neighborhood: "", city: "", state: "" },
       notes: ""
     });
     setEditingSupplier(null);
+  };
+
+  const handleCEPSearch = async () => {
+    if (!formData.zipcode) {
+      toast.error('Digite um CEP');
+      return;
+    }
+
+    const cepData = await buscarCEP(formData.zipcode);
+    if (cepData) {
+      setFormData({
+        ...formData,
+        address: {
+          street: cepData.street,
+          number: formData.address.number,
+          neighborhood: cepData.neighborhood,
+          city: cepData.city,
+          state: cepData.state
+        }
+      });
+    }
   };
 
   const filteredSuppliers = suppliers.filter(s =>
@@ -247,6 +273,26 @@ export default function Fornecedores() {
             <div className="space-y-3">
               <h3 className="font-semibold">Endereço</h3>
               <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <Label>CEP</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.zipcode}
+                      onChange={(e) => setFormData({ ...formData, zipcode: e.target.value })}
+                      placeholder="00000-000"
+                      maxLength={9}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={handleCEPSearch}
+                      disabled={cepLoading}
+                    >
+                      {cepLoading ? "..." : "Buscar"}
+                    </Button>
+                  </div>
+                </div>
+                <div></div>
                 <div className="col-span-2">
                   <Label>Rua</Label>
                   <Input
