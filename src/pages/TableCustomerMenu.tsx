@@ -3,6 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Minus, ShoppingCart, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +28,7 @@ export default function TableCustomerMenu() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
+  const [itemNotes, setItemNotes] = useState("");
 
   useEffect(() => {
     if (tableId) {
@@ -120,7 +123,8 @@ export default function TableCustomerMenu() {
         orderNumber,
         tableId,
         cart,
-        total
+        total,
+        notes: itemNotes
       });
 
       if (order) {
@@ -133,7 +137,8 @@ export default function TableCustomerMenu() {
           name: item.name,
           quantity: item.quantity,
           unit_price: item.price,
-          total_price: item.price * item.quantity
+          total_price: item.price * item.quantity,
+          notes: itemNotes || null
         }));
 
         const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
@@ -192,7 +197,8 @@ export default function TableCustomerMenu() {
           name: item.name,
           quantity: item.quantity,
           unit_price: item.price,
-          total_price: item.price * item.quantity
+          total_price: item.price * item.quantity,
+          notes: itemNotes || null
         }));
 
         console.log('📦 Inserindo itens:', orderItems);
@@ -214,6 +220,7 @@ export default function TableCustomerMenu() {
 
       toast.success('Pedido enviado com sucesso!');
       setCart([]);
+      setItemNotes('');
       loadData();
     } catch (error) {
       console.error('❌ Erro geral ao finalizar pedido:', error);
@@ -359,8 +366,19 @@ export default function TableCustomerMenu() {
               )}
             </div>
 
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center mb-4">
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <Label>Observações</Label>
+                <Textarea
+                  placeholder="Ex: Sem cebola, ponto da carne..."
+                  value={itemNotes}
+                  onChange={(e) => setItemNotes(e.target.value)}
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="flex justify-between items-center">
                 <span className="font-semibold">Total</span>
                 <span className="text-2xl font-bold">R$ {totalAmount.toFixed(2)}</span>
               </div>

@@ -221,14 +221,18 @@ export default function MonitorCozinha() {
                 </div>
                 <div className="space-y-2 mb-4">
                   {order.order_items?.map((item: any) => (
-                    <div key={item.id} className="flex justify-between text-lg">
-                      <span className="font-semibold">
-                        {item.quantity}x {item.name}
-                      </span>
+                    <div key={item.id} className="border-b pb-2">
+                      <div className="flex justify-between text-lg">
+                        <span className="font-semibold">
+                          {item.quantity}x {item.name}
+                        </span>
+                      </div>
                       {item.notes && (
-                        <Badge variant="outline" className="ml-2">
-                          {item.notes}
-                        </Badge>
+                        <div className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded text-sm">
+                          <span className="font-medium text-yellow-800 dark:text-yellow-200">
+                            Obs: {item.notes}
+                          </span>
+                        </div>
                       )}
                     </div>
                   ))}

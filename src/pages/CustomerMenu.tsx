@@ -87,6 +87,7 @@ export default function CustomerMenu() {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [customerLoyalty, setCustomerLoyalty] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -96,10 +97,11 @@ export default function CustomerMenu() {
     const savedPhone = localStorage.getItem('customer_phone');
     const savedCPF = localStorage.getItem('customer_cpf');
     if (savedName) setCustomerName(savedName);
-    if (savedPhone) setCustomerPhone(savedPhone);
+    if (savedPhone) {
+      setCustomerPhone(savedPhone);
+      loadCustomerLoyalty(savedPhone);
+    }
     if (savedCPF) setCustomerCPF(savedCPF);
-    
-    // Promotion dialog removed - will be sent via chatbot/WhatsApp
   }, []);
 
   const loadData = async () => {
@@ -127,6 +129,25 @@ export default function CustomerMenu() {
       if (data) setRestaurantSettings(data);
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
+    }
+  };
+
+  const loadCustomerLoyalty = async (phone: string) => {
+    if (!phone) return;
+    
+    try {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+      
+      if (data) {
+        setCustomerLoyalty(data);
+        setLoyaltyPoints(data.loyalty_points || 0);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar fidelidade:', error);
     }
   };
 
@@ -250,15 +271,6 @@ export default function CustomerMenu() {
     try {
       const orderNumber = `PED${Date.now().toString().slice(-6)}`;
 
-      console.log('🛒 Criando pedido:', {
-        orderNumber,
-        customerName,
-        customerPhone,
-        deliveryType,
-        cart,
-        total
-      });
-
       // Auto-create or update customer
       const { data: existingCustomer } = await supabase
         .from('customers')
@@ -266,25 +278,34 @@ export default function CustomerMenu() {
         .eq('phone', customerPhone)
         .maybeSingle();
 
+      let customerId = existingCustomer?.id;
+      const earnedPoints = restaurantSettings?.loyalty_enabled 
+        ? Math.floor(total * (restaurantSettings.loyalty_points_per_real || 1))
+        : 0;
+
       if (!existingCustomer) {
-        console.log('📝 Criando novo cliente automaticamente');
-        await supabase
+        const { data: newCustomer } = await supabase
           .from('customers')
           .insert({
             name: customerName,
             phone: customerPhone,
             cpf: customerCPF || null,
-            address: deliveryType === 'delivery' ? address : null
-          });
+            address: deliveryType === 'delivery' ? address : null,
+            loyalty_points: earnedPoints
+          })
+          .select()
+          .single();
+        customerId = newCustomer?.id;
       } else {
-        console.log('✅ Cliente já existe:', existingCustomer.id);
-        // Update customer info if needed
+        // Update customer and add points
+        const newPoints = (existingCustomer.loyalty_points || 0) + earnedPoints;
         await supabase
           .from('customers')
           .update({
             name: customerName,
             cpf: customerCPF || existingCustomer.cpf,
-            address: deliveryType === 'delivery' ? address : existingCustomer.address
+            address: deliveryType === 'delivery' ? address : existingCustomer.address,
+            loyalty_points: newPoints
           })
           .eq('id', existingCustomer.id);
       }
@@ -303,20 +324,19 @@ export default function CustomerMenu() {
           delivery_fee: deliveryFee,
           service_fee: 0,
           discount: 0,
+          coupon_discount: couponDiscount,
+          coupon_code: appliedCoupon?.code || null,
           total: total,
           payment_method: paymentMethod,
           delivery_address: deliveryType === 'delivery' ? address : null,
           notes: observations || null,
+          loyalty_points_earned: earnedPoints,
+          loyalty_points_used: 0
         })
         .select()
         .single();
 
-      if (orderError) {
-        console.error('❌ Erro ao criar pedido:', orderError);
-        throw orderError;
-      }
-
-      console.log('✅ Pedido criado:', order);
+      if (orderError) throw orderError;
 
       // Insert order items
       const orderItems = cart.map(item => ({
@@ -328,29 +348,48 @@ export default function CustomerMenu() {
         total_price: (item.promotional_price || item.price) * item.quantity,
       }));
 
-      console.log('📦 Inserindo itens:', orderItems);
-
       const { error: itemsError } = await supabase
         .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) {
-        console.error('❌ Erro ao inserir itens:', itemsError);
-        throw itemsError;
+      if (itemsError) throw itemsError;
+
+      // Update coupon usage
+      if (appliedCoupon) {
+        await supabase
+          .from('coupons')
+          .update({ current_uses: appliedCoupon.current_uses + 1 })
+          .eq('id', appliedCoupon.id);
       }
 
-      console.log('✅ Itens inseridos com sucesso!');
+      // Create loyalty transaction
+      if (earnedPoints > 0 && customerId) {
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: customerId,
+            order_id: order.id,
+            points: earnedPoints,
+            type: 'earned',
+            description: `Pontos ganhos no pedido ${orderNumber}`
+          });
+      }
 
       // Save customer data
       localStorage.setItem('customer_name', customerName);
       localStorage.setItem('customer_phone', customerPhone);
       if (customerCPF) localStorage.setItem('customer_cpf', customerCPF);
 
-      toast.success(`Pedido realizado com sucesso! Número: ${orderNumber}`);
+      toast.success(`Pedido realizado! ${earnedPoints > 0 ? `Você ganhou ${earnedPoints} pontos!` : ''}`);
       setCart([]);
       setCheckoutOpen(false);
       setCartOpen(false);
       setObservations('');
+      setAppliedCoupon(null);
+      setCouponCode('');
+      if (earnedPoints > 0) {
+        setLoyaltyPoints(prev => prev + earnedPoints);
+      }
       if (deliveryType === 'delivery') {
         setAddress({ street: '', number: '', neighborhood: '', complement: '', reference: '' });
       }
@@ -429,10 +468,20 @@ export default function CustomerMenu() {
                   <ShoppingCart className="h-5 w-5" />
                   Meus Pedidos
                 </Button>
-                <Button variant="ghost" className="w-full justify-start gap-3">
-                  <Gift className="h-5 w-5" />
-                  Cartão Fidelidade
-                </Button>
+                <div className="p-4 bg-gradient-to-r from-primary/20 to-purple-600/20 rounded-lg mx-4 my-2">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Gift className="h-6 w-6 text-primary" />
+                    <div>
+                      <p className="font-semibold">Pontos de Fidelidade</p>
+                      <p className="text-2xl font-bold text-primary">{loyaltyPoints} pontos</p>
+                    </div>
+                  </div>
+                  {restaurantSettings?.loyalty_enabled && (
+                    <p className="text-xs text-muted-foreground">
+                      Ganhe {restaurantSettings.loyalty_points_per_real || 1} ponto(s) por real gasto
+                    </p>
+                  )}
+                </div>
                 <Button variant="ghost" className="w-full justify-start gap-3" onClick={() => setProfileDialogOpen(true)}>
                   <User className="h-5 w-5" />
                   Meu Cadastro
@@ -821,6 +870,33 @@ export default function CustomerMenu() {
                 rows={3}
               />
             </div>
+
+            {/* Coupon Section */}
+            {restaurantSettings?.loyalty_enabled && (
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Gift className="h-4 w-4" />
+                  Cupom de Desconto
+                </h3>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Digite o código do cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  />
+                  <Button onClick={applyCoupon} variant="outline">
+                    Aplicar
+                  </Button>
+                </div>
+                {appliedCoupon && (
+                  <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/20 rounded text-sm">
+                    <span className="font-medium text-green-800 dark:text-green-200">
+                      ✓ Cupom "{appliedCoupon.code}" aplicado! Desconto de R$ {couponDiscount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Button
               className="w-full h-12"
