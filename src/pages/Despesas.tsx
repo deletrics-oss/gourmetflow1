@@ -42,7 +42,7 @@ export default function Despesas() {
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('suppliers')
         .select('*')
         .order('name');
@@ -158,6 +158,16 @@ export default function Despesas() {
           <CardContent>
             <div className="text-2xl font-bold text-red-600">R$ {totalExpenses.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">{expenses.length} despesas registradas</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Quantidade</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{expenses.length}</div>
+            <p className="text-xs text-muted-foreground">Total de despesas</p>
           </CardContent>
         </Card>
       </div>

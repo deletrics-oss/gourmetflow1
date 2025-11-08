@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ManageVariationsDialog } from "./ManageVariationsDialog";
-import { Settings } from "lucide-react";
+import { UploadImageDialog } from "./UploadImageDialog";
+import { Settings, ImagePlus } from "lucide-react";
 
 interface EditMenuItemDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ export function EditMenuItemDialog({
 }: EditMenuItemDialogProps) {
   const [loading, setLoading] = useState(false);
   const [showVariations, setShowVariations] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -154,13 +156,27 @@ export function EditMenuItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="image_url">URL da Imagem</Label>
-            <Input
-              id="image_url"
-              value={formData.image_url}
-              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-              placeholder="https://..."
-            />
+            <Label htmlFor="image_url">Imagem do Item</Label>
+            <div className="flex gap-2">
+              <Input
+                id="image_url"
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                placeholder="URL ou Base64 da imagem"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+            </div>
+            {formData.image_url && (
+              <div className="mt-2 border rounded-lg p-2">
+                <img src={formData.image_url} alt="Preview" className="h-24 w-24 object-cover rounded" />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -205,6 +221,12 @@ export function EditMenuItemDialog({
         menuItemName={item.name}
       />
     )}
+
+    <UploadImageDialog
+      open={uploadDialogOpen}
+      onOpenChange={setUploadDialogOpen}
+      onImageSelected={(url) => setFormData({ ...formData, image_url: url })}
+    />
     </>
   );
 }

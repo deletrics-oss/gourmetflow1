@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ManageVariationsDialog } from "./ManageVariationsDialog";
+import { UploadImageDialog } from "./UploadImageDialog";
+import { ImagePlus } from "lucide-react";
 
 interface AddMenuItemDialogProps {
   open: boolean;
@@ -32,6 +34,7 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   const [showVariations, setShowVariations] = useState(false);
   const [createdItemId, setCreatedItemId] = useState<string | null>(null);
   const [createdItemName, setCreatedItemName] = useState("");
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -178,13 +181,27 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="item-image">URL da Imagem</Label>
-            <Input
-              id="item-image"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://exemplo.com/imagem.jpg"
-            />
+            <Label htmlFor="item-image">Imagem do Item</Label>
+            <div className="flex gap-2">
+              <Input
+                id="item-image"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="URL ou Base64 da imagem"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+            </div>
+            {image && (
+              <div className="mt-2 border rounded-lg p-2">
+                <img src={image} alt="Preview" className="h-24 w-24 object-cover rounded" />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="prep-time">Tempo de Preparo (minutos)</Label>
@@ -272,6 +289,12 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
         menuItemName={createdItemName}
       />
     )}
+
+    <UploadImageDialog
+      open={uploadDialogOpen}
+      onOpenChange={setUploadDialogOpen}
+      onImageSelected={setImage}
+    />
     </>
   );
 }
