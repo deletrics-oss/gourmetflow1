@@ -461,17 +461,10 @@ export default function Pedidos() {
                   </div>
                    <Button 
                      className="w-full" 
-                     onClick={() => {
-                       // Verifica se o pedido foi pago no PDV
-                       if (order.payment_method === 'pending') {
-                         toast.error('Este pedido ainda não foi pago no PDV!');
-                         return;
-                       }
-                       updateOrderStatus(order.id, "completed");
-                     }}
-                     disabled={order.payment_method === 'pending'}
+                     variant="outline"
+                     disabled
                    >
-                     {order.payment_method === 'pending' ? 'Aguardando Pagamento no PDV' : 'Concluir'}
+                     Aguardando Finalização no PDV
                    </Button>
                 </Card>
               ))}
