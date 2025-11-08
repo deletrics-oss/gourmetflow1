@@ -90,7 +90,7 @@ export default function Despesas() {
       amount: parseFloat(formData.amount),
       expense_date: formData.expense_date,
       payment_method: formData.payment_method,
-      supplier_id: formData.supplier_id || null,
+      supplier_id: formData.supplier_id && formData.supplier_id !== 'none' ? formData.supplier_id : null,
       notes: formData.notes || null
     });
   };
@@ -103,7 +103,7 @@ export default function Despesas() {
       amount: expense.amount.toString(),
       expense_date: expense.expense_date,
       payment_method: expense.payment_method,
-      supplier_id: expense.supplier_id || '',
+      supplier_id: expense.supplier_id || 'none',
       notes: expense.notes || ''
     });
     setShowForm(true);
@@ -254,12 +254,15 @@ export default function Despesas() {
                 </div>
                 <div>
                   <Label htmlFor="supplier_id">Fornecedor (Opcional)</Label>
-                  <Select value={formData.supplier_id} onValueChange={(v) => setFormData({ ...formData, supplier_id: v })}>
+                  <Select 
+                    value={formData.supplier_id || 'none'} 
+                    onValueChange={(v) => setFormData({ ...formData, supplier_id: v === 'none' ? '' : v })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {suppliers.map((s: any) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
