@@ -421,9 +421,15 @@ export default function Pedidos() {
                     <span>Total:</span>
                     <span>R$ {order.total.toFixed(2)}</span>
                   </div>
-                  <Button className="w-full" onClick={() => updateOrderStatus(order.id, "ready")}>
-                    Marcar como Pronto
-                  </Button>
+                   {order.payment_method === 'pending' ? (
+                     <Button className="w-full" variant="outline" disabled>
+                       Aguardando Pagamento no PDV
+                     </Button>
+                   ) : (
+                     <Button className="w-full" onClick={() => updateOrderStatus(order.id, "ready")}>
+                       Marcar como Pronto
+                     </Button>
+                   )}
                 </Card>
               ))}
             </div>

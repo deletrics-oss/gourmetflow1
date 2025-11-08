@@ -320,6 +320,7 @@ export default function CustomerMenu() {
         city: cepData.city,
         state: cepData.state
       });
+      toast.success('Endereço encontrado!');
     }
   };
 

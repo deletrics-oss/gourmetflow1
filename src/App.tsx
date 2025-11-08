@@ -31,6 +31,7 @@ import PermissoesUsuarios from "./pages/PermissoesUsuarios";
 import Clientes from "./pages/Clientes";
 import Fornecedores from "./pages/Fornecedores";
 import Motoboys from "./pages/Motoboys";
+import Despesas from "./pages/Despesas";
 import NotFound from "./pages/NotFound";
 import CustomerMenu from "./pages/CustomerMenu";
 import TableCustomerMenu from "./pages/TableCustomerMenu";
@@ -105,6 +106,7 @@ const App = () => {
                       <Route path="/clientes" element={<Clientes />} />
                       <Route path="/fornecedores" element={<Fornecedores />} />
                       <Route path="/motoboys" element={<Motoboys />} />
+                      <Route path="/despesas" element={<Despesas />} />
                       <Route path="/usuarios" element={
                         <ProtectedRoute requireAdmin>
                           <Usuarios />

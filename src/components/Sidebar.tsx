@@ -34,6 +34,7 @@ const cadastrosNavItems: NavItem[] = [
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Fornecedores", href: "/fornecedores", icon: Truck },
   { title: "Motoboys", href: "/motoboys", icon: Bike },
+  { title: "Despesas", href: "/despesas", icon: Receipt },
 ];
 
 const monitorNavItems: NavItem[] = [
