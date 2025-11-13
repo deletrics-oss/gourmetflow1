@@ -192,12 +192,19 @@ export default function Cardapio() {
                     className="bg-white"
                   />
                 </div>
-                {category.image ? (
+                {category.image_url ? (
                   <div className="relative h-48 w-full overflow-hidden">
                     <img
-                      src={category.image}
+                      src={category.image_url}
                       alt={category.name}
                       className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="h-48 w-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center"><span class="text-4xl">🍴</span></div>';
+                        }
+                      }}
                     />
                     {category.promotion && (
                       <Badge className="absolute top-3 left-3 bg-status-new text-status-new-foreground">

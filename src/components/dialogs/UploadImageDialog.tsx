@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Upload, Link as LinkIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/lib/supabase";
 
 interface UploadImageDialogProps {
   open: boolean;
@@ -46,21 +47,33 @@ export function UploadImageDialog({ open, onOpenChange, onImageSelected }: Uploa
 
     setUploading(true);
     try {
-      // Converter para Base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        onImageSelected(base64String);
-        onOpenChange(false);
-        toast.success("Imagem carregada!");
-      };
-      reader.onerror = () => {
-        toast.error("Erro ao carregar imagem");
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
+      // Upload para Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('menu-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('menu-images')
+        .getPublicUrl(filePath);
+
+      onImageSelected(publicUrl);
+      onOpenChange(false);
+      toast.success("Imagem carregada com sucesso!");
+    } catch (error: any) {
       console.error('Erro ao fazer upload:', error);
-      toast.error("Erro ao fazer upload da imagem");
+      toast.error(error.message || "Erro ao fazer upload da imagem");
     } finally {
       setUploading(false);
     }
