@@ -94,6 +94,8 @@ export default function CustomerMenu() {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState(0);
   const [customerLoyalty, setCustomerLoyalty] = useState<any>(null);
   const { buscarCEP, loading: cepLoading } = useCEP();
 
@@ -302,8 +304,13 @@ export default function CustomerMenu() {
       : appliedCoupon.discount_value
     : 0;
 
+  // Pontos: cada ponto vale conforme configuração (padrão R$ 0.01)
+  const loyaltyDiscount = useLoyaltyPoints && pointsToUse > 0
+    ? pointsToUse * (restaurantSettings?.loyalty_redemption_value || 0.01)
+    : 0;
+
   const deliveryFee = deliveryType === 'delivery' ? 5.00 : 0;
-  const total = cartTotal + deliveryFee - couponDiscount;
+  const total = Math.max(0, cartTotal + deliveryFee - couponDiscount - loyaltyDiscount);
 
   const handleCEPSearch = async () => {
     if (!address.zipcode) {
@@ -389,7 +396,7 @@ export default function CustomerMenu() {
           subtotal: cartTotal,
           delivery_fee: deliveryFee,
           service_fee: 0,
-          discount: 0,
+          discount: loyaltyDiscount,
           coupon_discount: couponDiscount,
           coupon_code: appliedCoupon?.code || null,
           total: total,
@@ -397,7 +404,7 @@ export default function CustomerMenu() {
           delivery_address: deliveryType === 'delivery' ? address : null,
           notes: observations || null,
           loyalty_points_earned: earnedPoints,
-          loyalty_points_used: 0
+          loyalty_points_used: pointsToUse
         })
         .select()
         .single();
@@ -431,9 +438,9 @@ export default function CustomerMenu() {
 
 
       // Create loyalty transaction for redeemed points only (earned points are added when order is completed)
-      if (customerId && restaurantSettings?.loyalty_enabled && loyaltyPoints > 0) {
+      if (customerId && restaurantSettings?.loyalty_enabled && pointsToUse > 0) {
         // Deduct used points
-        const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - loyaltyPoints);
+        const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - pointsToUse);
         await supabase
           .from('customers')
           .update({ loyalty_points: updatedPoints })
@@ -444,7 +451,7 @@ export default function CustomerMenu() {
           .insert({
             customer_id: customerId,
             order_id: order.id,
-            points: -loyaltyPoints,
+            points: -pointsToUse,
             type: 'redeemed',
             description: `Pontos usados no pedido ${orderNumber}`
           });
@@ -462,8 +469,10 @@ export default function CustomerMenu() {
       setObservations('');
       setAppliedCoupon(null);
       setCouponCode('');
-      if (earnedPoints > 0) {
-        setLoyaltyPoints(prev => prev + earnedPoints);
+      setUseLoyaltyPoints(false);
+      setPointsToUse(0);
+      if (pointsToUse > 0) {
+        setLoyaltyPoints(prev => Math.max(0, prev - pointsToUse));
       }
       if (deliveryType === 'delivery') {
         setAddress({ 
@@ -1020,7 +1029,7 @@ export default function CustomerMenu() {
               />
             </div>
 
-            {/* Coupon Section - Always visible */}
+            {/* Coupon Section */}
             <div>
               <h3 className="font-semibold mb-3 flex items-center gap-2">
                 <Gift className="h-4 w-4" />
@@ -1043,6 +1052,88 @@ export default function CustomerMenu() {
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Loyalty Points Section */}
+            {restaurantSettings?.loyalty_enabled && loyaltyPoints > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Gift className="h-4 w-4" />
+                  Pontos de Fidelidade
+                </h3>
+                <div className="p-3 bg-primary/10 rounded-lg mb-3">
+                  <p className="text-sm font-medium">
+                    Você tem {loyaltyPoints} pontos disponíveis
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cada ponto vale R$ {(restaurantSettings.loyalty_redemption_value || 0.01).toFixed(2)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="useLoyalty"
+                    checked={useLoyaltyPoints}
+                    onChange={(e) => {
+                      setUseLoyaltyPoints(e.target.checked);
+                      if (e.target.checked) {
+                        setPointsToUse(loyaltyPoints);
+                      } else {
+                        setPointsToUse(0);
+                      }
+                    }}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="useLoyalty" className="flex-1 cursor-pointer">
+                    Usar meus pontos neste pedido
+                  </Label>
+                </div>
+                {useLoyaltyPoints && (
+                  <div className="mt-3">
+                    <Label>Quantos pontos usar? (máx: {loyaltyPoints})</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={loyaltyPoints}
+                      value={pointsToUse}
+                      onChange={(e) => setPointsToUse(Math.min(loyaltyPoints, Math.max(0, parseInt(e.target.value) || 0)))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Desconto: R$ {loyaltyDiscount.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Order Summary */}
+            <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span>Subtotal:</span>
+                <span>R$ {cartTotal.toFixed(2)}</span>
+              </div>
+              {deliveryType === 'delivery' && (
+                <div className="flex justify-between text-sm">
+                  <span>Taxa de Entrega:</span>
+                  <span>R$ {deliveryFee.toFixed(2)}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Desconto (Cupom):</span>
+                  <span>- R$ {couponDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              {loyaltyDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Desconto (Pontos):</span>
+                  <span>- R$ {loyaltyDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                <span>Total:</span>
+                <span className="text-green-600">R$ {total.toFixed(2)}</span>
+              </div>
             </div>
 
             <Button

@@ -17,7 +17,7 @@ export default function Caixa() {
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Buscar movimentações de caixa
+  // Buscar movimentações de caixa (já integrado com PDV)
   const { data: cashMovements = [] } = useQuery({
     queryKey: ['cash-movements', startDate, endDate],
     queryFn: async () => {
@@ -26,7 +26,7 @@ export default function Caixa() {
         .select('*')
         .gte('movement_date', startDate)
         .lte('movement_date', endDate)
-        .order('movement_date', { ascending: false });
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
