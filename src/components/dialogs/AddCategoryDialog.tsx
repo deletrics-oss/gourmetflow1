@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { UploadImageDialog } from "./UploadImageDialog";
 
 interface AddCategoryDialogProps {
   open: boolean;
@@ -16,6 +17,7 @@ export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const { addCategory } = useApp();
   const { toast } = useToast();
 
@@ -74,12 +76,21 @@ export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps
           </div>
           <div className="space-y-2">
             <Label htmlFor="image">URL da Imagem</Label>
-            <Input
-              id="image"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://exemplo.com/imagem.jpg"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="image"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                Upload
+              </Button>
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -88,6 +99,15 @@ export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps
           </Button>
           <Button onClick={handleSubmit}>Adicionar</Button>
         </DialogFooter>
+
+        <UploadImageDialog
+          open={uploadDialogOpen}
+          onOpenChange={setUploadDialogOpen}
+          onImageSelected={(url) => {
+            setImage(url);
+            setUploadDialogOpen(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

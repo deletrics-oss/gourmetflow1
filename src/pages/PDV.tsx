@@ -397,13 +397,21 @@ export default function PDV() {
         throw itemsError;
       }
 
-      // Registrar movimentação no caixa com status completed
+      // Mapear método de pagamento
+      const paymentMethodMap: any = {
+        'cash': 'Dinheiro',
+        'credit_card': 'Cartão',
+        'debit_card': 'Cartão',
+        'pix': 'PIX'
+      };
+
+      // Registrar movimentação no caixa
       const { error: cashError } = await supabase.from('cash_movements').insert([{
         type: 'entrada',
         description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
         amount: total,
         movement_date: new Date().toISOString().split('T')[0],
-        payment_method: paymentMethod,
+        payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
         category: 'Venda',
         created_by: (await supabase.auth.getUser()).data.user?.id
       }]);

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { UploadImageDialog } from "./UploadImageDialog";
 
 interface EditCategoryDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ export function EditCategoryDialog({
   onSuccess
 }: EditCategoryDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -97,12 +99,21 @@ export function EditCategoryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="image_url">URL da Imagem</Label>
-            <Input
-              id="image_url"
-              value={formData.image_url}
-              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-              placeholder="https://..."
-            />
+            <div className="flex gap-2">
+              <Input
+                id="image_url"
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                placeholder="https://..."
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                Upload
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -137,6 +148,15 @@ export function EditCategoryDialog({
             </Button>
           </div>
         </form>
+
+        <UploadImageDialog
+          open={uploadDialogOpen}
+          onOpenChange={setUploadDialogOpen}
+          onImageSelected={(url) => {
+            setFormData({ ...formData, image_url: url });
+            setUploadDialogOpen(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
