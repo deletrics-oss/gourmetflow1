@@ -114,6 +114,18 @@ export function EditCategoryDialog({
                 Upload
               </Button>
             </div>
+            {formData.image_url && (
+              <div className="mt-2 border rounded-lg overflow-hidden">
+                <img 
+                  src={formData.image_url} 
+                  alt="Preview" 
+                  className="w-full h-32 object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23ddd" width="200" height="200"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999">Erro ao carregar</text></svg>';
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
