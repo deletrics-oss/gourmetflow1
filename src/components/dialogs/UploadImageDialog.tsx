@@ -69,6 +69,7 @@ export function UploadImageDialog({ open, onOpenChange, onImageSelected }: Uploa
         .getPublicUrl(filePath);
 
       onImageSelected(publicUrl);
+      setImageUrl("");
       onOpenChange(false);
       toast.success("Imagem carregada com sucesso!");
     } catch (error: any) {
@@ -101,6 +102,18 @@ export function UploadImageDialog({ open, onOpenChange, onImageSelected }: Uploa
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="https://exemplo.com/imagem.jpg"
               />
+              {imageUrl && (
+                <div className="mt-2 border rounded-lg overflow-hidden">
+                  <img 
+                    src={imageUrl} 
+                    alt="Preview" 
+                    className="w-full h-32 object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23ddd" width="200" height="200"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999">Erro ao carregar</text></svg>';
+                    }}
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>

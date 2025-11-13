@@ -34,11 +34,11 @@ export default function Caixa() {
 
   // Calcular totais
   const totalEntradas = cashMovements
-    .filter((m: any) => m.type === 'entrada')
+    .filter((m: any) => m.type === 'entrada' || m.type === 'entry')
     .reduce((sum: number, m: any) => sum + (m.amount || 0), 0);
   
   const totalSaidas = cashMovements
-    .filter((m: any) => m.type === 'saida')
+    .filter((m: any) => m.type === 'saida' || m.type === 'exit')
     .reduce((sum: number, m: any) => sum + (m.amount || 0), 0);
   
   const saldo = totalEntradas - totalSaidas;
@@ -141,7 +141,7 @@ export default function Caixa() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">R$ {totalEntradas.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'entrada').length} transações</p>
+            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'entrada' || m.type === 'entry').length} transações</p>
           </CardContent>
         </Card>
 
@@ -152,7 +152,7 @@ export default function Caixa() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">R$ {totalSaidas.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'saida').length} transações</p>
+            <p className="text-xs text-muted-foreground">{cashMovements.filter((m: any) => m.type === 'saida' || m.type === 'exit').length} transações</p>
           </CardContent>
         </Card>
 
@@ -265,7 +265,7 @@ export default function Caixa() {
             </TableHeader>
             <TableBody>
               {cashMovements.map((movement: any) => {
-                const isEntrada = movement.type === 'entrada';
+                const isEntrada = movement.type === 'entrada' || movement.type === 'entry';
                 return (
                   <TableRow key={movement.id}>
                     <TableCell>{format(new Date(movement.movement_date || movement.created_at), 'dd/MM/yyyy')}</TableCell>
