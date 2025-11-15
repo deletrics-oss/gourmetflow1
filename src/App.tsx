@@ -40,7 +40,8 @@ import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
 import Caixa from "./pages/Caixa";
 import Planos from "./pages/Planos";
-import WhatsAppBot from "./pages/WhatsAppBot";
+import ZapBot from "./pages/ZapBot";
+import DisparoMassa from "./pages/DisparoMassa";
 import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
 
@@ -126,9 +127,14 @@ const App = () => {
                           <Planos />
                         </ProtectedRoute>
                       } />
-                      <Route path="/bot" element={
+                      <Route path="/zap-bot" element={
                         <ProtectedRoute requireAdmin>
-                          <WhatsAppBot />
+                          <ZapBot />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/disparo-massa" element={
+                        <ProtectedRoute requireAdmin>
+                          <DisparoMassa />
                         </ProtectedRoute>
                       } />
                       <Route path="/fidelidade" element={

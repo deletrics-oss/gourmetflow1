@@ -749,6 +749,7 @@ export type Database = {
         Row: {
           accept_scheduled_orders: boolean | null
           address: Json | null
+          apify_api_key: string | null
           business_hours: Json | null
           city: string | null
           cnpj_cpf: string | null
@@ -756,15 +757,21 @@ export type Database = {
           created_at: string | null
           delivery_options: Json | null
           dine_in_settings: Json | null
+          facebook_access_token: string | null
+          facebook_business_id: string | null
+          facebook_phone_number_id: string | null
           id: string
+          ifood_token: string | null
           instagram: string | null
           is_active: boolean | null
+          keeta_token: string | null
           logo_url: string | null
           loyalty_enabled: boolean | null
           loyalty_points_per_real: number | null
           loyalty_redemption_value: number | null
           name: string
           neighborhood: string | null
+          ninefood_token: string | null
           number: string | null
           paghiper_api_key: string | null
           payment_methods: Json | null
@@ -773,13 +780,19 @@ export type Database = {
           segment: string | null
           state: string | null
           street: string | null
+          twilio_account_sid: string | null
+          twilio_auth_token: string | null
+          twilio_phone_number: string | null
           updated_at: string | null
           whatsapp_api_key: string | null
+          whatsapp_phone: string | null
+          whatsapp_webhook_url: string | null
           zipcode: string | null
         }
         Insert: {
           accept_scheduled_orders?: boolean | null
           address?: Json | null
+          apify_api_key?: string | null
           business_hours?: Json | null
           city?: string | null
           cnpj_cpf?: string | null
@@ -787,15 +800,21 @@ export type Database = {
           created_at?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
+          facebook_access_token?: string | null
+          facebook_business_id?: string | null
+          facebook_phone_number_id?: string | null
           id?: string
+          ifood_token?: string | null
           instagram?: string | null
           is_active?: boolean | null
+          keeta_token?: string | null
           logo_url?: string | null
           loyalty_enabled?: boolean | null
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           name: string
           neighborhood?: string | null
+          ninefood_token?: string | null
           number?: string | null
           paghiper_api_key?: string | null
           payment_methods?: Json | null
@@ -804,13 +823,19 @@ export type Database = {
           segment?: string | null
           state?: string | null
           street?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_phone?: string | null
+          whatsapp_webhook_url?: string | null
           zipcode?: string | null
         }
         Update: {
           accept_scheduled_orders?: boolean | null
           address?: Json | null
+          apify_api_key?: string | null
           business_hours?: Json | null
           city?: string | null
           cnpj_cpf?: string | null
@@ -818,15 +843,21 @@ export type Database = {
           created_at?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
+          facebook_access_token?: string | null
+          facebook_business_id?: string | null
+          facebook_phone_number_id?: string | null
           id?: string
+          ifood_token?: string | null
           instagram?: string | null
           is_active?: boolean | null
+          keeta_token?: string | null
           logo_url?: string | null
           loyalty_enabled?: boolean | null
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           name?: string
           neighborhood?: string | null
+          ninefood_token?: string | null
           number?: string | null
           paghiper_api_key?: string | null
           payment_methods?: Json | null
@@ -835,8 +866,13 @@ export type Database = {
           segment?: string | null
           state?: string | null
           street?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_phone?: string | null
+          whatsapp_webhook_url?: string | null
           zipcode?: string | null
         }
         Relationships: []
@@ -1038,6 +1074,78 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_appointments: {
+        Row: {
+          appointment_date: string | null
+          appointment_type: string | null
+          created_at: string | null
+          customer_name: string | null
+          id: string
+          notas: string | null
+          phone_number: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_date?: string | null
+          appointment_type?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          id?: string
+          notas?: string | null
+          phone_number: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_date?: string | null
+          appointment_type?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          id?: string
+          notas?: string | null
+          phone_number?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          ai_response: string | null
+          created_at: string | null
+          id: string
+          message_content: string
+          message_type: string
+          phone_number: string
+          processado: boolean | null
+          received_at: string | null
+          remetente: string
+        }
+        Insert: {
+          ai_response?: string | null
+          created_at?: string | null
+          id?: string
+          message_content: string
+          message_type?: string
+          phone_number: string
+          processado?: boolean | null
+          received_at?: string | null
+          remetente: string
+        }
+        Update: {
+          ai_response?: string | null
+          created_at?: string | null
+          id?: string
+          message_content?: string
+          message_type?: string
+          phone_number?: string
+          processado?: boolean | null
+          received_at?: string | null
+          remetente?: string
         }
         Relationships: []
       }

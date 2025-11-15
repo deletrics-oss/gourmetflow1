@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon, MessageCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,9 +78,13 @@ const cadastrosNavItems: NavItem[] = [{
   icon: Receipt
 }];
 const adminNavItems: NavItem[] = [{
-  title: "Diggy Bot",
-  href: "/bot",
-  icon: Bot
+  title: "Zap Bot",
+  href: "/zap-bot",
+  icon: MessageCircle
+}, {
+  title: "Disparo em Massa",
+  href: "/disparo-massa",
+  icon: Send
 }, {
   title: "Planos",
   href: "/planos",
