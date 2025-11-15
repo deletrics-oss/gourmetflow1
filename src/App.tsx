@@ -45,6 +45,7 @@ import ZapBot from "./pages/ZapBot";
 import DisparoMassa from "./pages/DisparoMassa";
 import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
+import AdminAssinaturas from "./pages/AdminAssinaturas";
 
 const queryClient = new QueryClient();
 
@@ -124,11 +125,12 @@ const App = () => {
                           <PermissoesUsuarios />
                         </ProtectedRoute>
                       } />
-                      <Route path="/planos" element={
+                      <Route path="/admin/assinaturas" element={
                         <ProtectedRoute requireAdmin>
-                          <Planos />
+                          <AdminAssinaturas />
                         </ProtectedRoute>
                       } />
+                      <Route path="/planos" element={<Planos />} />
                       <Route path="/zap-bot" element={
                         <ProtectedRoute requireAdmin>
                           <ZapBot />

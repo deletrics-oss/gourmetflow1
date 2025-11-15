@@ -78,6 +78,10 @@ const cadastrosNavItems: NavItem[] = [{
   icon: Receipt
 }];
 const adminNavItems: NavItem[] = [{
+  title: "Gerenciar Assinaturas",
+  href: "/admin/assinaturas",
+  icon: Shield
+}, {
   title: "Zap Bot",
   href: "/zap-bot",
   icon: MessageCircle
@@ -85,10 +89,6 @@ const adminNavItems: NavItem[] = [{
   title: "Disparo em Massa",
   href: "/disparo-massa",
   icon: Send
-}, {
-  title: "Planos",
-  href: "/planos",
-  icon: CardIcon
 }, {
   title: "Relatório Fidelidade",
   href: "/fidelidade",
@@ -217,6 +217,15 @@ export function Sidebar() {
       </div>
 
       <div className="border-t p-4 space-y-2">
+        {!isAdmin && (
+          <Link to="/planos" className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 p-3 hover:from-primary/20 hover:to-primary/10 transition-all">
+            <CardIcon className="h-4 w-4 text-primary" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Meu Plano</p>
+              <p className="text-xs text-muted-foreground">Ver e gerenciar</p>
+            </div>
+          </Link>
+        )}
         <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent p-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             {user?.email?.[0].toUpperCase()}

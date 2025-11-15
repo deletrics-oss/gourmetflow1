@@ -8,6 +8,7 @@ export const supabase = {
   removeChannel: (channel: any) => supabaseClient.removeChannel(channel),
   storage: supabaseClient.storage,
   functions: supabaseClient.functions,
+  rpc: (fn: string, params?: any) => (supabaseClient as any).rpc(fn, params),
 };
 
 export type { Database } from '@/integrations/supabase/types';
