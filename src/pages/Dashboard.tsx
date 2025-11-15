@@ -4,71 +4,52 @@ import { ShoppingBag, ChefHat, TrendingUp, Package, Clock, MessageSquare, Settin
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     newOrders: 0,
     preparing: 0,
     totalToday: 0,
-    revenue: 0,
+    revenue: 0
   });
-
   useEffect(() => {
     loadStats();
-    
-    // Realtime subscription
-    const channel = supabase
-      .channel('dashboard-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders'
-        },
-        () => {
-          loadStats();
-        }
-      )
-      .subscribe();
 
+    // Realtime subscription
+    const channel = supabase.channel('dashboard-orders').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'orders'
+    }, () => {
+      loadStats();
+    }).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
   const loadStats = async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('*')
-      .gte('created_at', today.toISOString());
-
+    const {
+      data: orders
+    } = await supabase.from('orders').select('*').gte('created_at', today.toISOString());
     if (orders) {
       const newOrders = orders.filter(o => o.status === 'new').length;
       const preparing = orders.filter(o => o.status === 'preparing' || o.status === 'confirmed').length;
-      const revenue = orders
-        .filter(o => o.status === 'ready')
-        .reduce((sum, o) => sum + (o.total || 0), 0);
-
+      const revenue = orders.filter(o => o.status === 'ready').reduce((sum, o) => sum + (o.total || 0), 0);
       setStats({
         newOrders,
         preparing,
         totalToday: orders.length,
-        revenue,
+        revenue
       });
     }
   };
-  
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <div className="bg-gradient-primary px-8 py-12">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between bg-[#2b96e5]">
           <div>
-            <h1 className="text-3xl font-bold text-white">Bem-vindo ao GourmetFlow! 👋</h1>
+            <h1 className="text-3xl text-white font-normal">Bem-vindo ao ZAP PEDIDO! 👋</h1>
             <p className="text-white/90 mt-1">Seu Restaurante - Painel Administrativo</p>
           </div>
           <Card className="bg-white/10 backdrop-blur-sm border-white/20 px-6 py-4">
@@ -296,6 +277,5 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 }
