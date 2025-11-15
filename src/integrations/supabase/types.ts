@@ -718,6 +718,71 @@ export type Database = {
           },
         ]
       }
+      payment_history: {
+        Row: {
+          amount: number
+          created_at: string | null
+          currency: string | null
+          id: string
+          payment_date: string | null
+          status: string
+          stripe_payment_id: string | null
+          subscription_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_date?: string | null
+          status: string
+          stripe_payment_id?: string | null
+          subscription_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_date?: string | null
+          status?: string
+          stripe_payment_id?: string | null
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_features: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          feature_key: string
+          id: string
+          plan_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          feature_key: string
+          id?: string
+          plan_type: string
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          feature_key?: string
+          id?: string
+          plan_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -874,6 +939,57 @@ export type Database = {
           whatsapp_phone?: string | null
           whatsapp_webhook_url?: string | null
           zipcode?: string | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          blocked_reason: string | null
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          manually_blocked: boolean | null
+          plan_type: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_end: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          blocked_reason?: string | null
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          manually_blocked?: boolean | null
+          plan_type: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          blocked_reason?: string | null
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          manually_blocked?: boolean | null
+          plan_type?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
