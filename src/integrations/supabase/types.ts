@@ -754,6 +754,13 @@ export type Database = {
             foreignKeyName: "payment_history_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "admin_subscriptions_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -1267,6 +1274,29 @@ export type Database = {
       }
     }
     Views: {
+      admin_subscriptions_view: {
+        Row: {
+          blocked_reason: string | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          detailed_status: string | null
+          id: string | null
+          manually_blocked: boolean | null
+          plan_type: string | null
+          restaurant_email: string | null
+          restaurant_name: string | null
+          restaurant_phone: string | null
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_days_left: number | null
+          trial_end: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       customer_order_history: {
         Row: {
           cancelled_orders: number | null
@@ -1286,6 +1316,14 @@ export type Database = {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
+        }
+        Returns: boolean
+      }
+      toggle_subscription_block: {
+        Args: {
+          p_blocked: boolean
+          p_reason?: string
+          p_subscription_id: string
         }
         Returns: boolean
       }
