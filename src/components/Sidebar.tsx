@@ -23,6 +23,10 @@ const mainNavItems: NavItem[] = [{
   href: "/cardapio",
   icon: UtensilsCrossed
 }, {
+  title: "Gestão Financeira",
+  href: "/gestao-financeira",
+  icon: Wallet
+}, {
   title: "PDV",
   href: "/pdv",
   icon: CreditCard
