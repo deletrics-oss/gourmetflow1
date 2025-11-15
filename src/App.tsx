@@ -39,6 +39,10 @@ import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
 import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
 import Caixa from "./pages/Caixa";
+import Planos from "./pages/Planos";
+import WhatsAppBot from "./pages/WhatsAppBot";
+import RelatorioFidelidade from "./pages/RelatorioFidelidade";
+import NotaFiscal from "./pages/NotaFiscal";
 
 const queryClient = new QueryClient();
 
@@ -115,6 +119,26 @@ const App = () => {
                       <Route path="/permissoes" element={
                         <ProtectedRoute requireAdmin>
                           <PermissoesUsuarios />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/planos" element={
+                        <ProtectedRoute requireAdmin>
+                          <Planos />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/bot" element={
+                        <ProtectedRoute requireAdmin>
+                          <WhatsAppBot />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/fidelidade" element={
+                        <ProtectedRoute requireAdmin>
+                          <RelatorioFidelidade />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/nfc-e" element={
+                        <ProtectedRoute requireAdmin>
+                          <NotaFiscal />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />

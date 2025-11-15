@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +35,15 @@ const cadastrosNavItems: NavItem[] = [
   { title: "Fornecedores", href: "/fornecedores", icon: Truck },
   { title: "Motoboys", href: "/motoboys", icon: Bike },
   { title: "Despesas", href: "/despesas", icon: Receipt },
+];
+
+const adminNavItems: NavItem[] = [
+  { title: "Diggy Bot", href: "/bot", icon: Bot },
+  { title: "Planos", href: "/planos", icon: CardIcon },
+  { title: "Relatório Fidelidade", href: "/fidelidade", icon: Award },
+  { title: "Nota Fiscal (NFC-e)", href: "/nfc-e", icon: FileText },
+  { title: "Usuários", href: "/usuarios", icon: Users },
+  { title: "Permissões", href: "/permissoes", icon: Shield },
 ];
 
 const monitorNavItems: NavItem[] = [
@@ -184,18 +193,25 @@ export function Sidebar() {
         {isAdmin && (
           <div className="mt-6 space-y-1 px-3">
             <p className="px-3 text-xs font-semibold text-muted-foreground">ADMINISTRAÇÃO</p>
-            <Link
-              to="/usuarios"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                location.pathname === "/usuarios"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
-              )}
-            >
-              <Shield className="h-4 w-4" />
-              Usuários
-            </Link>
+            {adminNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.title}
+                </Link>
+              );
+            })}
             <Link
               to="/caixa"
               className={cn(
