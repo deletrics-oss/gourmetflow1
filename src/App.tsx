@@ -47,6 +47,7 @@ import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
 import AdminAssinaturas from "./pages/AdminAssinaturas";
 import GestaoFinanceira from "./pages/GestaoFinanceira";
+import Integracoes from "./pages/Integracoes";
 
 const queryClient = new QueryClient();
 
@@ -73,9 +74,9 @@ const App = () => {
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <SubscriptionAlert />
               {showSearch && <FloatingAISearch onClose={() => setShowSearch(false)} />}
               <BrowserRouter>
+                <SubscriptionAlert />
           <Routes>
             <Route path="/login" element={<Login />} />
             {/* Public Routes - Monitores Externos */}
@@ -150,6 +151,11 @@ const App = () => {
                       <Route path="/nfc-e" element={
                         <ProtectedRoute requireAdmin>
                           <NotaFiscal />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/integracoes" element={
+                        <ProtectedRoute requireAdmin>
+                          <Integracoes />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />
