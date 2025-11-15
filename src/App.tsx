@@ -46,6 +46,7 @@ import DisparoMassa from "./pages/DisparoMassa";
 import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
 import AdminAssinaturas from "./pages/AdminAssinaturas";
+import GestaoFinanceira from "./pages/GestaoFinanceira";
 
 const queryClient = new QueryClient();
 
@@ -100,7 +101,7 @@ const App = () => {
                       <Route path="/cozinha" element={<Cozinha />} />
                       <Route path="/estoque" element={<Estoque />} />
                       <Route path="/pdv" element={<PDV />} />
-                      <Route path="/caixa" element={<Caixa />} />
+                      <Route path="/gestao-financeira" element={<GestaoFinanceira />} />
                       <Route path="/monitor-cozinha" element={<MonitorCozinha />} />
                       <Route path="/monitor-gestor" element={
                         <ProtectedRoute requireManager>
