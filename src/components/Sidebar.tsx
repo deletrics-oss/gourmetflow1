@@ -86,6 +86,10 @@ const adminNavItems: NavItem[] = [{
   href: "/admin/assinaturas",
   icon: Shield
 }, {
+  title: "Integrações",
+  href: "/integracoes",
+  icon: Bot
+}, {
   title: "Zap Bot",
   href: "/zap-bot",
   icon: MessageCircle
