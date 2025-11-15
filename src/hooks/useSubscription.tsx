@@ -26,6 +26,18 @@ export function useSubscription() {
       return;
     }
 
+    // Usuário joel@gmail.com sempre tem acesso total
+    if (user.email === 'joel@gmail.com') {
+      setStatus({
+        subscribed: true,
+        inTrial: false,
+        loading: false,
+        planType: 'customizado',
+        daysLeft: 999,
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('check-subscription');
       
