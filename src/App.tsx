@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { AppProvider } from "@/contexts/AppContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { FloatingAISearch } from "@/components/FloatingAISearch";
+import { SubscriptionAlert } from "@/components/SubscriptionAlert";
 import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -70,6 +71,7 @@ const App = () => {
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <SubscriptionAlert />
               {showSearch && <FloatingAISearch onClose={() => setShowSearch(false)} />}
               <BrowserRouter>
           <Routes>
