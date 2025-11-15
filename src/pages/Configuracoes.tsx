@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, MapPin, Clock, CreditCard, Printer, Info, Palette, Volume2, DollarSign, Gift } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift } from "lucide-react";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
 import { useState, useEffect } from "react";
@@ -33,7 +33,6 @@ export default function Configuracoes() {
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyPointsPerReal, setLoyaltyPointsPerReal] = useState(1);
   const [loyaltyRedemptionValue, setLoyaltyRedemptionValue] = useState(0.01);
-  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [nfceEnabled, setNfceEnabled] = useState(false);
   const [certificateType, setCertificateType] = useState<'A1' | 'A3'>('A1');
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
@@ -69,7 +68,6 @@ export default function Configuracoes() {
           zipcode: data.zipcode || "",
           complement: data.complement || ""
         });
-        setWhatsappNumber(data.phone || "");
         setLoyaltyEnabled(data.loyalty_enabled || false);
         setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
         setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
@@ -131,7 +129,7 @@ export default function Configuracoes() {
 
       toast.success("Configurações salvas com sucesso!");
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
+      console.error('Erro ao salvar:', error);
       toast.error("Erro ao salvar configurações");
     } finally {
       setLoading(false);
@@ -148,27 +146,31 @@ export default function Configuracoes() {
         <p className="text-muted-foreground">Configure seu estabelecimento e formas de operação</p>
       </div>
 
-      <Tabs defaultValue="informacoes" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="informacoes" className="gap-2">
-            <Info className="h-4 w-4" />
-            Informações
+      <Tabs defaultValue="geral" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="geral">
+            <Info className="h-4 w-4 mr-2" />
+            Geral
           </TabsTrigger>
-          <TabsTrigger value="fidelidade" className="gap-2">
-            <Gift className="h-4 w-4" />
+          <TabsTrigger value="fidelidade">
+            <Gift className="h-4 w-4 mr-2" />
             Fidelidade
           </TabsTrigger>
-          <TabsTrigger value="aparencia" className="gap-2">
-            <Palette className="h-4 w-4" />
-            Aparência
+          <TabsTrigger value="tema">
+            <Palette className="h-4 w-4 mr-2" />
+            Tema
           </TabsTrigger>
-          <TabsTrigger value="audios" className="gap-2">
-            <Volume2 className="h-4 w-4" />
-            Alertas Sonoros
+          <TabsTrigger value="audio">
+            <Volume2 className="h-4 w-4 mr-2" />
+            Áudio
+          </TabsTrigger>
+          <TabsTrigger value="nfce">
+            <DollarSign className="h-4 w-4 mr-2" />
+            NFC-e
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="informacoes">
+        <TabsContent value="geral">
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <Info className="h-6 w-6 text-primary" />
@@ -240,14 +242,8 @@ export default function Configuracoes() {
               </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t">
-              <div className="flex items-center gap-3 mb-6">
-                <MapPin className="h-6 w-6 text-primary" />
-                <div>
-                  <h3 className="text-lg font-semibold">Endereço Completo</h3>
-                  <p className="text-sm text-muted-foreground">Necessário para integração com mapa e entregas</p>
-                </div>
-              </div>
+            <div className="mt-6">
+              <h4 className="text-md font-semibold mb-4">Endereço</h4>
 
               <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
@@ -269,9 +265,6 @@ export default function Configuracoes() {
                       {cepLoading ? "..." : "Buscar"}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Digite o CEP e clique em Buscar
-                  </p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -412,7 +405,7 @@ export default function Configuracoes() {
                     </p>
                   </div>
 
-                   <Button className="w-full" onClick={handleSaveSettings} disabled={loading}>
+                  <Button className="w-full" onClick={handleSaveSettings} disabled={loading}>
                     <Gift className="h-4 w-4 mr-2" />
                     {loading ? "Salvando..." : "Salvar Configurações de Fidelidade"}
                   </Button>
