@@ -97,7 +97,12 @@ export default function AdminAssinaturas() {
       setLoading(true);
       const { data, error } = await supabase.rpc('get_admin_subscriptions');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading subscriptions:', error);
+        toast.error('Erro ao carregar assinaturas');
+        setLoading(false);
+        return;
+      }
 
       setSubscriptions(data || []);
       calculateStats(data || []);
