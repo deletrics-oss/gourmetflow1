@@ -34,6 +34,10 @@ export default function Configuracoes() {
   const [loyaltyPointsPerReal, setLoyaltyPointsPerReal] = useState(1);
   const [loyaltyRedemptionValue, setLoyaltyRedemptionValue] = useState(0.01);
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [nfceEnabled, setNfceEnabled] = useState(false);
+  const [certificateType, setCertificateType] = useState<'A1' | 'A3'>('A1');
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [certificatePassword, setCertificatePassword] = useState('');
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
@@ -69,6 +73,7 @@ export default function Configuracoes() {
         setLoyaltyEnabled(data.loyalty_enabled || false);
         setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
         setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
+        setNfceEnabled(data.nfce_enabled || false);
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
@@ -106,6 +111,7 @@ export default function Configuracoes() {
         loyalty_enabled: loyaltyEnabled,
         loyalty_points_per_real: loyaltyPointsPerReal,
         loyalty_redemption_value: loyaltyRedemptionValue,
+        nfce_enabled: nfceEnabled,
       };
 
       if (existing) {
@@ -416,7 +422,7 @@ export default function Configuracoes() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="aparencia">
+        <TabsContent value="tema">
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <Palette className="h-6 w-6 text-purple-500" />
@@ -429,16 +435,96 @@ export default function Configuracoes() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="audios">
+        <TabsContent value="audio">
+          <AudioManager />
+        </TabsContent>
+
+        <TabsContent value="nfce">
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-6">
-              <Volume2 className="h-6 w-6 text-blue-500" />
+              <DollarSign className="h-6 w-6 text-primary" />
               <div>
-                <h3 className="text-lg font-semibold">Alertas Sonoros</h3>
-                <p className="text-sm text-muted-foreground">Configure sons para eventos importantes</p>
+                <h3 className="text-lg font-semibold">Configuração NFC-e</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configure certificado digital para emissão de notas fiscais
+                </p>
               </div>
             </div>
-            <AudioManager />
+
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div className="space-y-1">
+                  <p className="font-medium">Emitir NFC-e automaticamente no PDV</p>
+                  <p className="text-sm text-muted-foreground">
+                    Todo pedido finalizado no PDV gerará NFC-e automaticamente
+                  </p>
+                </div>
+                <Switch 
+                  checked={nfceEnabled} 
+                  onCheckedChange={setNfceEnabled}
+                />
+              </div>
+
+              <div className="space-y-4 border rounded-lg p-4">
+                <h4 className="font-medium">Certificado Digital</h4>
+                
+                <div className="space-y-2">
+                  <Label>Tipo de Certificado</Label>
+                  <div className="flex gap-4">
+                    <Button 
+                      variant={certificateType === 'A1' ? 'default' : 'outline'}
+                      onClick={() => setCertificateType('A1')}
+                    >
+                      A1 (Arquivo)
+                    </Button>
+                    <Button 
+                      variant={certificateType === 'A3' ? 'default' : 'outline'}
+                      onClick={() => setCertificateType('A3')}
+                    >
+                      A3 (Token/Cartão)
+                    </Button>
+                  </div>
+                </div>
+
+                {certificateType === 'A1' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="certificate-file">Arquivo do Certificado (.pfx)</Label>
+                      <Input
+                        id="certificate-file"
+                        type="file"
+                        accept=".pfx,.p12"
+                        onChange={(e) => setCertificateFile(e.target.files?.[0] || null)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="certificate-password">Senha do Certificado</Label>
+                      <Input
+                        id="certificate-password"
+                        type="password"
+                        placeholder="Digite a senha do certificado"
+                        value={certificatePassword}
+                        onChange={(e) => setCertificatePassword(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {certificateType === 'A3' && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      Certificado A3 requer configuração manual do token/cartão no servidor.
+                      Entre em contato com o suporte técnico para configuração.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={handleSaveSettings} disabled={loading}>
+                {loading ? "Salvando..." : "Salvar Configurações NFC-e"}
+              </Button>
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

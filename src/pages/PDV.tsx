@@ -357,6 +357,33 @@ export default function PDV() {
       } else if (deliveryType === "pickup") {
         finalDeliveryType = "pickup";
       }
+
+      // Dialog para selecionar método de pagamento
+      const paymentSelected = await new Promise<string>((resolve) => {
+        const dialog = document.createElement('div');
+        dialog.innerHTML = `
+          <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+            <div style="background: white; padding: 24px; border-radius: 8px; max-width: 400px; width: 100%;">
+              <h3 style="margin: 0 0 16px; font-size: 18px; font-weight: 600;">Selecionar Método de Pagamento</h3>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button data-payment="cash" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💵 Dinheiro</button>
+                <button data-payment="credit_card" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💳 Cartão de Crédito</button>
+                <button data-payment="debit_card" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💳 Cartão de Débito</button>
+                <button data-payment="pix" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">📱 PIX</button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(dialog);
+        
+        dialog.querySelectorAll('[data-payment]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const payment = (e.target as HTMLButtonElement).getAttribute('data-payment');
+            document.body.removeChild(dialog);
+            resolve(payment || 'cash');
+          });
+        });
+      });
       
       const { data: orderData, error: orderError } = await supabase
         .from('orders' as any)
@@ -365,7 +392,7 @@ export default function PDV() {
           delivery_type: finalDeliveryType,
           table_id: deliveryType === "dine_in" ? selectedTable : null,
           status: 'new',
-          payment_method: paymentMethod,
+          payment_method: paymentSelected,
           subtotal: subtotal,
           service_fee: serviceFee,
           total: total,
