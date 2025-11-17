@@ -9,9 +9,30 @@ import { useState } from "react";
 
 const plans = [
   {
+    name: "Plano FREE - Trial 30 dias",
+    price: "Grátis por 30 dias",
+    type: "free",
+    productId: "prod_TROuUGprpTFafd",
+    badge: "Teste Grátis",
+    features: [
+      "✅ Teste COMPLETO por 30 dias",
+      "✅ Pedidos Online (Delivery e Retirada)",
+      "✅ Pedidos no Balcão",
+      "✅ Gestão de Cardápio",
+      "✅ Cadastro de Clientes",
+      "✅ Relatórios Básicos"
+    ],
+    notIncluded: [
+      "Após 30 dias, escolha um plano pago"
+    ],
+    addons: [],
+    isTrial: true
+  },
+  {
     name: "Plano Essencial",
     price: "R$ 149",
     type: "essencial",
+    productId: "prod_TQVYhDe57NtmEo",
     badge: "Mais Escolhido",
     features: [
       "Pedidos Online",
@@ -36,6 +57,7 @@ const plans = [
     name: "Plano Essencial + Mesas",
     price: "R$ 249",
     type: "essencial_mesas",
+    productId: "prod_TQVasFiHlnE9mI",
     badge: "Recomendado",
     features: [
       "Tudo do Essencial",
@@ -57,6 +79,7 @@ const plans = [
     name: "Plano Customizado",
     price: "R$ 399",
     type: "customizado",
+    productId: "prod_TQVbmTNqjI3VMH",
     badge: "Completo",
     features: [
       "Tudo dos planos anteriores",
@@ -79,6 +102,11 @@ export default function Planos() {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
   const handleSubscribe = async (type: string) => {
+    if (type === 'free') {
+      toast.info('Você já está no período de trial gratuito!');
+      return;
+    }
+    
     try {
       setProcessingPlan(type);
       const { data, error } = await supabase.functions.invoke('create-checkout', {

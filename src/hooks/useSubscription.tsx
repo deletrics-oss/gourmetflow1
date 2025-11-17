@@ -72,6 +72,13 @@ export function useSubscription() {
 
     // Mapeamento de funcionalidades por plano
     const features: Record<string, string[]> = {
+      free: [
+        'pedidos_online',
+        'pedidos_balcao',
+        'cardapio',
+        'clientes',
+        'relatorios_basicos',
+      ],
       essencial: [
         'pedidos_online',
         'pedidos_balcao',

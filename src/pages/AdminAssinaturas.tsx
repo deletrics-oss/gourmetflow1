@@ -123,6 +123,7 @@ export default function AdminAssinaturas() {
     ).length;
 
     const planPrices: Record<string, number> = {
+      free: 0,
       essencial: 149,
       essencial_mesas: 249,
       customizado: 399,
