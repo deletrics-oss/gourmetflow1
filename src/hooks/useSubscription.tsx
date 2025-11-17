@@ -33,6 +33,7 @@ export function useSubscription() {
         inTrial: false,
         loading: false,
         planType: 'customizado',
+        productId: 'prod_TQVbmTNqjI3VMH', // Plano Customizado
         daysLeft: 999,
       });
       return;
