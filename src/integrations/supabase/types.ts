@@ -615,6 +615,143 @@ export type Database = {
           },
         ]
       }
+      nfce_issued: {
+        Row: {
+          authorization_date: string | null
+          cancellation_date: string | null
+          cancellation_reason: string | null
+          chave_acesso: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          nf_number: string
+          order_id: string | null
+          protocol: string | null
+          restaurant_id: string | null
+          serie: string
+          status: string | null
+          total_value: number | null
+          updated_at: string | null
+          xml_content: string | null
+        }
+        Insert: {
+          authorization_date?: string | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          chave_acesso?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          nf_number: string
+          order_id?: string | null
+          protocol?: string | null
+          restaurant_id?: string | null
+          serie: string
+          status?: string | null
+          total_value?: number | null
+          updated_at?: string | null
+          xml_content?: string | null
+        }
+        Update: {
+          authorization_date?: string | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          chave_acesso?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          nf_number?: string
+          order_id?: string | null
+          protocol?: string | null
+          restaurant_id?: string | null
+          serie?: string
+          status?: string | null
+          total_value?: number | null
+          updated_at?: string | null
+          xml_content?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfce_issued_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nfce_issued_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfce_settings: {
+        Row: {
+          certificate_data: string | null
+          certificate_expiry: string | null
+          certificate_password: string | null
+          certificate_type: string | null
+          cnpj: string | null
+          created_at: string | null
+          environment: string | null
+          id: string
+          ie: string | null
+          im: string | null
+          is_active: boolean | null
+          last_nf_number: number | null
+          regime_tributario: string | null
+          restaurant_id: string | null
+          serie_number: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          certificate_data?: string | null
+          certificate_expiry?: string | null
+          certificate_password?: string | null
+          certificate_type?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          ie?: string | null
+          im?: string | null
+          is_active?: boolean | null
+          last_nf_number?: number | null
+          regime_tributario?: string | null
+          restaurant_id?: string | null
+          serie_number?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          certificate_data?: string | null
+          certificate_expiry?: string | null
+          certificate_password?: string | null
+          certificate_type?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          ie?: string | null
+          im?: string | null
+          is_active?: boolean | null
+          last_nf_number?: number | null
+          regime_tributario?: string | null
+          restaurant_id?: string | null
+          serie_number?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfce_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string | null
