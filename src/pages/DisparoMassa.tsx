@@ -62,10 +62,31 @@ export default function DisparoMassa() {
       return;
     }
 
-    // Aqui integraria com API do WhatsApp
-    toast.success(`Mensagem enviada para ${selectedCustomers.length} clientes!`);
-    setMessage('');
-    setSelectedCustomers([]);
+    const customersToSend = customers.filter(c => selectedCustomers.includes(c.id));
+
+    try {
+      toast.loading('Enviando mensagens...');
+      
+      const { data, error } = await supabase.functions.invoke('whatsapp-send-mass', {
+        body: {
+          customers: customersToSend,
+          message: message.trim()
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`✅ Mensagens enviadas! ${data.totalSent} enviadas, ${data.totalFailed} falharam`);
+        setMessage('');
+        setSelectedCustomers([]);
+      } else {
+        throw new Error('Falha no envio em massa');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar mensagens:', error);
+      toast.error('Erro ao enviar mensagens. Verifique as configurações do WhatsApp.');
+    }
   };
 
   return (
