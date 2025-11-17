@@ -44,6 +44,7 @@ import Planos from "./pages/Planos";
 import ZapBot from "./pages/ZapBot";
 import SystemLogs from "./pages/SystemLogs";
 import DisparoMassa from "./pages/DisparoMassa";
+import Balcao from "./pages/Balcao";
 import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
 import AdminAssinaturas from "./pages/AdminAssinaturas";
@@ -164,6 +165,7 @@ const App = () => {
                           <Integracoes />
                         </ProtectedRoute>
                       } />
+                      <Route path="/balcao" element={<Balcao />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

@@ -31,6 +31,10 @@ const mainNavItems: NavItem[] = [{
   href: "/pdv",
   icon: CreditCard
 }, {
+  title: "Balcão",
+  href: "/balcao",
+  icon: Users
+}, {
   title: "Salão",
   href: "/salao",
   icon: Utensils
