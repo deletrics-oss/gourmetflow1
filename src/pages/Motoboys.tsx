@@ -50,10 +50,34 @@ export default function Motoboys() {
     }
 
     try {
+      // Buscar restaurant_id do usuário
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
+
+      const { data: userRestaurant } = await supabase
+        .from('user_restaurants')
+        .select('restaurant_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (!userRestaurant) {
+        toast.error('Restaurante não encontrado');
+        return;
+      }
+
+      const dataToSave = {
+        ...formData,
+        restaurant_id: userRestaurant.restaurant_id
+      };
+
       if (editingMotoboy) {
         const { error } = await supabase
           .from('motoboys')
-          .update(formData)
+          .update(dataToSave)
           .eq('id', editingMotoboy.id);
 
         if (error) throw error;
@@ -61,7 +85,7 @@ export default function Motoboys() {
       } else {
         const { error } = await supabase
           .from('motoboys')
-          .insert([formData]);
+          .insert([dataToSave]);
 
         if (error) throw error;
         toast.success('Motoboy cadastrado!');
@@ -70,9 +94,9 @@ export default function Motoboys() {
       setDialogOpen(false);
       resetForm();
       loadMotoboys();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar motoboy:', error);
-      toast.error('Erro ao salvar motoboy');
+      toast.error(error?.message || 'Erro ao salvar motoboy');
     }
   };
 
