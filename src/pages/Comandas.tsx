@@ -223,26 +223,31 @@ export default function Comandas() {
                   className="w-full"
                   onClick={async () => {
                     try {
-                      await supabase
+                      const { error: orderError } = await supabase
                         .from('orders' as any)
                         .update({ 
                           status: 'completed',
                           completed_at: new Date().toISOString()
                         })
                         .eq('id', comanda.id);
+
+                      if (orderError) throw orderError;
                       
                       // Liberar mesa
                       if (comanda.table_id) {
-                        await supabase
+                        const { error: tableError } = await supabase
                           .from('tables' as any)
                           .update({ status: 'free' })
                           .eq('id', comanda.table_id);
+                        
+                        if (tableError) throw tableError;
                       }
                       
                       toast.success('Comanda fechada!');
                       loadData();
-                    } catch (error) {
-                      toast.error('Erro ao fechar comanda');
+                    } catch (error: any) {
+                      console.error('Erro ao fechar comanda:', error);
+                      toast.error(error?.message || 'Erro ao fechar comanda');
                     }
                   }}
                 >
@@ -278,19 +283,19 @@ export default function Comandas() {
             </p>
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <input type="checkbox" id="link-command" className="h-4 w-4" checked />
+                <input type="checkbox" id="link-command" className="h-4 w-4" defaultChecked readOnly />
                 <label htmlFor="link-command" className="text-sm">
                   Permitir vinculação de comandas a uma mesa
                 </label>
               </div>
               <div className="flex items-center space-x-2">
-                <input type="checkbox" id="ask-cpf" className="h-4 w-4" />
+                <input type="checkbox" id="ask-cpf" className="h-4 w-4" readOnly />
                 <label htmlFor="ask-cpf" className="text-sm">
                   Solicitar CPF do cliente ao ativar esta opção
                 </label>
               </div>
               <div className="flex items-center space-x-2">
-                <input type="checkbox" id="open-without-order" className="h-4 w-4" checked />
+                <input type="checkbox" id="open-without-order" className="h-4 w-4" defaultChecked readOnly />
                 <label htmlFor="open-without-order" className="text-sm">
                   Abertura de comandas sem pedidos
                 </label>
