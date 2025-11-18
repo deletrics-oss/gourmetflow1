@@ -135,11 +135,7 @@ const App = () => {
                         </ProtectedRoute>
                       } />
                       <Route path="/planos" element={<Planos />} />
-                      <Route path="/zap-bot" element={
-                        <ProtectedRoute requireAdmin>
-                          <ZapBot />
-                        </ProtectedRoute>
-                      } />
+                      <Route path="/zap-bot" element={<ZapBot />} />
                       <Route path="/logs" element={
                         <ProtectedRoute requireAdmin>
                           <SystemLogs />
@@ -165,13 +161,15 @@ const App = () => {
                           <Integracoes />
                         </ProtectedRoute>
                       } />
-                      <Route path="/balcao" element={<Balcao />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>
                 </div>
               </ProtectedRoute>
             } />
+            
+            {/* Rota pública do Balcão - sem proteção */}
+            <Route path="/balcao" element={<Balcao />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>

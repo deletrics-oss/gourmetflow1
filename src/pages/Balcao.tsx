@@ -26,13 +26,22 @@ interface CartItem extends MenuItem {
 }
 
 export default function Balcao() {
-  const { restaurant } = useRestaurant();
+  const { restaurant, loading: restaurantLoading } = useRestaurant();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  // Balcão não requer autenticação - usando dados públicos
+  if (restaurantLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (restaurant) {
