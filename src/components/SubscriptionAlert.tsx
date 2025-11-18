@@ -9,14 +9,6 @@ export function SubscriptionAlert() {
   const navigate = useNavigate();
   const { isAdmin, loading: authLoading } = useAuth();
 
-  console.log('🔍 SubscriptionAlert Debug:', { 
-    isAdmin, 
-    authLoading, 
-    subscriptionLoading: loading,
-    inTrial, 
-    subscribed 
-  });
-
   if (loading || authLoading) return null;
   
   // Admins não veem alertas de subscription
