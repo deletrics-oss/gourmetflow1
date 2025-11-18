@@ -2,12 +2,17 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Clock, CheckCircle } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 export function SubscriptionAlert() {
   const { subscribed, inTrial, daysLeft, loading } = useSubscription();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   if (loading) return null;
+  
+  // Admins não veem alertas de subscription
+  if (isAdmin) return null;
 
   // Badge compacto verde quando subscribed ou em trial com muitos dias
   if (subscribed || (inTrial && daysLeft !== undefined && daysLeft > 10)) {
@@ -61,7 +66,7 @@ export function SubscriptionAlert() {
   }
 
   // Tela bloqueio completo quando trial expirado
-  if (!inTrial && !subscribed) {
+  if (!inTrial && !subscribed && !isAdmin) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
         <div className="max-w-md bg-card border-2 border-red-500 rounded-lg p-8 shadow-2xl text-center">
