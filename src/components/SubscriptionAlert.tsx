@@ -65,26 +65,19 @@ export function SubscriptionAlert() {
     );
   }
 
-  // Tela bloqueio completo quando trial expirado
+  // Aviso persistente quando sem assinatura (não bloqueia o sistema)
   if (!inTrial && !subscribed && !isAdmin) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
-        <div className="max-w-md bg-card border-2 border-red-500 rounded-lg p-8 shadow-2xl text-center">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h3 className="text-2xl font-bold text-foreground mb-2">
-            Período de Teste Expirado
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            Seu trial gratuito terminou. Assine um plano para continuar usando o sistema.
-          </p>
-          <Button 
-            onClick={() => navigate('/planos')}
-            size="lg"
-            className="w-full"
-          >
-            Ver Planos e Assinar
-          </Button>
-        </div>
+      <div className="fixed bottom-20 right-6 z-40">
+        <Button
+          onClick={() => navigate('/planos')}
+          variant="outline"
+          size="sm"
+          className="bg-red-500/10 border-red-500 text-red-700 dark:text-red-400 hover:bg-red-500/20 shadow-lg animate-pulse"
+        >
+          <AlertCircle className="h-4 w-4 mr-2" />
+          Sem Assinatura Ativa
+        </Button>
       </div>
     );
   }
