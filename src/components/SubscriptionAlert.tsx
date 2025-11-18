@@ -7,9 +7,17 @@ import { useAuth } from "@/hooks/useAuth";
 export function SubscriptionAlert() {
   const { subscribed, inTrial, daysLeft, loading } = useSubscription();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
 
-  if (loading) return null;
+  console.log('🔍 SubscriptionAlert Debug:', { 
+    isAdmin, 
+    authLoading, 
+    subscriptionLoading: loading,
+    inTrial, 
+    subscribed 
+  });
+
+  if (loading || authLoading) return null;
   
   // Admins não veem alertas de subscription
   if (isAdmin) return null;
