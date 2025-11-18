@@ -128,10 +128,17 @@ export default function Pedidos() {
           toast.success('Pedido concluído!');
         }
       } else {
-        // Para outros status (preparing, ready), apenas atualizar
+        // Para outros status, apenas atualizar
+        const updates: any = { status: newStatus };
+        
+        // Se está indo para preparing, registrar o momento
+        if (newStatus === 'preparing') {
+          updates.updated_at = new Date().toISOString();
+        }
+        
         const { error } = await supabase
           .from('orders')
-          .update({ status: newStatus })
+          .update(updates)
           .eq('id', orderId);
 
         if (error) throw error;
@@ -139,9 +146,9 @@ export default function Pedidos() {
       }
       
       loadOrders();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
+      toast.error(error?.message || 'Erro ao atualizar status');
     }
   };
 

@@ -143,7 +143,7 @@ export function Sidebar() {
   };
   return <>
       {showSearch && <FloatingAISearch onClose={() => setShowSearch(false)} />}
-      <div className="flex h-screen w-64 flex-col border-r bg-sidebar">
+      <div className="flex h-screen w-80 flex-col border-r bg-sidebar overflow-y-auto">
         <div className="flex h-16 items-center gap-3 border-b px-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
             <Utensils className="h-6 w-6 text-primary-foreground" />

@@ -60,6 +60,21 @@ export default function GestaoFinanceira() {
 
   useEffect(() => {
     loadFinancialData();
+    
+    // Realtime subscription para atualizar quando houver mudanças
+    const channel = supabase
+      .channel('financial-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadFinancialData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
+        loadFinancialData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedPeriod]);
 
   const loadFinancialData = async () => {

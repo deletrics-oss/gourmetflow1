@@ -124,9 +124,9 @@ export default function AdminAssinaturas() {
 
     const planPrices: Record<string, number> = {
       free: 0,
-      essencial: 149,
-      essencial_mesas: 249,
-      customizado: 399,
+      basic: 149,
+      premium: 249,
+      enterprise: 399,
     };
 
     const revenue = subs
