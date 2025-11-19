@@ -39,7 +39,6 @@ import TableCustomerMenu from "./pages/TableCustomerMenu";
 import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
 import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
-import Caixa from "./pages/Caixa";
 import Planos from "./pages/Planos";
 import ZapBot from "./pages/ZapBot";
 import SystemLogs from "./pages/SystemLogs";
@@ -137,8 +136,8 @@ const App = () => {
                         </ProtectedRoute>
                       } />
                       <Route path="/planos" element={<Planos />} />
-                      <Route path="/zap-bot" element={<ZapBot />} />
-                      <Route path="/logs" element={
+                      <Route path="/zapbot" element={<ProtectedRoute><ZapBot /></ProtectedRoute>} />
+                      <Route path="/system-logs" element={
                         <ProtectedRoute requireAdmin>
                           <SystemLogs />
                         </ProtectedRoute>

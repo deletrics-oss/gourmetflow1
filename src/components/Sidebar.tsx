@@ -86,9 +86,17 @@ const cadastrosNavItems: NavItem[] = [{
   icon: Receipt
 }];
 const adminNavItems: NavItem[] = [{
-  title: "Gerenciar Assinaturas",
-  href: "/admin/assinaturas",
+  title: "Usuários",
+  href: "/usuarios",
+  icon: Users
+}, {
+  title: "Permissões de Usuários",
+  href: "/permissoes",
   icon: Shield
+}, {
+  title: "Logs do Sistema",
+  href: "/system-logs",
+  icon: ClipboardList
 }, {
   title: "Integrações",
   href: "/integracoes",
@@ -97,10 +105,6 @@ const adminNavItems: NavItem[] = [{
   title: "Zap Bot",
   href: "/zapbot",
   icon: MessageCircle
-}, {
-  title: "Logs do Sistema",
-  href: "/logs",
-  icon: ClipboardList
 }, {
   title: "Disparo em Massa",
   href: "/disparo-massa",
@@ -113,14 +117,12 @@ const adminNavItems: NavItem[] = [{
   title: "Nota Fiscal (NFC-e)",
   href: "/nfc-e",
   icon: FileText
-}, {
-  title: "Usuários",
-  href: "/usuarios",
-  icon: Users
-}, {
-  title: "Permissões",
-  href: "/permissoes",
-  icon: Shield
+}];
+
+const subscriptionNavItems: NavItem[] = [{
+  title: "Assinaturas",
+  href: "/admin/assinaturas",
+  icon: CreditCard
 }];
 const monitorNavItems: NavItem[] = [{
   title: "Monitor Cozinha",
@@ -225,10 +227,18 @@ export function Sidebar() {
                   {item.title}
                 </Link>;
           })}
-            <Link to="/caixa" className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors", location.pathname === "/caixa" ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent")}>
-              <Wallet className="h-4 w-4" />
-              Gestão de Caixa
-            </Link>
+          </div>}
+
+        {isAdmin && <div className="mt-6 space-y-1 px-3">
+            <p className="px-3 text-xs font-semibold text-muted-foreground">ASSINATURAS</p>
+            {subscriptionNavItems.map(item => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.href;
+            return <Link key={item.href} to={item.href} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors", isActive ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent")}>
+                  <Icon className="h-4 w-4" />
+                  {item.title}
+                </Link>;
+          })}
           </div>}
       </div>
 
