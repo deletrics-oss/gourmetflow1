@@ -476,10 +476,20 @@ export default function Balcao() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Balcão</h1>
-          <Badge variant="outline" className="text-lg px-4 py-2">
-            <DollarSign className="h-4 w-4 mr-1" />
-            Total: R$ {total.toFixed(2)}
-          </Badge>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const elem = document.documentElement;
+              if (!document.fullscreenElement) {
+                elem.requestFullscreen();
+              } else {
+                document.exitFullscreen();
+              }
+            }}
+          >
+            <Maximize className="h-4 w-4" />
+          </Button>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
