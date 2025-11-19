@@ -180,7 +180,7 @@ export default function Balcao() {
   };
 
   const notifyMotoboy = async (orderId: string, orderNumber: string, orderTotal: number) => {
-    if (!selectedMotoboy) return;
+    if (!selectedMotoboy || selectedMotoboy === "none") return;
 
     setNotifyingMotoboy(true);
     
@@ -272,7 +272,7 @@ export default function Balcao() {
           customer_id: customerId,
           delivery_type: 'counter',
           payment_method: paymentMethod,
-          motoboy_id: selectedMotoboy || null,
+          motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
           status: 'completed',
           subtotal: subtotal,
           total: total,
@@ -367,7 +367,7 @@ export default function Balcao() {
 
       sonnerToast.success(`Venda ${orderNumber} finalizada!`);
       
-      if (selectedMotoboy) {
+      if (selectedMotoboy && selectedMotoboy !== "none") {
         setTimeout(() => {
           notifyMotoboy(order.id, orderNumber, total);
         }, 500);
@@ -377,7 +377,7 @@ export default function Balcao() {
       setCustomerName('');
       setCustomerPhone('');
       setCustomerCpf('');
-      setSelectedMotoboy('');
+      setSelectedMotoboy('none');
       
     } catch (error: any) {
       console.error('Erro ao finalizar venda:', error);
@@ -514,13 +514,13 @@ export default function Balcao() {
                 <Select value={selectedMotoboy} onValueChange={setSelectedMotoboy}>
                   <SelectTrigger><SelectValue placeholder="Selecione o motoboy..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {motoboys.map(motoboy => (
                       <SelectItem key={motoboy.id} value={motoboy.id}>{motoboy.name} - {motoboy.phone}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedMotoboy && (
+                {selectedMotoboy && selectedMotoboy !== "none" && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                     <CheckCircle className="h-3 w-3 text-green-600" />
                     Motoboy será notificado após finalizar venda
@@ -548,7 +548,7 @@ export default function Balcao() {
             </div>
 
             <div className="border-t pt-4 mt-4">
-              {selectedMotoboy && (
+              {selectedMotoboy && selectedMotoboy !== "none" && (
                 <div className="flex items-center justify-between py-2 mb-2">
                   <span className="text-sm text-muted-foreground flex items-center gap-2">
                     <Bike className="h-4 w-4" />
