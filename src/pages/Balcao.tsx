@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useRestaurant } from "@/hooks/useRestaurant";
+
 interface MenuItem {
   id: string;
   name: string;
@@ -23,24 +23,46 @@ interface CartItem extends MenuItem {
   finalPrice: number;
 }
 export default function Balcao() {
-  const {
-    restaurant,
-    loading: restaurantLoading
-  } = useRestaurant();
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  // Carregar restaurante ao montar componente
+  useEffect(() => {
+    loadRestaurant();
+  }, []);
+
   useEffect(() => {
     if (restaurant) {
       loadMenuItems();
     }
   }, [restaurant]);
 
-  // Balcão não requer autenticação - usando dados públicos
-  if (restaurantLoading) {
+  const loadRestaurant = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('is_active', true)
+        .single();
+
+      if (error) throw error;
+      setRestaurant(data);
+    } catch (error) {
+      console.error('Erro ao carregar restaurante:', error);
+      toast.error('Erro ao carregar dados do restaurante');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return <div className="flex h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>;
