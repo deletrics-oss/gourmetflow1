@@ -88,6 +88,8 @@ const App = () => {
             {/* Public Routes - Cardápio do Cliente */}
             <Route path="/customer-menu" element={<CustomerMenu />} />
             <Route path="/table-menu" element={<TableCustomerMenu />} />
+            {/* Public Route - Balcão */}
+            <Route path="/balcao" element={<Balcao />} />
             
             <Route path="/*" element={
               <ProtectedRoute>
