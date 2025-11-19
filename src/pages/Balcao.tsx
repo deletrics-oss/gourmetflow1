@@ -333,7 +333,7 @@ export default function Balcao() {
           customer_phone: customerPhone,
           customer_cpf: customerCpf || null,
           customer_id: finalCustomerId,
-          delivery_type: "counter",
+          delivery_type: "pickup",
           payment_method: paymentMethod,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
           status: "completed",
@@ -418,7 +418,7 @@ export default function Balcao() {
           const orderForPrint = {
             order_number: orderNumber,
             created_at: new Date().toISOString(),
-            delivery_type: 'counter',
+            delivery_type: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
             subtotal: subtotal,
@@ -501,6 +501,18 @@ export default function Balcao() {
                     {filteredItems.map(item => (
                       <Card key={item.id} className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-4">
+                          {item.image_url && (
+                            <div className="w-full h-32 mb-3 overflow-hidden rounded-md">
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
                               <h3 className="font-semibold">{item.name}</h3>
