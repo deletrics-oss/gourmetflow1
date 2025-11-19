@@ -846,6 +846,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           customer_cpf: string | null
+          customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           delivery_address: Json | null
@@ -855,6 +856,7 @@ export type Database = {
           id: string
           loyalty_points_earned: number | null
           loyalty_points_used: number | null
+          motoboy_id: string | null
           notes: string | null
           order_number: string
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -874,6 +876,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           customer_cpf?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           delivery_address?: Json | null
@@ -883,6 +886,7 @@ export type Database = {
           id?: string
           loyalty_points_earned?: number | null
           loyalty_points_used?: number | null
+          motoboy_id?: string | null
           notes?: string | null
           order_number: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -902,6 +906,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           customer_cpf?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           delivery_address?: Json | null
@@ -911,6 +916,7 @@ export type Database = {
           id?: string
           loyalty_points_earned?: number | null
           loyalty_points_used?: number | null
+          motoboy_id?: string | null
           notes?: string | null
           order_number?: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -924,6 +930,27 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_order_history"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_motoboy_id_fkey"
+            columns: ["motoboy_id"]
+            isOneToOne: false
+            referencedRelation: "motoboys"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_restaurant_id_fkey"
             columns: ["restaurant_id"]
