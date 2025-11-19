@@ -1748,15 +1748,26 @@ export type Database = {
         }
         Returns: boolean
       }
-      log_action: {
-        Args: {
-          p_action: string
-          p_details?: Json
-          p_entity_id?: string
-          p_entity_type?: string
-        }
-        Returns: string
-      }
+      log_action:
+        | {
+            Args: {
+              p_action: string
+              p_details?: Json
+              p_entity_id?: string
+              p_entity_type?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_action: string
+              p_details?: Json
+              p_entity_id?: string
+              p_entity_type?: string
+              p_restaurant_id?: string
+            }
+            Returns: string
+          }
       toggle_subscription_block: {
         Args: {
           p_blocked: boolean
