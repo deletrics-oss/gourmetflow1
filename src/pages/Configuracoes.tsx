@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Info, Palette, Volume2, DollarSign, Gift } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck } from "lucide-react";
+import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
 import { useState, useEffect } from "react";
@@ -147,7 +148,7 @@ export default function Configuracoes() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="geral">
             <Info className="h-4 w-4 mr-2" />
             Geral
@@ -155,6 +156,10 @@ export default function Configuracoes() {
           <TabsTrigger value="fidelidade">
             <Gift className="h-4 w-4 mr-2" />
             Fidelidade
+          </TabsTrigger>
+          <TabsTrigger value="entrega">
+            <Truck className="h-4 w-4 mr-2" />
+            Entrega
           </TabsTrigger>
           <TabsTrigger value="tema">
             <Palette className="h-4 w-4 mr-2" />
@@ -426,6 +431,10 @@ export default function Configuracoes() {
             </div>
             <ThemeSelector />
           </Card>
+        </TabsContent>
+
+        <TabsContent value="entrega">
+          <DeliveryZonesManager />
         </TabsContent>
 
         <TabsContent value="audio">
