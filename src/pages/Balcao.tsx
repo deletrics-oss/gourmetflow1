@@ -65,6 +65,53 @@ export default function Balcao() {
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
 
+  // Busca automática de cliente por telefone (com debounce)
+  useEffect(() => {
+    const searchCustomer = async () => {
+      if (!customerPhone || customerPhone.length < 10) {
+        setCustomerId(null);
+        setLoyaltyPoints(0);
+        setIsSuspicious(false);
+        return;
+      }
+
+      setSearchingCustomer(true);
+      
+      try {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('phone', customerPhone)
+          .single();
+
+        if (customer) {
+          setCustomerId(customer.id);
+          setCustomerName(customer.name || '');
+          setCustomerCpf(customer.cpf || '');
+          setLoyaltyPoints(customer.loyalty_points || 0);
+          setIsSuspicious(customer.is_suspicious || false);
+
+          if (customer.is_suspicious) {
+            sonnerToast.warning('⚠️ Cliente marcado como suspeito!', {
+              description: customer.notes || 'Verificar histórico antes de prosseguir'
+            });
+          }
+        } else {
+          setCustomerId(null);
+          setLoyaltyPoints(0);
+          setIsSuspicious(false);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar cliente:', error);
+      } finally {
+        setSearchingCustomer(false);
+      }
+    };
+
+    const debounce = setTimeout(searchCustomer, 1000);
+    return () => clearTimeout(debounce);
+  }, [customerPhone]);
+
   useEffect(() => {
     loadCategories();
     loadMenuItems();
@@ -377,6 +424,9 @@ export default function Balcao() {
       setCustomerName('');
       setCustomerPhone('');
       setCustomerCpf('');
+      setCustomerId(null);
+      setLoyaltyPoints(0);
+      setIsSuspicious(false);
       setSelectedMotoboy('none');
       
     } catch (error: any) {
