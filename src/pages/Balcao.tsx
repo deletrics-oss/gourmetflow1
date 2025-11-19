@@ -16,6 +16,7 @@ import { toast as sonnerToast } from "sonner";
 import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
 import { useWhatsApp } from "@/hooks/useWhatsApp";
 import { useRestaurant } from "@/hooks/useRestaurant";
+import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 
 interface CartItem {
   id: string;
@@ -67,6 +68,19 @@ export default function Balcao() {
   const [selectedMotoboy, setSelectedMotoboy] = useState<string>("none");
   const [notifyingMotoboy, setNotifyingMotoboy] = useState(false);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
+  const [customerAddress, setCustomerAddress] = useState({
+    street: "",
+    number: "",
+    complement: "",
+    neighborhood: "",
+    city: "",
+    state: "",
+    zipcode: "",
+    latitude: undefined as number | undefined,
+    longitude: undefined as number | undefined,
+  });
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const { toast } = useToast();
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
@@ -96,6 +110,22 @@ export default function Balcao() {
           setCustomerCpf(customer.cpf || '');
           setLoyaltyPoints(customer.loyalty_points || 0);
           setIsSuspicious(customer.is_suspicious || false);
+
+          // Carregar endereço salvo do cliente
+          if (customer.address) {
+            const addr = customer.address as any;
+            setCustomerAddress({
+              street: addr.street || '',
+              number: addr.number || '',
+              complement: addr.complement || '',
+              neighborhood: addr.neighborhood || '',
+              city: addr.city || '',
+              state: addr.state || '',
+              zipcode: addr.zipcode || '',
+              latitude: addr.latitude,
+              longitude: addr.longitude,
+            });
+          }
 
           if (customer.is_suspicious) {
             sonnerToast.warning('⚠️ Cliente marcado como suspeito!', {
@@ -219,7 +249,7 @@ export default function Balcao() {
 
   // Calcular subtotal e total ANTES de usar em outras funções
   const subtotal = cart.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0);
-  const total = subtotal;
+  const total = subtotal + deliveryFee;
 
   // Cálculo de pontos em tempo real
   const calculatePointsToEarn = () => {
@@ -301,7 +331,12 @@ export default function Balcao() {
               .from('customers')
               .update({
                 name: customerName,
-                cpf: customerCpf || null
+                cpf: customerCpf || null,
+                address: {
+                  ...customerAddress,
+                  latitude: customerAddress.latitude,
+                  longitude: customerAddress.longitude,
+                }
               })
               .eq('id', customerId);
           }
@@ -313,7 +348,12 @@ export default function Balcao() {
               name: customerName,
               phone: customerPhone,
               cpf: customerCpf || null,
-              loyalty_points: 0
+              loyalty_points: 0,
+              address: {
+                ...customerAddress,
+                latitude: customerAddress.latitude,
+                longitude: customerAddress.longitude,
+              }
             })
             .select('id')
             .single();
@@ -334,6 +374,8 @@ export default function Balcao() {
           customer_cpf: customerCpf || null,
           customer_id: finalCustomerId,
           delivery_type: "pickup",
+          delivery_address: customerAddress.street ? customerAddress : null,
+          delivery_fee: deliveryFee || 0,
           payment_method: paymentMethod,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
           status: "completed",
@@ -684,7 +726,26 @@ export default function Balcao() {
                       </CardContent>
                     </Card>
                   )}
+                  </div>
 
+                  {/* Formulário de Endereço de Entrega */}
+                  <CustomerAddressForm
+                    address={customerAddress}
+                    onAddressChange={setCustomerAddress}
+                    onDeliveryFeeChange={(fee, distance, coords) => {
+                      setDeliveryFee(fee);
+                      setDeliveryDistance(distance);
+                      if (coords) {
+                        setCustomerAddress(prev => ({
+                          ...prev,
+                          latitude: coords.latitude,
+                          longitude: coords.longitude,
+                        }));
+                      }
+                    }}
+                  />
+
+                  <div className="border-t pt-4 space-y-4">
                   {/* Motoboy */}
                   <div>
                     <Label htmlFor="motoboy">Motoboy (Opcional)</Label>
@@ -753,6 +814,12 @@ export default function Balcao() {
                     <span className="text-muted-foreground">Subtotal:</span>
                     <span className="font-medium">R$ {subtotal.toFixed(2)}</span>
                   </div>
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-muted-foreground">Taxa de Entrega:</span>
+                      <span className="font-medium">R$ {deliveryFee.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total:</span>
                     <span>R$ {total.toFixed(2)}</span>

@@ -263,6 +263,47 @@ export type Database = {
           },
         ]
       }
+      delivery_zones: {
+        Row: {
+          created_at: string | null
+          fee: number
+          id: string
+          is_active: boolean
+          max_distance: number
+          min_distance: number
+          restaurant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fee?: number
+          id?: string
+          is_active?: boolean
+          max_distance: number
+          min_distance?: number
+          restaurant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fee?: number
+          id?: string
+          is_active?: boolean
+          max_distance?: number
+          min_distance?: number
+          restaurant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_zones_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -1079,10 +1120,13 @@ export type Database = {
           instagram: string | null
           is_active: boolean | null
           keeta_token: string | null
+          latitude: number | null
           logo_url: string | null
+          longitude: number | null
           loyalty_enabled: boolean | null
           loyalty_points_per_real: number | null
           loyalty_redemption_value: number | null
+          max_delivery_radius: number | null
           name: string
           neighborhood: string | null
           ninefood_token: string | null
@@ -1122,10 +1166,13 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean | null
           keeta_token?: string | null
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           loyalty_enabled?: boolean | null
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
+          max_delivery_radius?: number | null
           name: string
           neighborhood?: string | null
           ninefood_token?: string | null
@@ -1165,10 +1212,13 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean | null
           keeta_token?: string | null
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           loyalty_enabled?: boolean | null
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
+          max_delivery_radius?: number | null
           name?: string
           neighborhood?: string | null
           ninefood_token?: string | null
