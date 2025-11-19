@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Loader2 } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Loader2, Bike, CheckCircle, Maximize } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
+import { useWhatsApp } from "@/hooks/useWhatsApp";
 import { z } from 'zod';
 
 const customerSchema = z.object({
@@ -53,9 +55,13 @@ export default function Balcao() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [motoboys, setMotoboys] = useState<any[]>([]);
+  const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
+  const [notifyingMotoboy, setNotifyingMotoboy] = useState(false);
   const [isFinalizingSale, setIsFinalizingSale] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { sendMessage } = useWhatsApp();
 
   useEffect(() => {
     loadData();
@@ -63,8 +69,22 @@ export default function Balcao() {
 
   const loadData = async () => {
     setIsLoading(true);
-    await Promise.all([loadCategories(), loadMenuItems()]);
+    await Promise.all([loadCategories(), loadMenuItems(), loadMotoboys()]);
     setIsLoading(false);
+  };
+
+  const loadMotoboys = async () => {
+    try {
+      const { data } = await supabase
+        .from('motoboys' as any)
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (data) setMotoboys(data);
+    } catch (error) {
+      console.error('Erro ao carregar motoboys:', error);
+    }
   };
 
   const loadCategories = async () => {
@@ -161,6 +181,7 @@ export default function Balcao() {
           customer_phone: validation.data.phone,
           delivery_type: 'counter',
           payment_method: paymentMethod,
+          motoboy_id: selectedMotoboy || null,
           status: 'completed',
           total: total,
           subtotal: total,
@@ -203,15 +224,69 @@ export default function Balcao() {
 
       toast({ title: "Venda finalizada!", description: `Pedido ${orderNumber} concluído com sucesso` });
       
+      // Oferecer notificação do motoboy
+      if (selectedMotoboy) {
+        setTimeout(() => {
+          notifyMotoboy(order.id, orderNumber, total);
+        }, 500);
+      }
+      
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
+      setSelectedMotoboy('');
       
     } catch (error: any) {
       console.error('Erro ao finalizar venda:', error);
       toast({ title: "Erro ao finalizar venda", description: "Tente novamente", variant: "destructive" });
     } finally {
       setIsFinalizingSale(false);
+    }
+  };
+
+  const notifyMotoboy = async (orderId: string, orderNumber: string, orderTotal: number) => {
+    if (!selectedMotoboy) return;
+
+    setNotifyingMotoboy(true);
+    
+    try {
+      const { data: motoboy } = await supabase
+        .from('motoboys' as any)
+        .select('*')
+        .eq('id', selectedMotoboy)
+        .single();
+      
+      if (!motoboy || !motoboy.phone) {
+        toast({ title: "Erro", description: "Motoboy sem telefone cadastrado", variant: "destructive" });
+        return;
+      }
+
+      const message = `🛵 *NOVA ENTREGA DISPONÍVEL*\n\n` +
+        `📦 Pedido: #${orderNumber}\n` +
+        `👤 Cliente: ${customerName}\n` +
+        `📱 Telefone: ${customerPhone}\n` +
+        `💰 Valor: R$ ${orderTotal.toFixed(2)}\n\n` +
+        `📍 Aguardando coleta no balcão`;
+
+      const success = await sendMessage(motoboy.phone, message);
+      
+      if (success) {
+        toast({ title: "Motoboy notificado!", description: `${motoboy.name} foi avisado via WhatsApp` });
+      }
+      
+    } catch (error) {
+      console.error('Erro ao notificar motoboy:', error);
+      toast({ title: "Erro", description: "Falha ao notificar motoboy", variant: "destructive" });
+    } finally {
+      setNotifyingMotoboy(false);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
     }
   };
 
@@ -232,9 +307,19 @@ export default function Balcao() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-primary">Balcão</h1>
-          <p className="text-muted-foreground">Atendimento rápido sem login</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-primary">Balcão</h1>
+            <p className="text-muted-foreground">Atendimento rápido</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={toggleFullscreen}
+          >
+            <Maximize className="h-4 w-4 mr-2" />
+            Tela Inteira
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -376,6 +461,36 @@ export default function Balcao() {
                     </div>
 
                     <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Bike className="h-4 w-4" />
+                        Motoboy (Opcional)
+                      </Label>
+                      <Select 
+                        value={selectedMotoboy} 
+                        onValueChange={setSelectedMotoboy}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o motoboy..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhum</SelectItem>
+                          {motoboys.map(motoboy => (
+                            <SelectItem key={motoboy.id} value={motoboy.id}>
+                              {motoboy.name} - {motoboy.phone}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {selectedMotoboy && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                          Motoboy será notificado após finalizar venda
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
                       <Label>Forma de Pagamento</Label>
                       <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
                         <SelectTrigger>
@@ -391,6 +506,17 @@ export default function Balcao() {
                     </div>
 
                     <div className="pt-4 border-t">
+                      {selectedMotoboy && (
+                        <div className="flex items-center justify-between py-2 mb-2 border-b">
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Bike className="h-4 w-4" />
+                            Motoboy
+                          </span>
+                          <Badge variant="secondary">
+                            {motoboys.find(m => m.id === selectedMotoboy)?.name || 'Selecionado'}
+                          </Badge>
+                        </div>
+                      )}
                       <div className="flex justify-between mb-4">
                         <span className="text-xl font-bold">Total:</span>
                         <span className="text-2xl font-bold text-primary">
