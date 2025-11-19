@@ -217,6 +217,10 @@ export default function Balcao() {
     setCart(cart.filter((_, i) => i !== index));
   };
 
+  // Calcular subtotal e total ANTES de usar em outras funções
+  const subtotal = cart.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0);
+  const total = subtotal;
+
   // Cálculo de pontos em tempo real
   const calculatePointsToEarn = () => {
     if (!loyaltyEnabled || !customerCpf) return 0;
@@ -466,9 +470,6 @@ export default function Balcao() {
   const filteredItems = selectedCategory === "all" 
     ? menuItems 
     : menuItems.filter(item => item.category_id === selectedCategory);
-
-  const subtotal = cart.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0);
-  const total = subtotal;
 
   return (
     <div className="min-h-screen bg-background p-4">
