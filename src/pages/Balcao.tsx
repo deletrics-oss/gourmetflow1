@@ -50,10 +50,15 @@ export default function Balcao() {
         .from('restaurants')
         .select('*')
         .eq('is_active', true)
-        .single();
+        .limit(1);
 
       if (error) throw error;
-      setRestaurant(data);
+      
+      if (data && data.length > 0) {
+        setRestaurant(data[0]);
+      } else {
+        toast.error('Nenhum restaurante ativo encontrado');
+      }
     } catch (error) {
       console.error('Erro ao carregar restaurante:', error);
       toast.error('Erro ao carregar dados do restaurante');
