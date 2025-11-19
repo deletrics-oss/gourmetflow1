@@ -34,6 +34,12 @@ export default function Balcao() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
+  useEffect(() => {
+    if (restaurant) {
+      loadMenuItems();
+    }
+  }, [restaurant]);
+
   // Balcão não requer autenticação - usando dados públicos
   if (restaurantLoading) {
     return (
@@ -42,12 +48,6 @@ export default function Balcao() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (restaurant) {
-      loadMenuItems();
-    }
-  }, [restaurant]);
 
   const loadMenuItems = async () => {
     try {
