@@ -3,11 +3,22 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, Plus, Minus, Trash2, DollarSign } from "lucide-react";
+import { Search, ShoppingCart, Plus, Minus, Trash2, DollarSign, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { z } from "zod";
+
+const customerSchema = z.object({
+  name: z.string()
+    .trim()
+    .min(2, 'Nome deve ter no mínimo 2 caracteres')
+    .max(100, 'Nome muito longo'),
+  phone: z.string()
+    .trim()
+    .regex(/^\(?[1-9]{2}\)?\s?9?\d{4}-?\d{4}$/, 'Telefone inválido (use formato: (11) 99999-9999)')
+});
 
 interface MenuItem {
   id: string;
@@ -31,6 +42,7 @@ export default function Balcao() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [isFinalizingSale, setIsFinalizingSale] = useState(false);
 
   // Carregar restaurante ao montar componente
   useEffect(() => {
@@ -126,27 +138,44 @@ export default function Balcao() {
       toast.error('Adicione itens ao carrinho');
       return;
     }
-    if (!customerName || !customerPhone) {
-      toast.error('Informe nome e telefone do cliente');
+
+    // Validar inputs
+    const validation = customerSchema.safeParse({
+      name: customerName,
+      phone: customerPhone
+    });
+
+    if (!validation.success) {
+      toast.error(validation.error.errors[0].message);
       return;
     }
+
+    // Validar que restaurant está carregado
+    if (!restaurant?.id) {
+      toast.error('Restaurante não encontrado');
+      return;
+    }
+
+    setIsFinalizingSale(true);
     try {
       const orderNumber = `BAL-${Date.now().toString().slice(-6)}`;
       const {
         data: order,
         error: orderError
       } = await supabase.from('orders').insert({
-        restaurant_id: restaurant?.id,
+        restaurant_id: restaurant.id,
         order_number: orderNumber,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_name: validation.data.name,
+        customer_phone: validation.data.phone,
         delivery_type: 'pickup',
         payment_method: paymentMethod,
         status: 'completed',
         total: total,
         subtotal: total
       }).select().single();
+      
       if (orderError) throw orderError;
+      
       const orderItems = cart.map(item => ({
         order_id: order.id,
         menu_item_id: item.id,
@@ -155,29 +184,47 @@ export default function Balcao() {
         unit_price: item.promotional_price || item.price,
         total_price: item.finalPrice
       }));
+      
       const {
         error: itemsError
       } = await supabase.from('order_items').insert(orderItems);
+      
       if (itemsError) throw itemsError;
 
-      // Log action
-      await supabase.rpc('log_action', {
-        p_action: 'BALCAO_SALE',
-        p_entity_type: 'order',
-        p_entity_id: order.id,
-        p_details: {
-          total,
-          items: cart.length,
-          customer: customerName
-        }
-      });
-      toast.success('Venda finalizada!');
+      // Tentar fazer log (não crítico)
+      try {
+        await supabase.rpc('log_action', {
+          p_action: 'BALCAO_SALE',
+          p_entity_type: 'order',
+          p_entity_id: order.id,
+          p_restaurant_id: restaurant.id,
+          p_details: {
+            total,
+            items: cart.length,
+            customer: validation.data.name
+          }
+        });
+      } catch (logError) {
+        console.warn('Log action failed:', logError);
+      }
+
+      toast.success('Venda finalizada com sucesso!');
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao finalizar venda:', error);
-      toast.error('Erro ao finalizar venda');
+      
+      // Mensagem específica baseada no erro
+      if (error.message?.includes('restaurant_id')) {
+        toast.error('Erro: Restaurante não identificado');
+      } else if (error.message?.includes('violates')) {
+        toast.error('Erro: Dados inválidos');
+      } else {
+        toast.error('Erro ao finalizar venda. Tente novamente.');
+      }
+    } finally {
+      setIsFinalizingSale(false);
     }
   };
   const filteredItems = menuItems.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -193,31 +240,41 @@ export default function Balcao() {
               <Input placeholder="Buscar produto..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredItems.map(item => <Card key={item.id} className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => addToCart(item)}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground">{item.name}</h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        {item.promotional_price ? <>
-                            <span className="text-lg font-bold text-primary">
-                              R$ {item.promotional_price.toFixed(2)}
-                            </span>
-                            <span className="text-sm line-through text-muted-foreground">
+            {filteredItems.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum produto encontrado</h3>
+                <p className="text-muted-foreground">
+                  {searchTerm ? 'Tente buscar por outro termo' : 'Não há produtos cadastrados'}
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {filteredItems.map(item => <Card key={item.id} className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => addToCart(item)}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground">{item.name}</h3>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          {item.promotional_price ? <>
+                              <span className="text-lg font-bold text-primary">
+                                R$ {item.promotional_price.toFixed(2)}
+                              </span>
+                              <span className="text-sm line-through text-muted-foreground">
+                                R$ {item.price.toFixed(2)}
+                              </span>
+                            </> : <span className="text-lg font-bold text-primary">
                               R$ {item.price.toFixed(2)}
-                            </span>
-                          </> : <span className="text-lg font-bold text-primary">
-                            R$ {item.price.toFixed(2)}
-                          </span>}
+                            </span>}
+                        </div>
                       </div>
+                      <Button size="sm" variant="outline">
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </Card>)}
-            </div>
+                  </Card>)}
+              </div>
+            )}
           </div>
 
           {/* Cart */}
@@ -284,10 +341,24 @@ export default function Balcao() {
                     <span className="text-primary">R$ {total.toFixed(2)}</span>
                   </div>
 
-                  <Button className="w-full" size="lg" onClick={finalizeSale} disabled={cart.length === 0}>
-                    <DollarSign className="mr-2 h-5 w-5" />
-                    Finalizar Venda
-                  </Button>
+                <Button 
+                  className="w-full" 
+                  size="lg" 
+                  onClick={finalizeSale} 
+                  disabled={cart.length === 0 || isFinalizingSale}
+                >
+                  {isFinalizingSale ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Finalizando...
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="mr-2 h-5 w-5" />
+                      Finalizar Venda
+                    </>
+                  )}
+                </Button>
                 </div>
               </div>
             </Card>
