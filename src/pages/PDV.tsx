@@ -114,11 +114,30 @@ export default function PDV() {
   // Cálculo automático de taxa de entrega
   useEffect(() => {
     const autoCalculateFee = async () => {
-      if (deliveryType === 'delivery' && customerAddress.street && customerAddress.number) {
-        const result = await calculateFromAddress(customerAddress);
-        if (result.distance && result.isWithinRange) {
-          setDeliveryFee(result.fee);
-          setDeliveryDistance(result.distance);
+      // SEMPRE zerar taxa para pickup, counter e dine_in
+      if (deliveryType === 'pickup' || deliveryType === 'counter' || deliveryType === 'dine_in') {
+        setDeliveryFee(0);
+        setDeliveryDistance(null);
+        return;
+      }
+
+      // Calcular APENAS para delivery e online
+      if ((deliveryType === 'delivery' || deliveryType === 'online') && customerAddress.street && customerAddress.number) {
+        try {
+          const result = await calculateFromAddress(customerAddress);
+          if (result.distance && result.isWithinRange) {
+            setDeliveryFee(result.fee);
+            setDeliveryDistance(result.distance);
+            sonnerToast.success(`Taxa calculada: R$ ${result.fee.toFixed(2)} (${result.distance.toFixed(2)}km)`);
+          } else if (result.distance && !result.isWithinRange) {
+            setDeliveryFee(0);
+            setDeliveryDistance(null);
+            sonnerToast.error(`Endereço fora do raio de entrega`);
+          }
+        } catch (error) {
+          console.error('Erro ao calcular taxa:', error);
+          setDeliveryFee(0);
+          setDeliveryDistance(null);
         }
       } else {
         setDeliveryFee(0);
@@ -126,7 +145,7 @@ export default function PDV() {
       }
     };
     autoCalculateFee();
-  }, [customerAddress.street, customerAddress.number, deliveryType]);
+  }, [customerAddress.street, customerAddress.number, customerAddress.city, deliveryType]);
 
   const loadRestaurantSettings = async () => {
     try {

@@ -121,19 +121,29 @@ export default function CustomerMenu() {
   // Cálculo automático de taxa de entrega
   useEffect(() => {
     const autoCalculateFee = async () => {
+      // SEMPRE zerar para pickup
+      if (deliveryType === 'pickup') {
+        setCalculatedDeliveryFee(0);
+        return;
+      }
+
+      // Calcular APENAS para delivery
       if (deliveryType === 'delivery' && address.street && address.number && address.neighborhood && address.city) {
         try {
           const result = await calculateFromAddress(address);
           
           if (result.distance && result.isWithinRange) {
             setCalculatedDeliveryFee(result.fee);
-            toast.success(`Taxa calculada: R$ ${result.fee.toFixed(2)} (${result.distance.toFixed(2)}km)`);
+            toast.success(`Taxa: R$ ${result.fee.toFixed(2)} (${result.distance.toFixed(2)}km)`);
           } else if (result.distance && !result.isWithinRange) {
             setCalculatedDeliveryFee(0);
-            toast.error(`Endereço fora do raio de entrega (${result.distance.toFixed(2)}km)`);
+            toast.error(`Fora do raio de entrega (${result.distance.toFixed(2)}km)`);
+          } else {
+            setCalculatedDeliveryFee(0);
           }
         } catch (error) {
           console.error('Erro ao calcular taxa:', error);
+          setCalculatedDeliveryFee(0);
         }
       } else {
         setCalculatedDeliveryFee(0);
