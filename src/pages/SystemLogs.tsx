@@ -60,17 +60,38 @@ export default function SystemLogs() {
   const loadLogs = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Buscar logs sem join
+      const { data: logsData, error } = await supabase
         .from("system_logs")
-        .select(`
-          *,
-          profiles:user_id (full_name)
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(500);
 
       if (error) throw error;
-      setLogs((data || []) as SystemLog[]);
+
+      // Buscar profiles separadamente
+      const userIds = [...new Set(logsData?.map(log => log.user_id).filter(Boolean) as string[])];
+      let profilesMap = new Map<string, string>();
+      
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (profilesData) {
+          profilesMap = new Map(profilesData.map(p => [p.user_id, p.full_name || "Desconhecido"]));
+        }
+      }
+
+      // Fazer merge manual
+      const logsWithProfiles = logsData?.map(log => ({
+        ...log,
+        profiles: log.user_id ? { full_name: profilesMap.get(log.user_id) || "Desconhecido" } : null
+      })) || [];
+
+      setLogs(logsWithProfiles as SystemLog[]);
     } catch (error) {
       console.error("Error loading logs:", error);
       toast.error("Erro ao carregar logs");

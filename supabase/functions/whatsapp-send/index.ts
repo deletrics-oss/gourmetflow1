@@ -25,51 +25,69 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw userError;
 
-    const { phone, message, deviceId } = await req.json();
+    const { phone, message } = await req.json();
 
     if (!phone || !message) {
       throw new Error("Phone and message are required");
     }
 
-    // Enviar para o servidor WhatsApp externo
-    const whatsappServerUrl = Deno.env.get("WHATSAPP_SERVER_URL");
-    const whatsappUser = Deno.env.get("WHATSAPP_SERVER_USER");
-    const whatsappPassword = Deno.env.get("WHATSAPP_SERVER_PASSWORD");
+    console.log("Enviando mensagem para:", phone);
 
-    if (!whatsappServerUrl) {
-      throw new Error("WhatsApp server URL not configured");
+    // Buscar credenciais do Twilio no banco
+    const { data: settings, error: settingsError } = await supabaseClient
+      .from("restaurant_settings")
+      .select("twilio_account_sid, twilio_auth_token, twilio_phone_number")
+      .limit(1)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error("Erro ao buscar configurações:", settingsError);
+      throw new Error("Erro ao buscar configurações do Twilio");
     }
 
-    // Login no servidor WhatsApp
-    const loginResponse = await fetch(`${whatsappServerUrl}/api/login`, {
+    if (!settings?.twilio_account_sid || !settings?.twilio_auth_token) {
+      throw new Error("Credenciais do Twilio não configuradas. Configure na página ZapBot → Settings");
+    }
+
+    console.log("Credenciais encontradas, enviando via Twilio...");
+
+    // Formatar número para Twilio WhatsApp
+    const cleanPhone = phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+    const twilioPhone = formattedPhone.startsWith('whatsapp:') ? formattedPhone : `whatsapp:${formattedPhone}`;
+    
+    // Formatar número de origem
+    const fromPhone = settings.twilio_phone_number?.startsWith('whatsapp:') 
+      ? settings.twilio_phone_number 
+      : `whatsapp:${settings.twilio_phone_number || '+14155238886'}`;
+
+    console.log("De:", fromPhone, "Para:", twilioPhone);
+
+    // Enviar via Twilio
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${settings.twilio_account_sid}/Messages.json`;
+    
+    const formData = new URLSearchParams();
+    formData.append("To", twilioPhone);
+    formData.append("From", fromPhone);
+    formData.append("Body", message);
+
+    const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: whatsappUser,
-        password: whatsappPassword
-      })
+      headers: {
+        "Authorization": `Basic ${btoa(`${settings.twilio_account_sid}:${settings.twilio_auth_token}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
     });
 
-    if (!loginResponse.ok) {
-      throw new Error("Failed to authenticate with WhatsApp server");
+    const result = await twilioResponse.json();
+
+    if (!twilioResponse.ok) {
+      console.error("Erro do Twilio:", result);
+      throw new Error(result.message || `Twilio error: ${result.code || 'Unknown'}`);
     }
 
-    // Enviar mensagem
-    const sendResponse = await fetch(`${whatsappServerUrl}/api/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deviceId: deviceId || "default",
-        number: phone.replace(/\D/g, ''),
-        message: message
-      })
-    });
-
-    const result = await sendResponse.json();
-
-    if (!sendResponse.ok) {
-      throw new Error(result.message || "Failed to send WhatsApp message");
-    }
+    console.log("Mensagem enviada com sucesso:", result.sid);
 
     return new Response(
       JSON.stringify({ success: true, data: result }),
@@ -77,9 +95,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Error sending WhatsApp:", error);
+    console.error("Erro ao enviar WhatsApp:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : "Unknown error",
+        success: false 
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
