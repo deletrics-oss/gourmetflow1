@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard } from "lucide-react";
 import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
@@ -38,6 +38,30 @@ export default function Configuracoes() {
   const [certificateType, setCertificateType] = useState<'A1' | 'A3'>('A1');
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
+  const [restaurantCoords, setRestaurantCoords] = useState<{latitude: number, longitude: number} | null>(null);
+  const [maxDeliveryRadius, setMaxDeliveryRadius] = useState(200);
+  
+  // Payment gateways states
+  const [pagSeguroEnabled, setPagSeguroEnabled] = useState(false);
+  const [pagSeguroEmail, setPagSeguroEmail] = useState('');
+  const [pagSeguroToken, setPagSeguroToken] = useState('');
+  
+  const [mercadoPagoEnabled, setMercadoPagoEnabled] = useState(false);
+  const [mercadoPagoToken, setMercadoPagoToken] = useState('');
+  const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState('');
+  
+  const [redeEnabled, setRedeEnabled] = useState(false);
+  const [redePv, setRedePv] = useState('');
+  const [redeToken, setRedeToken] = useState('');
+  
+  const [stoneEnabled, setStoneEnabled] = useState(false);
+  const [stoneMerchantId, setStoneMerchantId] = useState('');
+  const [stoneApiKey, setStoneApiKey] = useState('');
+  
+  const [nubankEnabled, setNubankEnabled] = useState(false);
+  const [nubankClientId, setNubankClientId] = useState('');
+  const [nubankClientSecret, setNubankClientSecret] = useState('');
+  
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
@@ -73,9 +97,86 @@ export default function Configuracoes() {
         setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
         setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
         setNfceEnabled(data.nfce_enabled || false);
+        
+        // Coordenadas
+        if (data.latitude && data.longitude) {
+          setRestaurantCoords({ latitude: data.latitude, longitude: data.longitude });
+        }
+        setMaxDeliveryRadius(data.max_delivery_radius || 200);
+        
+        // Payment gateways
+        setPagSeguroEnabled(data.pagseguro_enabled || false);
+        setPagSeguroEmail(data.pagseguro_email || '');
+        setPagSeguroToken(data.pagseguro_token || '');
+        
+        setMercadoPagoEnabled(data.mercadopago_enabled || false);
+        setMercadoPagoToken(data.mercadopago_access_token || '');
+        setMercadoPagoPublicKey(data.mercadopago_public_key || '');
+        
+        setRedeEnabled(data.rede_enabled || false);
+        setRedePv(data.rede_pv || '');
+        setRedeToken(data.rede_token || '');
+        
+        setStoneEnabled(data.stone_enabled || false);
+        setStoneMerchantId(data.stone_merchant_id || '');
+        setStoneApiKey(data.stone_api_key || '');
+        
+        setNubankEnabled(data.nubank_enabled || false);
+        setNubankClientId(data.nubank_client_id || '');
+        setNubankClientSecret(data.nubank_client_secret || '');
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
+    }
+  };
+
+  const handleUpdateCoordinates = async () => {
+    if (!settings.street || !settings.city) {
+      toast.error('Preencha o endereço completo primeiro');
+      return;
+    }
+
+    const address = `${settings.street}, ${settings.number}, ${settings.neighborhood}, ${settings.city}, ${settings.state}, Brasil`;
+    
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+        { headers: { 'User-Agent': 'RestaurantApp/1.0' } }
+      );
+
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const coords = {
+          latitude: parseFloat(data[0].lat),
+          longitude: parseFloat(data[0].lon)
+        };
+
+        // Salvar no banco
+        const { data: existing } = await supabase
+          .from('restaurant_settings' as any)
+          .select('id')
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from('restaurant_settings' as any)
+            .update({
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              max_delivery_radius: maxDeliveryRadius
+            })
+            .eq('id', existing.id);
+        }
+
+        setRestaurantCoords(coords);
+        toast.success('Coordenadas atualizadas com sucesso!');
+      } else {
+        toast.error('Endereço não encontrado');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar coordenadas:', error);
+      toast.error('Erro ao buscar coordenadas');
     }
   };
 
@@ -111,6 +212,23 @@ export default function Configuracoes() {
         loyalty_points_per_real: loyaltyPointsPerReal,
         loyalty_redemption_value: loyaltyRedemptionValue,
         nfce_enabled: nfceEnabled,
+        max_delivery_radius: maxDeliveryRadius,
+        // Payment gateways
+        pagseguro_enabled: pagSeguroEnabled,
+        pagseguro_email: pagSeguroEmail,
+        pagseguro_token: pagSeguroToken,
+        mercadopago_enabled: mercadoPagoEnabled,
+        mercadopago_access_token: mercadoPagoToken,
+        mercadopago_public_key: mercadoPagoPublicKey,
+        rede_enabled: redeEnabled,
+        rede_pv: redePv,
+        rede_token: redeToken,
+        stone_enabled: stoneEnabled,
+        stone_merchant_id: stoneMerchantId,
+        stone_api_key: stoneApiKey,
+        nubank_enabled: nubankEnabled,
+        nubank_client_id: nubankClientId,
+        nubank_client_secret: nubankClientSecret,
       };
 
       if (existing) {
@@ -148,7 +266,40 @@ export default function Configuracoes() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-8">
+          <TabsTrigger value="geral">
+            <Info className="h-4 w-4 mr-2" />
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="localizacao">
+            <MapPin className="h-4 w-4 mr-2" />
+            Localização
+          </TabsTrigger>
+          <TabsTrigger value="fidelidade">
+            <Gift className="h-4 w-4 mr-2" />
+            Fidelidade
+          </TabsTrigger>
+          <TabsTrigger value="entrega">
+            <Truck className="h-4 w-4 mr-2" />
+            Entrega
+          </TabsTrigger>
+          <TabsTrigger value="pagamentos">
+            <CreditCard className="h-4 w-4 mr-2" />
+            Pagamentos
+          </TabsTrigger>
+          <TabsTrigger value="tema">
+            <Palette className="h-4 w-4 mr-2" />
+            Tema
+          </TabsTrigger>
+          <TabsTrigger value="audio">
+            <Volume2 className="h-4 w-4 mr-2" />
+            Áudio
+          </TabsTrigger>
+          <TabsTrigger value="nfce">
+            <DollarSign className="h-4 w-4 mr-2" />
+            NFC-e
+          </TabsTrigger>
+        </TabsList>
           <TabsTrigger value="geral">
             <Info className="h-4 w-4 mr-2" />
             Geral
@@ -339,6 +490,265 @@ export default function Configuracoes() {
               <Info className="h-4 w-4" />
               {loading ? "Salvando..." : "Salvar Informações"}
             </Button>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="localizacao">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <MapPin className="h-6 w-6 text-primary" />
+              <div>
+                <h3 className="text-lg font-semibold">Localização do Restaurante</h3>
+                <p className="text-sm text-muted-foreground">Configure as coordenadas para cálculo de distância</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="font-semibold mb-2">Endereço Atual:</p>
+                <p className="text-sm">
+                  {settings.street}, {settings.number} - {settings.neighborhood}
+                  <br />
+                  {settings.city}/{settings.state} - CEP: {settings.zipcode}
+                </p>
+                {settings.complement && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Complemento: {settings.complement}
+                  </p>
+                )}
+              </div>
+
+              {restaurantCoords && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input value={restaurantCoords.latitude.toFixed(6)} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input value={restaurantCoords.longitude.toFixed(6)} disabled />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="maxRadius">Raio Máximo de Entrega (km)</Label>
+                <Input
+                  id="maxRadius"
+                  type="number"
+                  value={maxDeliveryRadius}
+                  onChange={(e) => setMaxDeliveryRadius(Number(e.target.value))}
+                  placeholder="200"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Pedidos fora deste raio serão rejeitados automaticamente
+                </p>
+              </div>
+
+              <Button onClick={handleUpdateCoordinates} className="w-full">
+                <MapPin className="h-4 w-4 mr-2" />
+                Atualizar Coordenadas
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pagamentos">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <CreditCard className="h-6 w-6 text-primary" />
+              <div>
+                <h3 className="text-lg font-semibold">Integrações de Pagamento</h3>
+                <p className="text-sm text-muted-foreground">Configure gateways para aceitar pagamentos online</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* PagSeguro */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">PagSeguro</h4>
+                    <p className="text-xs text-muted-foreground">PIX e Cartão</p>
+                  </div>
+                  <Switch
+                    checked={pagSeguroEnabled}
+                    onCheckedChange={setPagSeguroEnabled}
+                  />
+                </div>
+                
+                {pagSeguroEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>E-mail</Label>
+                      <Input
+                        value={pagSeguroEmail}
+                        onChange={(e) => setPagSeguroEmail(e.target.value)}
+                        placeholder="email@exemplo.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Token API</Label>
+                      <Input
+                        type="password"
+                        value={pagSeguroToken}
+                        onChange={(e) => setPagSeguroToken(e.target.value)}
+                        placeholder="Digite seu token"
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Mercado Pago */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">Mercado Pago</h4>
+                    <p className="text-xs text-muted-foreground">PIX e Cartão</p>
+                  </div>
+                  <Switch
+                    checked={mercadoPagoEnabled}
+                    onCheckedChange={setMercadoPagoEnabled}
+                  />
+                </div>
+                
+                {mercadoPagoEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Access Token</Label>
+                      <Input
+                        type="password"
+                        value={mercadoPagoToken}
+                        onChange={(e) => setMercadoPagoToken(e.target.value)}
+                        placeholder="APP_USR-..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Public Key</Label>
+                      <Input
+                        value={mercadoPagoPublicKey}
+                        onChange={(e) => setMercadoPagoPublicKey(e.target.value)}
+                        placeholder="APP_USR-..."
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Rede */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">Rede</h4>
+                    <p className="text-xs text-muted-foreground">Cartão de Crédito/Débito</p>
+                  </div>
+                  <Switch
+                    checked={redeEnabled}
+                    onCheckedChange={setRedeEnabled}
+                  />
+                </div>
+                
+                {redeEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>PV (Número do Estabelecimento)</Label>
+                      <Input
+                        value={redePv}
+                        onChange={(e) => setRedePv(e.target.value)}
+                        placeholder="1234567"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Token API</Label>
+                      <Input
+                        type="password"
+                        value={redeToken}
+                        onChange={(e) => setRedeToken(e.target.value)}
+                        placeholder="Digite seu token"
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Stone */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">Stone</h4>
+                    <p className="text-xs text-muted-foreground">Cartão de Crédito/Débito</p>
+                  </div>
+                  <Switch
+                    checked={stoneEnabled}
+                    onCheckedChange={setStoneEnabled}
+                  />
+                </div>
+                
+                {stoneEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Merchant ID</Label>
+                      <Input
+                        value={stoneMerchantId}
+                        onChange={(e) => setStoneMerchantId(e.target.value)}
+                        placeholder="MERCHANT_ID"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>API Key</Label>
+                      <Input
+                        type="password"
+                        value={stoneApiKey}
+                        onChange={(e) => setStoneApiKey(e.target.value)}
+                        placeholder="Digite sua API key"
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Nubank */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">Nubank</h4>
+                    <p className="text-xs text-muted-foreground">PIX</p>
+                  </div>
+                  <Switch
+                    checked={nubankEnabled}
+                    onCheckedChange={setNubankEnabled}
+                  />
+                </div>
+                
+                {nubankEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Client ID</Label>
+                      <Input
+                        value={nubankClientId}
+                        onChange={(e) => setNubankClientId(e.target.value)}
+                        placeholder="client_id"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Client Secret</Label>
+                      <Input
+                        type="password"
+                        value={nubankClientSecret}
+                        onChange={(e) => setNubankClientSecret(e.target.value)}
+                        placeholder="client_secret"
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              <Button className="w-full" onClick={handleSaveSettings} disabled={loading}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                {loading ? "Salvando..." : "Salvar Configurações de Pagamento"}
+              </Button>
+            </div>
           </Card>
         </TabsContent>
 

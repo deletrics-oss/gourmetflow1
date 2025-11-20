@@ -103,12 +103,12 @@ export default function GestaoFinanceira() {
           startDate = new Date(now.setHours(0, 0, 0, 0));
       }
 
-      // Buscar pedidos completados (receitas)
+      // Buscar pedidos completados (receitas) - usar created_at quando completed_at é null
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('*')
         .eq('status', 'completed')
-        .gte('completed_at', startDate.toISOString());
+        .or(`completed_at.gte.${startDate.toISOString()},and(completed_at.is.null,created_at.gte.${startDate.toISOString()})`);
 
       if (ordersError) throw ordersError;
 
@@ -139,6 +139,30 @@ export default function GestaoFinanceira() {
 
       setBalances(balanceByMethod);
       setRevenue(totalRevenue);
+
+      // Buscar saldo acumulado total (todos os pedidos completed)
+      const { data: allCompleted } = await supabase
+        .from('orders')
+        .select('total, payment_method')
+        .eq('status', 'completed');
+
+      const cumulativeBalance: BalanceByMethod = {
+        cash: 0,
+        debit_card: 0,
+        credit_card: 0,
+        pix: 0,
+      };
+
+      allCompleted?.forEach((order) => {
+        const total = order.total || 0;
+        if (order.payment_method === 'cash') cumulativeBalance.cash += total;
+        else if (order.payment_method === 'debit_card') cumulativeBalance.debit_card += total;
+        else if (order.payment_method === 'credit_card') cumulativeBalance.credit_card += total;
+        else if (order.payment_method === 'pix') cumulativeBalance.pix += total;
+      });
+
+      // Atualizar balances com saldo acumulado
+      setBalances(cumulativeBalance);
 
       // Buscar despesas
       const { data: expensesData, error: expensesError } = await supabase
