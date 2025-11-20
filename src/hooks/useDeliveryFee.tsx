@@ -178,12 +178,19 @@ export const useDeliveryFee = () => {
     setLoading(true);
 
     try {
+      // Se não há endereço completo, retorna taxa 0
+      if (!customerAddress.street || !customerAddress.city) {
+        setLoading(false);
+        return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
+      }
+
       if (!restaurantCoords) {
         await loadRestaurantCoordinates();
       }
 
       if (!restaurantCoords) {
-        toast.error('Coordenadas do restaurante não configuradas');
+        console.warn('Coordenadas do restaurante não configuradas');
+        setLoading(false);
         return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
       }
 

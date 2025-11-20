@@ -232,6 +232,7 @@ export default function Configuracoes() {
     try {
       console.log('🔄 Salvando configurações...');
       
+      // Buscar ID do restaurante settings
       const { data: existing, error: fetchError } = await supabase
         .from('restaurant_settings')
         .select('id')
@@ -242,12 +243,24 @@ export default function Configuracoes() {
         throw fetchError;
       }
 
+      // Construir objeto de dados sem conflitos de campos
       const dataToSave = {
-        ...settings,
+        name: settings.name || null,
+        phone: settings.phone || null,
+        instagram: settings.instagram || null,
+        segment: settings.segment || null,
+        cnpj_cpf: settings.cnpj_cpf || null,
+        responsible_name: settings.responsible_name || null,
+        street: settings.street || null,
+        number: settings.number || null,
+        neighborhood: settings.neighborhood || null,
+        city: settings.city || null,
+        state: settings.state || null,
+        zipcode: settings.zipcode || null,
+        complement: settings.complement || null,
         loyalty_enabled: loyaltyEnabled,
         loyalty_points_per_real: loyaltyPointsPerReal,
         loyalty_redemption_value: loyaltyRedemptionValue,
-        nfce_enabled: nfceEnabled,
         max_delivery_radius: maxDeliveryRadius,
         // Payment gateways - usar null quando vazio
         pagseguro_enabled: pagSeguroEnabled,
