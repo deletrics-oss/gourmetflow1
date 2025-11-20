@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useCEP } from '@/hooks/useCEP';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useRestaurant } from '@/hooks/useRestaurant';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -43,13 +44,33 @@ export const CustomerAddressForm = ({
     fee: 0,
     isWithinRange: true,
   });
+  const [hasZones, setHasZones] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (restaurant?.id) {
       loadRestaurantCoordinates();
-      loadDeliveryZones(restaurant.id);
+      checkDeliveryZones();
     }
   }, [restaurant?.id]);
+
+  const checkDeliveryZones = async () => {
+    if (!restaurant?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('delivery_zones')
+        .select('id')
+        .eq('restaurant_id', restaurant.id)
+        .eq('is_active', true)
+        .limit(1);
+      
+      if (error) throw error;
+      setHasZones(data && data.length > 0);
+    } catch (error) {
+      console.error('Erro ao verificar zonas:', error);
+      setHasZones(false);
+    }
+  };
 
   useEffect(() => {
     // Calcular taxa quando endereço completo mudar
@@ -204,6 +225,19 @@ export const CustomerAddressForm = ({
             />
           </div>
         </div>
+
+        {/* Alerta se zonas não configuradas */}
+        {hasZones === false && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Nenhuma zona de entrega configurada. Configure em{" "}
+              <a href="/configuracoes" className="font-medium underline">
+                Configurações → Entrega
+              </a>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Informações de Entrega */}
         {calculatingFee ? (

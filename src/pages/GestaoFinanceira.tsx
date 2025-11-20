@@ -57,6 +57,7 @@ export default function GestaoFinanceira() {
   const [profit, setProfit] = useState(0);
   const [chartData, setChartData] = useState<any[]>([]);
   const [methodsData, setMethodsData] = useState<any[]>([]);
+  const [topItems, setTopItems] = useState<any[]>([]);
 
   useEffect(() => {
     loadFinancialData();
@@ -150,12 +151,54 @@ export default function GestaoFinanceira() {
 
       // Preparar dados para gráficos
       prepareChartData(orders || [], expensesData || []);
+      
+      // Buscar itens mais vendidos
+      await loadTopSellingItems(startDate);
 
     } catch (error) {
       console.error('Error loading financial data:', error);
       toast.error('Erro ao carregar dados financeiros');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTopSellingItems = async (startDate: Date) => {
+    try {
+      const { data: orderItems, error } = await supabase
+        .from('order_items')
+        .select(`
+          *,
+          orders!inner(completed_at, status)
+        `)
+        .eq('orders.status', 'completed')
+        .gte('orders.completed_at', startDate.toISOString());
+
+      if (error) throw error;
+
+      // Agrupar por item
+      const itemsMap: Record<string, { name: string; quantity: number; revenue: number }> = {};
+      
+      orderItems?.forEach((item: any) => {
+        if (!itemsMap[item.name]) {
+          itemsMap[item.name] = {
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        itemsMap[item.name].quantity += item.quantity;
+        itemsMap[item.name].revenue += item.total_price;
+      });
+
+      // Converter para array e ordenar
+      const topItemsArray = Object.values(itemsMap)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+      setTopItems(topItemsArray);
+    } catch (error) {
+      console.error('Error loading top items:', error);
     }
   };
 
