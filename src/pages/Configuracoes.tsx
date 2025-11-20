@@ -62,6 +62,10 @@ export default function Configuracoes() {
   const [nubankClientId, setNubankClientId] = useState('');
   const [nubankClientSecret, setNubankClientSecret] = useState('');
   
+  const [cieloEnabled, setCieloEnabled] = useState(false);
+  const [cieloMerchantId, setCieloMerchantId] = useState('');
+  const [cieloMerchantKey, setCieloMerchantKey] = useState('');
+  
   // Gateway status indicators
   const [testingGateways, setTestingGateways] = useState<Record<string, boolean>>({});
   const [gatewayStatus, setGatewayStatus] = useState<Record<string, 'success' | 'error' | 'idle'>>({
@@ -69,7 +73,8 @@ export default function Configuracoes() {
     pagseguro: 'idle',
     rede: 'idle',
     stone: 'idle',
-    nubank: 'idle'
+    nubank: 'idle',
+    cielo: 'idle'
   });
   
   const { buscarCEP, loading: cepLoading } = useCEP();
@@ -140,6 +145,10 @@ export default function Configuracoes() {
         setNubankEnabled(data.nubank_enabled || false);
         setNubankClientId(data.nubank_client_id || '');
         setNubankClientSecret(data.nubank_client_secret || '');
+        
+        setCieloEnabled(data.cielo_enabled || false);
+        setCieloMerchantId(data.cielo_merchant_id || '');
+        setCieloMerchantKey(data.cielo_merchant_key || '');
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
@@ -256,9 +265,12 @@ export default function Configuracoes() {
         nubank_enabled: nubankEnabled,
         nubank_client_id: nubankClientId || null,
         nubank_client_secret: nubankClientSecret || null,
+        cielo_enabled: cieloEnabled,
+        cielo_merchant_id: cieloMerchantId || null,
+        cielo_merchant_key: cieloMerchantKey || null,
       };
 
-      console.log('📦 Dados a salvar:', { 
+      console.log('📦 Dados a salvar:', {
         existingId: existing?.id,
         mercadoPagoEnabled,
         hasToken: !!mercadoPagoToken,
@@ -333,6 +345,9 @@ export default function Configuracoes() {
           break;
         case 'nubank':
           hasCredentials = !!(nubankClientId && nubankClientSecret);
+          break;
+        case 'cielo':
+          hasCredentials = !!(cieloMerchantId && cieloMerchantKey);
           break;
       }
       
@@ -1045,6 +1060,90 @@ export default function Configuracoes() {
                       className="w-full"
                     >
                       {testingGateways.nubank ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+
+              {/* Cielo */}
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.cielo === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.cielo === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.cielo === 'idle' && cieloMerchantKey && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-semibold">Cielo</h4>
+                    <p className="text-xs text-muted-foreground">Cartão de Crédito/Débito</p>
+                  </div>
+                  <Switch
+                    checked={cieloEnabled}
+                    onCheckedChange={setCieloEnabled}
+                  />
+                </div>
+                
+                {cieloEnabled && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Merchant ID</Label>
+                      <Input
+                        value={cieloMerchantId}
+                        onChange={(e) => {
+                          setCieloMerchantId(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, cielo: 'idle' }));
+                        }}
+                        placeholder="Merchant ID"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Merchant Key</Label>
+                      <Input
+                        type="password"
+                        value={cieloMerchantKey}
+                        onChange={(e) => {
+                          setCieloMerchantKey(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, cielo: 'idle' }));
+                        }}
+                        placeholder="Digite sua Merchant Key"
+                      />
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('cielo')}
+                      disabled={testingGateways.cielo || !cieloMerchantId || !cieloMerchantKey}
+                      className="w-full"
+                    >
+                      {testingGateways.cielo ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Testando...

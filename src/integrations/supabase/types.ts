@@ -1106,6 +1106,9 @@ export type Database = {
           address: Json | null
           apify_api_key: string | null
           business_hours: Json | null
+          cielo_enabled: boolean | null
+          cielo_merchant_id: string | null
+          cielo_merchant_key: string | null
           city: string | null
           cnpj_cpf: string | null
           complement: string | null
@@ -1167,6 +1170,9 @@ export type Database = {
           address?: Json | null
           apify_api_key?: string | null
           business_hours?: Json | null
+          cielo_enabled?: boolean | null
+          cielo_merchant_id?: string | null
+          cielo_merchant_key?: string | null
           city?: string | null
           cnpj_cpf?: string | null
           complement?: string | null
@@ -1228,6 +1234,9 @@ export type Database = {
           address?: Json | null
           apify_api_key?: string | null
           business_hours?: Json | null
+          cielo_enabled?: boolean | null
+          cielo_merchant_id?: string | null
+          cielo_merchant_key?: string | null
           city?: string | null
           cnpj_cpf?: string | null
           complement?: string | null
