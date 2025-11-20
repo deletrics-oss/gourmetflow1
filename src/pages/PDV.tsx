@@ -83,6 +83,8 @@ export default function PDV() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [searchOrderNumber, setSearchOrderNumber] = useState("");
+  const [searchingOrder, setSearchingOrder] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -227,12 +229,44 @@ export default function PDV() {
           order_items:order_items(*),
           tables(number)
         `)
-        .in('status', ['new', 'confirmed', 'preparing', 'ready'])
+        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'pending_payment'])
         .order('created_at', { ascending: false });
 
       if (orders) setPendingOrders(orders);
     } catch (error) {
       console.error('Erro ao carregar pedidos pendentes:', error);
+    }
+  };
+
+  const searchOrderByNumber = async (orderNum: string) => {
+    if (!orderNum || orderNum.length < 3) {
+      return;
+    }
+
+    setSearchingOrder(true);
+    try {
+      const { data: order } = await supabase
+        .from('orders' as any)
+        .select(`
+          *,
+          order_items:order_items(*),
+          tables(number)
+        `)
+        .ilike('order_number', `%${orderNum}%`)
+        .in('status', ['pending_payment', 'confirmed', 'new'])
+        .single();
+
+      if (order) {
+        handleSelectPendingOrder(order);
+        sonnerToast.success(`Pedido ${order.order_number} encontrado!`);
+      } else {
+        sonnerToast.error(`Pedido não encontrado`);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar pedido:', error);
+      sonnerToast.error('Erro ao buscar pedido');
+    } finally {
+      setSearchingOrder(false);
     }
   };
 

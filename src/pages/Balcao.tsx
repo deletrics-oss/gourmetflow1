@@ -4,6 +4,7 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Maximize, Bike, CheckCircle, Loader2, AlertTriangle, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,6 +52,7 @@ export default function Balcao() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [deliveryType, setDeliveryType] = useState<"retirada" | "entrega">("retirada");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -150,6 +152,39 @@ export default function Balcao() {
     const debounce = setTimeout(searchCustomer, 1000);
     return () => clearTimeout(debounce);
   }, [customerPhone]);
+
+  // Calcular taxa automaticamente quando entrega for selecionada
+  useEffect(() => {
+    const autoCalculateFee = async () => {
+      // SEMPRE zerar taxa para retirada
+      if (deliveryType === 'retirada') {
+        setDeliveryFee(0);
+        setDeliveryDistance(null);
+        return;
+      }
+
+      // Calcular APENAS para entrega com endereço completo
+      if (deliveryType === 'entrega' && customerAddress.street && customerAddress.number) {
+        try {
+          const result = await calculateFromAddress(customerAddress);
+          if (result.distance && result.isWithinRange) {
+            setDeliveryFee(result.fee);
+            setDeliveryDistance(result.distance);
+            sonnerToast.success(`Taxa calculada: R$ ${result.fee.toFixed(2)} (${result.distance.toFixed(2)}km)`);
+          } else if (result.distance && !result.isWithinRange) {
+            setDeliveryFee(0);
+            setDeliveryDistance(null);
+            sonnerToast.error(`Endereço fora do raio de entrega`);
+          }
+        } catch (error) {
+          console.error('Erro ao calcular taxa:', error);
+          setDeliveryFee(0);
+          setDeliveryDistance(null);
+        }
+      }
+    };
+    autoCalculateFee();
+  }, [customerAddress.street, customerAddress.number, customerAddress.city, deliveryType]);
 
   useEffect(() => {
     loadCategories();
@@ -376,8 +411,8 @@ export default function Balcao() {
           customer_phone: customerPhone,
           customer_cpf: customerCpf || null,
           customer_id: finalCustomerId,
-          delivery_type: "pickup",
-          delivery_address: customerAddress.street ? customerAddress : null,
+          delivery_type: deliveryType === 'entrega' ? "delivery" : "pickup",
+          delivery_address: deliveryType === 'entrega' && customerAddress.street ? customerAddress : null,
           delivery_fee: deliveryFee || 0,
           payment_method: paymentMethod,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
@@ -496,6 +531,14 @@ export default function Balcao() {
       setLoyaltyPoints(0);
       setIsSuspicious(false);
       setSelectedMotoboy('none');
+      setDeliveryType('retirada');
+      setCustomerAddress({
+        street: "", number: "", complement: "",
+        neighborhood: "", city: "", state: "", zipcode: "",
+        latitude: undefined, longitude: undefined,
+      });
+      setDeliveryFee(0);
+      setDeliveryDistance(null);
       
     } catch (error: any) {
       console.error('Erro ao finalizar venda:', error);
@@ -725,25 +768,59 @@ export default function Balcao() {
                         </div>
                       </CardContent>
                     </Card>
-                  )}
+                   )}
                   </div>
 
-                  {/* Formulário de Endereço de Entrega */}
-                  <CustomerAddressForm
-                    address={customerAddress}
-                    onAddressChange={setCustomerAddress}
-                    onDeliveryFeeChange={(fee, distance, coords) => {
-                      setDeliveryFee(fee);
-                      setDeliveryDistance(distance);
-                      if (coords) {
-                        setCustomerAddress(prev => ({
-                          ...prev,
-                          latitude: coords.latitude,
-                          longitude: coords.longitude,
-                        }));
-                      }
-                    }}
-                  />
+                  {/* Seletor de Tipo de Entrega */}
+                  <div className="border-t pt-4">
+                    <Label>Tipo de Venda</Label>
+                    <RadioGroup value={deliveryType} onValueChange={(v: any) => setDeliveryType(v)} className="mt-2">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="retirada" id="retirada" />
+                        <Label htmlFor="retirada" className="cursor-pointer">
+                          🏪 Retirada no Balcão (Taxa R$ 0,00)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="entrega" id="entrega" />
+                        <Label htmlFor="entrega" className="cursor-pointer">
+                          🚚 Entrega (Taxa calculada automaticamente)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {/* Formulário de Endereço de Entrega - APENAS se for entrega */}
+                  {deliveryType === 'entrega' && (
+                    <div className="border-t pt-4">
+                      <CustomerAddressForm
+                        address={customerAddress}
+                        onAddressChange={setCustomerAddress}
+                        onDeliveryFeeChange={(fee, distance, coords) => {
+                          setDeliveryFee(fee);
+                          setDeliveryDistance(distance);
+                          if (coords) {
+                            setCustomerAddress(prev => ({
+                              ...prev,
+                              latitude: coords.latitude,
+                              longitude: coords.longitude,
+                            }));
+                          }
+                        }}
+                      />
+                      {deliveryLoading && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Calculando taxa de entrega...
+                        </div>
+                      )}
+                      {deliveryDistance && (
+                        <Badge variant="secondary" className="text-sm mt-2">
+                          📍 {deliveryDistance.toFixed(2)}km | Taxa: R$ {deliveryFee.toFixed(2)}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
                   <div className="border-t pt-4 space-y-4">
                   {/* Motoboy */}
