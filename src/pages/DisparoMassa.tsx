@@ -78,6 +78,19 @@ export default function DisparoMassa() {
 
       if (data?.success) {
         toast.success(`✅ Mensagens enviadas! ${data.totalSent} enviadas, ${data.totalFailed} falharam`);
+        
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'mass_whatsapp_dispatch',
+          p_entity_type: 'customers',
+          p_details: {
+            total_customers: selectedCustomers.length,
+            total_sent: data.totalSent,
+            total_failed: data.totalFailed,
+            message_preview: message.trim().substring(0, 100)
+          }
+        });
+
         setMessage('');
         setSelectedCustomers([]);
       } else {

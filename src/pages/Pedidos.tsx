@@ -159,6 +159,19 @@ export default function Pedidos() {
         
         console.log("✅ Pedido DEPOIS:", updated);
 
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'complete_order',
+          p_entity_type: 'orders',
+          p_entity_id: orderId,
+          p_details: {
+            old_status: order.status,
+            new_status: 'completed',
+            order_number: order.order_number,
+            total: order.total
+          }
+        });
+
         // Liberar mesa se for pedido no local
         if (order.table_id) {
           await supabase
