@@ -300,31 +300,6 @@ export default function Configuracoes() {
             NFC-e
           </TabsTrigger>
         </TabsList>
-          <TabsTrigger value="geral">
-            <Info className="h-4 w-4 mr-2" />
-            Geral
-          </TabsTrigger>
-          <TabsTrigger value="fidelidade">
-            <Gift className="h-4 w-4 mr-2" />
-            Fidelidade
-          </TabsTrigger>
-          <TabsTrigger value="entrega">
-            <Truck className="h-4 w-4 mr-2" />
-            Entrega
-          </TabsTrigger>
-          <TabsTrigger value="tema">
-            <Palette className="h-4 w-4 mr-2" />
-            Tema
-          </TabsTrigger>
-          <TabsTrigger value="audio">
-            <Volume2 className="h-4 w-4 mr-2" />
-            Áudio
-          </TabsTrigger>
-          <TabsTrigger value="nfce">
-            <DollarSign className="h-4 w-4 mr-2" />
-            NFC-e
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="geral">
           <Card className="p-6">
