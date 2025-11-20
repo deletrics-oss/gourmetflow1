@@ -497,11 +497,11 @@ export default function Configuracoes() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Latitude</Label>
-                    <Input value={restaurantCoords.latitude.toFixed(6)} disabled />
+                    <Input value={restaurantCoords.latitude.toFixed(7)} disabled />
                   </div>
                   <div className="space-y-2">
                     <Label>Longitude</Label>
-                    <Input value={restaurantCoords.longitude.toFixed(6)} disabled />
+                    <Input value={restaurantCoords.longitude.toFixed(7)} disabled />
                   </div>
                 </div>
               )}

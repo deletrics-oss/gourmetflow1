@@ -14,6 +14,8 @@ import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { toast as sonnerToast } from "sonner";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
+import { useDeliveryFee } from "@/hooks/useDeliveryFee";
+import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 
 interface CartItem {
   id: string;
@@ -64,6 +66,15 @@ export default function PDV() {
   const [closedOrderDialogOpen, setClosedOrderDialogOpen] = useState(false);
   const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [customerAddress, setCustomerAddress] = useState({
+    street: "", number: "", complement: "",
+    neighborhood: "", city: "", state: "", zipcode: "",
+    latitude: undefined as number | undefined,
+    longitude: undefined as number | undefined,
+  });
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  const { calculateFromAddress } = useDeliveryFee();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -90,6 +101,23 @@ export default function PDV() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Cálculo automático de taxa de entrega
+  useEffect(() => {
+    const autoCalculateFee = async () => {
+      if (deliveryType === 'delivery' && customerAddress.street && customerAddress.number) {
+        const result = await calculateFromAddress(customerAddress);
+        if (result.distance && result.isWithinRange) {
+          setDeliveryFee(result.fee);
+          setDeliveryDistance(result.distance);
+        }
+      } else {
+        setDeliveryFee(0);
+        setDeliveryDistance(null);
+      }
+    };
+    autoCalculateFee();
+  }, [customerAddress.street, customerAddress.number, deliveryType]);
 
   const loadRestaurantSettings = async () => {
     try {
@@ -316,7 +344,7 @@ export default function PDV() {
     return sum + price * item.quantity;
   }, 0);
   const serviceFee = includeServiceFee ? subtotal * 0.1 : 0;
-  const total = subtotal + serviceFee;
+  const total = subtotal + serviceFee + deliveryFee;
 
   const handleFinishOrder = async () => {
     if (cart.length === 0) {
@@ -395,6 +423,8 @@ export default function PDV() {
           payment_method: paymentSelected,
           subtotal: subtotal,
           service_fee: serviceFee,
+          delivery_fee: deliveryFee,
+          delivery_address: deliveryType === 'delivery' ? customerAddress : null,
           total: total,
           customer_name: customerName || null,
           customer_phone: customerPhone || null,
@@ -646,6 +676,24 @@ export default function PDV() {
                     onChange={(e) => setCustomerPhone(e.target.value)}
                   />
                 </div>
+              </div>
+            )}
+
+            {deliveryType === 'delivery' && (
+              <div className="space-y-4 mb-4">
+                <CustomerAddressForm
+                  address={customerAddress}
+                  onAddressChange={setCustomerAddress}
+                  onDeliveryFeeChange={(fee, distance) => {
+                    setDeliveryFee(fee);
+                    setDeliveryDistance(distance);
+                  }}
+                />
+                {deliveryDistance && (
+                  <Badge variant="secondary" className="text-sm">
+                    📍 Distância: {deliveryDistance.toFixed(2)}km | Taxa: R$ {deliveryFee.toFixed(2)}
+                  </Badge>
+                )}
               </div>
             )}
 
