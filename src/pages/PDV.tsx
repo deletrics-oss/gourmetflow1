@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface CartItem {
   id: string;
@@ -74,7 +75,14 @@ export default function PDV() {
   });
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
-  const { calculateFromAddress } = useDeliveryFee();
+  const { calculateFromAddress, loadDeliveryZones } = useDeliveryFee();
+  const [motoboys, setMotoboys] = useState<any[]>([]);
+  const [selectedMotoboy, setSelectedMotoboy] = useState<string>("none");
+  const [restaurantSettings, setRestaurantSettings] = useState<any>(null);
+  const [paymentGatewayDialogOpen, setPaymentGatewayDialogOpen] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -84,6 +92,7 @@ export default function PDV() {
     loadRestaurantSettings();
     loadPendingOrders();
     loadRecentlyClosedOrders();
+    loadMotoboys();
 
     // Atualizar pedidos pendentes em tempo real
     const channel = supabase
@@ -123,14 +132,41 @@ export default function PDV() {
     try {
       const { data } = await supabase
         .from('restaurant_settings' as any)
-        .select('name')
+        .select('name, street, number, neighborhood, city, state, zipcode, latitude, longitude, pagseguro_enabled, mercadopago_enabled, rede_enabled, stone_enabled, nubank_enabled')
         .maybeSingle();
 
-      if (data?.name) {
-        setRestaurantName(data.name);
+      if (data) {
+        setRestaurantName(data.name || 'Restaurante');
+        setRestaurantSettings(data);
+        
+        // Carregar zonas de entrega se houver coordenadas
+        if (data.latitude && data.longitude) {
+          const { data: restaurantData } = await supabase
+            .from('restaurants')
+            .select('id')
+            .maybeSingle();
+          
+          if (restaurantData?.id) {
+            loadDeliveryZones(restaurantData.id);
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
+    }
+  };
+
+  const loadMotoboys = async () => {
+    try {
+      const { data } = await supabase
+        .from('motoboys')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (data) setMotoboys(data);
+    } catch (error) {
+      console.error('Erro ao carregar motoboys:', error);
     }
   };
 
@@ -374,11 +410,15 @@ export default function PDV() {
       return;
     }
 
+    // Abrir dialog de seleção de gateway de pagamento
+    setPaymentGatewayDialogOpen(true);
+  };
+
+  const processPayment = async (gateway: string) => {
+    setPaymentGatewayDialogOpen(false);
+    
     try {
-      // Criar pedido - CORRIGIDO: validar delivery_type
       const orderNumber = `PDV${Date.now().toString().slice(-6)}`;
-      
-      // Mapear delivery_type corretamente
       let finalDeliveryType: 'delivery' | 'pickup' | 'dine_in' = 'dine_in';
       if (deliveryType === "online" || deliveryType === "delivery") {
         finalDeliveryType = "delivery";
@@ -386,32 +426,11 @@ export default function PDV() {
         finalDeliveryType = "pickup";
       }
 
-      // Dialog para selecionar método de pagamento
-      const paymentSelected = await new Promise<string>((resolve) => {
-        const dialog = document.createElement('div');
-        dialog.innerHTML = `
-          <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-            <div style="background: white; padding: 24px; border-radius: 8px; max-width: 400px; width: 100%;">
-              <h3 style="margin: 0 0 16px; font-size: 18px; font-weight: 600;">Selecionar Método de Pagamento</h3>
-              <div style="display: flex; flex-direction: column; gap: 8px;">
-                <button data-payment="cash" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💵 Dinheiro</button>
-                <button data-payment="credit_card" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💳 Cartão de Crédito</button>
-                <button data-payment="debit_card" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">💳 Cartão de Débito</button>
-                <button data-payment="pix" style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; font-size: 14px; text-align: left;">📱 PIX</button>
-              </div>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(dialog);
-        
-        dialog.querySelectorAll('[data-payment]').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const payment = (e.target as HTMLButtonElement).getAttribute('data-payment');
-            document.body.removeChild(dialog);
-            resolve(payment || 'cash');
-          });
-        });
-      });
+      // Status inicial: completed para manual, pending_payment para gateways
+      let initialStatus = 'completed';
+      if (gateway !== 'manual') {
+        initialStatus = 'pending_payment';
+      }
       
       const { data: orderData, error: orderError } = await supabase
         .from('orders' as any)
@@ -419,8 +438,8 @@ export default function PDV() {
           order_number: orderNumber,
           delivery_type: finalDeliveryType,
           table_id: deliveryType === "dine_in" ? selectedTable : null,
-          status: 'new',
-          payment_method: paymentSelected,
+          status: initialStatus,
+          payment_method: paymentMethod,
           subtotal: subtotal,
           service_fee: serviceFee,
           delivery_fee: deliveryFee,
@@ -428,6 +447,7 @@ export default function PDV() {
           total: total,
           customer_name: customerName || null,
           customer_phone: customerPhone || null,
+          motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
         }])
         .select()
         .single();
@@ -454,37 +474,63 @@ export default function PDV() {
         throw itemsError;
       }
 
-      // Mapear método de pagamento
-      const paymentMethodMap: any = {
-        'cash': 'Dinheiro',
-        'credit_card': 'Cartão',
-        'debit_card': 'Cartão',
-        'pix': 'PIX'
-      };
+      // Processar pagamento via gateway
+      if (gateway !== 'manual') {
+        setProcessingPayment(true);
+        
+        const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+          `${gateway}-payment`,
+          {
+            body: {
+              amount: total,
+              orderId: orderData.id,
+              customerEmail: customerPhone ? `${customerPhone}@temp.com` : 'cliente@temp.com',
+              customerPhone: customerPhone,
+              paymentMethod: paymentMethod === 'pix' ? 'pix' : 'credit_card'
+            }
+          }
+        );
 
-      // Registrar movimentação no caixa
-      const { error: cashError } = await supabase.from('cash_movements').insert([{
-        type: 'income',
-        description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
-        amount: total,
-        movement_date: new Date().toISOString().split('T')[0],
-        payment_method: paymentMethodMap[paymentSelected] || 'Dinheiro',
-        category: 'sale',
-        created_by: (await supabase.auth.getUser()).data.user?.id
-      }]);
+        setProcessingPayment(false);
 
-      if (cashError) {
-        console.error('Erro ao registrar movimentação no caixa:', cashError);
+        if (paymentError) throw paymentError;
+
+        if (paymentData?.qrCode) {
+          setPaymentQrCode(paymentData.qrCode);
+          setQrDialogOpen(true);
+          sonnerToast.success('QR Code PIX gerado! Aguardando pagamento...');
+        } else if (paymentData?.paymentLink) {
+          window.open(paymentData.paymentLink, '_blank');
+          sonnerToast.success('Link de pagamento aberto!');
+        }
+      } else {
+        // Pagamento manual: registrar caixa e completar pedido
+        const paymentMethodMap: any = {
+          'cash': 'Dinheiro',
+          'credit_card': 'Cartão',
+          'debit_card': 'Cartão',
+          'pix': 'PIX'
+        };
+
+        await supabase.from('cash_movements').insert([{
+          type: 'income',
+          description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
+          amount: total,
+          movement_date: new Date().toISOString().split('T')[0],
+          payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
+          category: 'sale',
+          created_by: (await supabase.auth.getUser()).data.user?.id
+        }]);
+
+        // Atualizar pedido para completed
+        await supabase
+          .from('orders')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', orderData.id);
       }
-
-      // Atualizar pedido para completed
-      await supabase
-        .from('orders')
-        .update({ 
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', orderData.id);
 
 
       // Atualizar status da mesa se for pedido no local
@@ -533,9 +579,17 @@ export default function PDV() {
       setSelectedTable("");
       setCustomerName("");
       setCustomerPhone("");
+      setSelectedMotoboy("none");
+      setCustomerAddress({
+        street: "", number: "", complement: "",
+        neighborhood: "", city: "", state: "", zipcode: "",
+        latitude: undefined, longitude: undefined,
+      });
       setShouldPrint(true);
       setDeliveryType("dine_in");
       loadTables();
+      loadPendingOrders();
+      loadRecentlyClosedOrders();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       toast({
@@ -681,18 +735,57 @@ export default function PDV() {
 
             {deliveryType === 'delivery' && (
               <div className="space-y-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="h-5 w-5 text-primary" />
+                  <Label className="font-semibold">Endereço de Entrega</Label>
+                </div>
                 <CustomerAddressForm
                   address={customerAddress}
                   onAddressChange={setCustomerAddress}
-                  onDeliveryFeeChange={(fee, distance) => {
+                  onDeliveryFeeChange={(fee, distance, coords) => {
                     setDeliveryFee(fee);
                     setDeliveryDistance(distance);
+                    if (coords) {
+                      setCustomerAddress(prev => ({
+                        ...prev,
+                        latitude: coords.latitude,
+                        longitude: coords.longitude
+                      }));
+                    }
                   }}
                 />
                 {deliveryDistance && (
                   <Badge variant="secondary" className="text-sm">
                     📍 Distância: {deliveryDistance.toFixed(2)}km | Taxa: R$ {deliveryFee.toFixed(2)}
                   </Badge>
+                )}
+              </div>
+            )}
+
+            {(deliveryType === "online" || deliveryType === "delivery") && (
+              <div className="space-y-2 mb-4">
+                <Label>Motoboy (Opcional)</Label>
+                <Select value={selectedMotoboy} onValueChange={setSelectedMotoboy}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o motoboy..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {motoboys.map(motoboy => (
+                      <SelectItem key={motoboy.id} value={motoboy.id}>
+                        <div className="flex items-center gap-2">
+                          <Bike className="h-4 w-4" />
+                          {motoboy.name} - {motoboy.phone}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedMotoboy && selectedMotoboy !== "none" && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                    Motoboy será notificado após finalizar venda
+                  </div>
                 )}
               </div>
             )}
@@ -1093,6 +1186,113 @@ export default function PDV() {
         item={selectedItem}
         onAddToCart={addToCart}
       />
+
+      {/* Dialog de Seleção de Gateway de Pagamento */}
+      <Dialog open={paymentGatewayDialogOpen} onOpenChange={setPaymentGatewayDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Selecionar Forma de Pagamento</DialogTitle>
+            <DialogDescription>
+              Como deseja receber o pagamento?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3">
+            {/* Pagamentos Manuais */}
+            <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('manual')}>
+              <h4 className="font-semibold mb-2">💵 Pagamentos Manuais</h4>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>• Dinheiro</p>
+                <p>• Cartão na maquininha</p>
+                <p className="text-xs mt-2">Confirmar manualmente após receber</p>
+              </div>
+            </Card>
+
+            {/* PIX via Gateways */}
+            {paymentMethod === 'pix' && (
+              <>
+                {restaurantSettings?.mercadopago_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('mercadopago')}>
+                    <h4 className="font-semibold">📱 PIX - Mercado Pago</h4>
+                    <p className="text-xs text-muted-foreground">QR Code gerado automaticamente</p>
+                  </Card>
+                )}
+                {restaurantSettings?.pagseguro_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('pagseguro')}>
+                    <h4 className="font-semibold">📱 PIX - PagSeguro</h4>
+                    <p className="text-xs text-muted-foreground">QR Code gerado automaticamente</p>
+                  </Card>
+                )}
+                {restaurantSettings?.nubank_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('nubank')}>
+                    <h4 className="font-semibold">📱 PIX - Nubank</h4>
+                    <p className="text-xs text-muted-foreground">QR Code gerado automaticamente</p>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* Cartão via Gateways */}
+            {(paymentMethod === 'credit_card' || paymentMethod === 'debit_card') && (
+              <>
+                {restaurantSettings?.mercadopago_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('mercadopago')}>
+                    <h4 className="font-semibold">💳 Mercado Pago</h4>
+                    <p className="text-xs text-muted-foreground">Link de pagamento seguro</p>
+                  </Card>
+                )}
+                {restaurantSettings?.rede_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('rede')}>
+                    <h4 className="font-semibold">💳 Rede</h4>
+                    <p className="text-xs text-muted-foreground">Processamento via Rede</p>
+                  </Card>
+                )}
+                {restaurantSettings?.stone_enabled && (
+                  <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('stone')}>
+                    <h4 className="font-semibold">💳 Stone</h4>
+                    <p className="text-xs text-muted-foreground">Processamento via Stone</p>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de QR Code PIX */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pagar com PIX</DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code ou aguarde confirmação automática
+            </DialogDescription>
+          </DialogHeader>
+          
+          {paymentQrCode && (
+            <div className="flex flex-col items-center gap-4 p-6">
+              <img src={paymentQrCode} alt="QR Code PIX" className="max-w-xs border rounded-lg" />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Aguardando confirmação do pagamento...
+              </div>
+              <p className="text-xs text-center text-muted-foreground">
+                O pedido será confirmado automaticamente quando o pagamento for aprovado
+              </p>
+              <Button variant="outline" onClick={() => setQrDialogOpen(false)}>
+                Fechar
+              </Button>
+            </div>
+          )}
+
+          {processingPayment && (
+            <div className="flex flex-col items-center gap-4 p-6">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Processando pagamento...</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
