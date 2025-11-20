@@ -118,6 +118,31 @@ export default function CustomerMenu() {
     if (savedCPF) setCustomerCPF(savedCPF);
   }, []);
 
+  // Cálculo automático de taxa de entrega
+  useEffect(() => {
+    const autoCalculateFee = async () => {
+      if (deliveryType === 'delivery' && address.street && address.number && address.neighborhood && address.city) {
+        try {
+          const result = await calculateFromAddress(address);
+          
+          if (result.distance && result.isWithinRange) {
+            setCalculatedDeliveryFee(result.fee);
+            toast.success(`Taxa calculada: R$ ${result.fee.toFixed(2)} (${result.distance.toFixed(2)}km)`);
+          } else if (result.distance && !result.isWithinRange) {
+            setCalculatedDeliveryFee(0);
+            toast.error(`Endereço fora do raio de entrega (${result.distance.toFixed(2)}km)`);
+          }
+        } catch (error) {
+          console.error('Erro ao calcular taxa:', error);
+        }
+      } else {
+        setCalculatedDeliveryFee(0);
+      }
+    };
+
+    autoCalculateFee();
+  }, [address.street, address.number, address.neighborhood, address.city, deliveryType]);
+
   const loadData = async () => {
     try {
       const [categoriesRes, itemsRes] = await Promise.all([
@@ -632,19 +657,42 @@ export default function CustomerMenu() {
             </div>
           </div>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="text-white hover:bg-white/20 relative"
-            onClick={() => setCartOpen(true)}
-          >
-            <ShoppingCart className="h-6 w-6" />
-            {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {cart.reduce((sum, item) => sum + item.quantity, 0)}
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => setProfileDialogOpen(true)}
+            >
+              <User className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20 relative"
+              onClick={loadCustomerOrders}
+            >
+              <Package className="h-5 w-5" />
+              {customerOrders.length > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
+                  {customerOrders.length}
+                </Badge>
+              )}
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white hover:bg-white/20 relative"
+              onClick={() => setCartOpen(true)}
+            >
+              <ShoppingCart className="h-6 w-6" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -1227,7 +1275,10 @@ export default function CustomerMenu() {
       <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Meus Pedidos</DialogTitle>
+            <DialogTitle>Meus Pedidos Anteriores</DialogTitle>
+            <DialogDescription>
+              Histórico dos seus últimos 10 pedidos
+            </DialogDescription>
           </DialogHeader>
           {customerOrders.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -1242,9 +1293,15 @@ export default function CustomerMenu() {
                   <Card key={order.id} className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <p className="font-bold text-lg">#{order.order_number}</p>
+                        <p className="font-bold text-lg">Pedido #{order.order_number}</p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(order.created_at).toLocaleString('pt-BR')}
+                          {new Date(order.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </p>
                       </div>
                       <Badge className={status.className}>{status.label}</Badge>
@@ -1259,16 +1316,45 @@ export default function CustomerMenu() {
                       ))}
                     </div>
                     
-                    <div className="border-t pt-3 flex justify-between font-bold">
-                      <span>Total</span>
-                      <span className="text-green-600">R$ {order.total.toFixed(2)}</span>
+                    <div className="border-t pt-3 flex justify-between items-center">
+                      <span className="text-sm font-semibold">Total:</span>
+                      <span className="text-lg font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
                     </div>
                     
-                    {order.notes && (
-                      <div className="mt-3 text-sm text-muted-foreground">
-                        <strong>Obs:</strong> {order.notes}
-                      </div>
+                    {order.delivery_type === 'delivery' && order.delivery_fee > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        🚚 Entrega | Taxa: R$ {order.delivery_fee.toFixed(2)}
+                      </p>
                     )}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-3"
+                      onClick={() => {
+                        // Reordenar (adicionar itens ao carrinho)
+                        order.order_items?.forEach((item: any) => {
+                          const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+                          if (menuItem) {
+                            for (let i = 0; i < item.quantity; i++) {
+                              const existing = cart.find(c => c.id === menuItem.id);
+                              if (existing) {
+                                setCart(prev => prev.map((c: any) => 
+                                  c.id === menuItem.id ? {...c, quantity: c.quantity + 1} : c
+                                ));
+                              } else {
+                                setCart(prev => [...prev, {...menuItem, quantity: 1}] as any);
+                              }
+                            }
+                          }
+                        });
+                        toast.success('Itens adicionados ao carrinho!');
+                        setOrdersDialogOpen(false);
+                        setCartOpen(true);
+                      }}
+                    >
+                      🔄 Repetir Pedido
+                    </Button>
                   </Card>
                 );
               })}
