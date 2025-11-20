@@ -17,6 +17,8 @@ import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
 import { useWhatsApp } from "@/hooks/useWhatsApp";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
+import { useDeliveryFee } from "@/hooks/useDeliveryFee";
+import { logActionWithContext } from "@/lib/logging";
 
 interface CartItem {
   id: string;
@@ -84,6 +86,7 @@ export default function Balcao() {
   const { toast } = useToast();
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
+  const { calculateFromAddress, loading: deliveryLoading } = useDeliveryFee();
 
   // Busca automática de cliente por telefone (com debounce)
   useEffect(() => {
@@ -439,21 +442,18 @@ export default function Balcao() {
         description: `Venda balcão ${orderNumber}`
       });
 
-      try {
-        await supabase.rpc('log_action', {
-          p_action: 'sale_created',
-          p_entity_type: 'order',
-          p_entity_id: order.id,
-          p_details: {
-            order_number: orderNumber,
-            total: total,
-            payment_method: paymentMethod,
-            source: 'balcao'
-          }
-        });
-      } catch (logError) {
-        console.log('Log action error (non-critical):', logError);
-      }
+      // Log action with context
+      await logActionWithContext(
+        'sale_created',
+        'orders',
+        order.id,
+        {
+          order_number: orderNumber,
+          total: total,
+          payment_method: paymentMethod,
+          source: 'balcao'
+        }
+      );
 
       if (printOnClose) {
         try {

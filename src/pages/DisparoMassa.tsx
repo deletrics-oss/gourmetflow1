@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { logActionWithContext } from '@/lib/logging';
 
 export default function DisparoMassa() {
   const [message, setMessage] = useState('');
@@ -80,16 +81,17 @@ export default function DisparoMassa() {
         toast.success(`✅ Mensagens enviadas! ${data.totalSent} enviadas, ${data.totalFailed} falharam`);
         
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'mass_whatsapp_dispatch',
-          p_entity_type: 'customers',
-          p_details: {
+        await logActionWithContext(
+          'mass_whatsapp_dispatch',
+          'customers',
+          null,
+          {
             total_customers: selectedCustomers.length,
             total_sent: data.totalSent,
             total_failed: data.totalFailed,
             message_preview: message.trim().substring(0, 100)
           }
-        });
+        );
 
         setMessage('');
         setSelectedCustomers([]);

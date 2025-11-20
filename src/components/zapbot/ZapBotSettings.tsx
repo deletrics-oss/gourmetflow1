@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Save, Loader2, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 export function ZapBotSettings() {
   const { toast } = useToast();
@@ -104,8 +105,32 @@ export function ZapBotSettings() {
     );
   }
 
+  // Check connection status
+  const isConnected = !!(
+    settings.twilio_account_sid && 
+    settings.twilio_auth_token && 
+    settings.twilio_phone_number
+  );
+
   return (
     <div className="space-y-6">
+      {/* Status Badge */}
+      <div className="flex items-center gap-3">
+        <Badge variant={isConnected ? "default" : "destructive"} className="text-sm">
+          {isConnected ? "🟢 Conectado" : "🔴 Desconectado"}
+        </Badge>
+        {isConnected && (
+          <span className="text-sm text-muted-foreground">
+            WhatsApp configurado e pronto para uso
+          </span>
+        )}
+        {!isConnected && (
+          <span className="text-sm text-muted-foreground">
+            Configure as credenciais do Twilio para conectar
+          </span>
+        )}
+      </div>
+
       {/* Webhook URL */}
       <Card>
         <CardHeader>

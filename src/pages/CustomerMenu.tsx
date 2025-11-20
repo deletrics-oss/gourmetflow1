@@ -37,6 +37,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { CustomizeItemDialog } from '@/components/dialogs/CustomizeItemDialog';
 import { useCEP } from '@/hooks/useCEP';
+import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+import { CustomerAddressForm } from '@/components/delivery/CustomerAddressForm';
 
 interface MenuItem {
   id: string;
@@ -98,6 +100,8 @@ export default function CustomerMenu() {
   const [pointsToUse, setPointsToUse] = useState(0);
   const [customerLoyalty, setCustomerLoyalty] = useState<any>(null);
   const { buscarCEP, loading: cepLoading } = useCEP();
+  const { calculateFromAddress, loading: deliveryLoading } = useDeliveryFee();
+  const [calculatedDeliveryFee, setCalculatedDeliveryFee] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -309,7 +313,7 @@ export default function CustomerMenu() {
     ? pointsToUse * (restaurantSettings?.loyalty_redemption_value || 0.01)
     : 0;
 
-  const deliveryFee = deliveryType === 'delivery' ? 5.00 : 0;
+  const deliveryFee = deliveryType === 'delivery' ? calculatedDeliveryFee : 0;
   const total = Math.max(0, cartTotal + deliveryFee - couponDiscount - loyaltyDiscount);
 
   const handleCEPSearch = async () => {
