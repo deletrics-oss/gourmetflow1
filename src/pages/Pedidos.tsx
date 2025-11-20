@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +11,12 @@ import { toast } from "sonner";
 export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [motoboys, setMotoboys] = useState<any[]>([]);
+  const [selectedMotoboy, setSelectedMotoboy] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadOrders();
+    loadMotoboys();
     
     // Realtime subscription
     const channel = supabase
@@ -26,6 +30,21 @@ export default function Pedidos() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const loadMotoboys = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('motoboys')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setMotoboys(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar motoboys:', error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -48,16 +67,28 @@ export default function Pedidos() {
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: string, motoboyId?: string) => {
     try {
+      console.log(`[DEBUG] Iniciando atualização de status - Order: ${orderId}, New Status: ${newStatus}, Motoboy: ${motoboyId || 'Nenhum'}`);
+      
       // Buscar o pedido completo
-      const { data: order } = await supabase
+      const { data: order, error: fetchError } = await supabase
         .from('orders')
         .select('*')
         .eq('id', orderId)
         .single();
 
-      if (!order) throw new Error('Pedido não encontrado');
+      if (fetchError) {
+        console.error('[DEBUG] Erro ao buscar pedido:', fetchError);
+        throw fetchError;
+      }
+
+      if (!order) {
+        console.error('[DEBUG] Pedido não encontrado');
+        throw new Error('Pedido não encontrado');
+      }
+
+      console.log('[DEBUG] Pedido encontrado:', order);
 
       // Se está tentando concluir, verificar se o pagamento foi feito
       if (newStatus === 'completed') {
@@ -133,22 +164,37 @@ export default function Pedidos() {
         
         // Se está indo para preparing, registrar o momento
         if (newStatus === 'preparing') {
+          console.log('[DEBUG] Atualizando para status "preparing"');
           updates.updated_at = new Date().toISOString();
         }
         
-        const { error } = await supabase
+        // Se está atribuindo motoboy
+        if (motoboyId) {
+          console.log('[DEBUG] Atribuindo motoboy:', motoboyId);
+          updates.motoboy_id = motoboyId;
+        }
+        
+        console.log('[DEBUG] Atualizando pedido com:', updates);
+        
+        const { error: updateError } = await supabase
           .from('orders')
           .update(updates)
           .eq('id', orderId);
 
-        if (error) throw error;
+        if (updateError) {
+          console.error('[DEBUG] Erro ao atualizar pedido:', updateError);
+          throw updateError;
+        }
+        
+        console.log('[DEBUG] Pedido atualizado com sucesso!');
         toast.success('Status atualizado!');
       }
       
       loadOrders();
     } catch (error: any) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error(error?.message || 'Erro ao atualizar status');
+      console.error('[DEBUG] Erro geral ao atualizar status:', error);
+      const errorMessage = error?.message || 'Erro ao atualizar status';
+      toast.error(`Erro: ${errorMessage}`);
     }
   };
 
@@ -462,17 +508,50 @@ export default function Pedidos() {
                       {getDeliveryTypeLabel(order.delivery_type)}
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center mb-4">
+                   <div className="flex justify-between items-center mb-4">
                     <span className="font-semibold">Total:</span>
                     <span className="text-xl font-bold">R$ {order.total.toFixed(2)}</span>
                   </div>
-                   <Button 
-                     className="w-full" 
-                     variant="outline"
-                     disabled
-                   >
-                     Aguardando Finalização no PDV
-                   </Button>
+                  
+                  {/* Seleção de Motoboy para Entregas */}
+                  {order.delivery_type === 'delivery' && (
+                    <div className="mb-4 space-y-2">
+                      <Label className="text-sm font-medium">Motoboy (Opcional)</Label>
+                      <select
+                        className="w-full p-2 border rounded-md bg-background"
+                        value={selectedMotoboy[order.id] || ''}
+                        onChange={(e) => setSelectedMotoboy({
+                          ...selectedMotoboy,
+                          [order.id]: e.target.value
+                        })}
+                      >
+                        <option value="">Nenhum motoboy</option>
+                        {motoboys.map((motoboy) => (
+                          <option key={motoboy.id} value={motoboy.id}>
+                            {motoboy.name} - {motoboy.phone}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    {order.delivery_type === 'delivery' && selectedMotoboy[order.id] && (
+                      <Button 
+                        className="w-full" 
+                        onClick={() => updateOrderStatus(order.id, "completed", selectedMotoboy[order.id])}
+                      >
+                        Atribuir e Concluir com Motoboy
+                      </Button>
+                    )}
+                    <Button 
+                      className="w-full" 
+                      variant={selectedMotoboy[order.id] ? "outline" : "default"}
+                      onClick={() => updateOrderStatus(order.id, "completed")}
+                    >
+                      Concluir {order.delivery_type === 'delivery' ? 'sem Motoboy' : ''}
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>

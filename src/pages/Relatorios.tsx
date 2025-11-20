@@ -11,6 +11,7 @@ export default function Relatorios() {
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
   const [orders, setOrders] = useState<any[]>([]);
   const [cashMovements, setCashMovements] = useState<any[]>([]);
+  const [topItems, setTopItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,6 +57,41 @@ export default function Relatorios() {
 
       if (cashError) throw cashError;
       setCashMovements(cashData || []);
+      
+      // Carregar itens mais vendidos
+      const { data: orderItemsData, error: itemsError } = await supabase
+        .from('order_items' as any)
+        .select(`
+          *,
+          orders!inner(completed_at, status)
+        `)
+        .eq('orders.status', 'completed')
+        .gte('orders.completed_at', start.toISOString())
+        .lte('orders.completed_at', end.toISOString());
+
+      if (itemsError) throw itemsError;
+
+      // Agrupar por item
+      const itemsMap: Record<string, { name: string; quantity: number; revenue: number }> = {};
+      
+      orderItemsData?.forEach((item: any) => {
+        if (!itemsMap[item.name]) {
+          itemsMap[item.name] = {
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        itemsMap[item.name].quantity += item.quantity;
+        itemsMap[item.name].revenue += item.total_price;
+      });
+
+      // Converter para array e ordenar
+      const topItemsArray = Object.values(itemsMap)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+      setTopItems(topItemsArray);
     } catch (error) {
       console.error('Erro ao carregar relatórios:', error);
     } finally {
