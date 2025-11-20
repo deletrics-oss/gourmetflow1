@@ -46,6 +46,48 @@ export default function Pedidos() {
     }
   };
 
+  const handleAssignMotoboy = async (orderId: string, motoboyId: string, orderNumber: string) => {
+    try {
+      console.log("🚗 Atribuindo motoboy:", { orderId, motoboyId });
+
+      // Atualizar pedido com motoboy e status
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ 
+          motoboy_id: motoboyId,
+          status: "out_for_delivery" 
+        })
+        .eq("id", orderId);
+
+      if (updateError) throw updateError;
+
+      // Buscar dados do motoboy
+      const { data: motoboy } = await supabase
+        .from("motoboys")
+        .select("*")
+        .eq("id", motoboyId)
+        .single();
+
+      // Log da ação
+      await supabase.rpc('log_action', {
+        p_action: 'assign_motoboy',
+        p_entity_type: 'order',
+        p_entity_id: orderId,
+        p_details: {
+          motoboy_id: motoboyId,
+          motoboy_name: motoboy?.name,
+          order_number: orderNumber
+        }
+      });
+
+      toast.success(`Motoboy ${motoboy?.name} atribuído!`);
+      loadOrders();
+    } catch (error) {
+      console.error("Erro ao atribuir motoboy:", error);
+      toast.error("Erro ao atribuir motoboy");
+    }
+  };
+
   const loadOrders = async () => {
     try {
       const { data, error } = await supabase
@@ -68,9 +110,9 @@ export default function Pedidos() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string, motoboyId?: string) => {
+    console.log("🔧 Iniciando atualização de status:", { orderId, newStatus, motoboyId });
+    
     try {
-      console.log(`[DEBUG] Iniciando atualização de status - Order: ${orderId}, New Status: ${newStatus}, Motoboy: ${motoboyId || 'Nenhum'}`);
-      
       // Buscar o pedido completo
       const { data: order, error: fetchError } = await supabase
         .from('orders')
@@ -79,16 +121,16 @@ export default function Pedidos() {
         .single();
 
       if (fetchError) {
-        console.error('[DEBUG] Erro ao buscar pedido:', fetchError);
+        console.error("❌ Erro ao buscar pedido:", fetchError);
         throw fetchError;
       }
 
       if (!order) {
-        console.error('[DEBUG] Pedido não encontrado');
+        console.error("❌ Pedido não encontrado");
         throw new Error('Pedido não encontrado');
       }
 
-      console.log('[DEBUG] Pedido encontrado:', order);
+      console.log("📊 Pedido ANTES:", order);
 
       // Se está tentando concluir, verificar se o pagamento foi feito
       if (newStatus === 'completed') {
@@ -99,15 +141,23 @@ export default function Pedidos() {
         }
 
         // Atualizar status do pedido
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from('orders')
           .update({ 
             status: newStatus,
             completed_at: new Date().toISOString()
           })
-          .eq('id', orderId);
+          .eq('id', orderId)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("❌ Erro ao atualizar:", error);
+          toast.error(`Erro: ${error.message}`);
+          throw error;
+        }
+        
+        console.log("✅ Pedido DEPOIS:", updated);
 
         // Liberar mesa se for pedido no local
         if (order.table_id) {
@@ -162,39 +212,53 @@ export default function Pedidos() {
         // Para outros status, apenas atualizar
         const updates: any = { status: newStatus };
         
-        // Se está indo para preparing, registrar o momento
         if (newStatus === 'preparing') {
-          console.log('[DEBUG] Atualizando para status "preparing"');
+          console.log("⏱️ Atualizando para status 'preparing'");
           updates.updated_at = new Date().toISOString();
         }
         
-        // Se está atribuindo motoboy
         if (motoboyId) {
-          console.log('[DEBUG] Atribuindo motoboy:', motoboyId);
+          console.log("🚗 Atribuindo motoboy:", motoboyId);
           updates.motoboy_id = motoboyId;
         }
         
-        console.log('[DEBUG] Atualizando pedido com:', updates);
+        console.log("📝 Atualizando pedido com:", updates);
         
-        const { error: updateError } = await supabase
+        const { data: updated, error: updateError } = await supabase
           .from('orders')
           .update(updates)
-          .eq('id', orderId);
+          .eq('id', orderId)
+          .select()
+          .single();
 
         if (updateError) {
-          console.error('[DEBUG] Erro ao atualizar pedido:', updateError);
+          console.error("❌ Erro ao atualizar pedido:", updateError);
+          toast.error(`Erro: ${updateError.message}`);
           throw updateError;
         }
         
-        console.log('[DEBUG] Pedido atualizado com sucesso!');
+        console.log("✅ Pedido atualizado com sucesso:", updated);
+        
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'update_order_status',
+          p_entity_type: 'order',
+          p_entity_id: orderId,
+          p_details: {
+            old_status: order.status,
+            new_status: newStatus,
+            motoboy_id: motoboyId || null
+          }
+        });
+        
         toast.success('Status atualizado!');
       }
       
       loadOrders();
     } catch (error: any) {
-      console.error('[DEBUG] Erro geral ao atualizar status:', error);
+      console.error("💥 Erro completo:", error);
       const errorMessage = error?.message || 'Erro ao atualizar status';
-      toast.error(`Erro: ${errorMessage}`);
+      toast.error(`Erro: ${errorMessage} - verifique o console`);
     }
   };
 
@@ -539,9 +603,10 @@ export default function Pedidos() {
                     {order.delivery_type === 'delivery' && selectedMotoboy[order.id] && (
                       <Button 
                         className="w-full" 
-                        onClick={() => updateOrderStatus(order.id, "completed", selectedMotoboy[order.id])}
+                        onClick={() => handleAssignMotoboy(order.id, selectedMotoboy[order.id], order.order_number)}
                       >
-                        Atribuir e Concluir com Motoboy
+                        <Truck className="mr-2 h-4 w-4" />
+                        Atribuir Motoboy e Enviar
                       </Button>
                     )}
                     <Button 
@@ -549,6 +614,7 @@ export default function Pedidos() {
                       variant={selectedMotoboy[order.id] ? "outline" : "default"}
                       onClick={() => updateOrderStatus(order.id, "completed")}
                     >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
                       Concluir {order.delivery_type === 'delivery' ? 'sem Motoboy' : ''}
                     </Button>
                   </div>
