@@ -67,21 +67,61 @@ export default function Configuracoes() {
   const [cieloMerchantKey, setCieloMerchantKey] = useState('');
   
   // Gateway status indicators
-  const [testingGateways, setTestingGateways] = useState<Record<string, boolean>>({});
-  const [gatewayStatus, setGatewayStatus] = useState<Record<string, 'success' | 'error' | 'idle'>>({
-    mercadopago: 'idle',
-    pagseguro: 'idle',
-    rede: 'idle',
-    stone: 'idle',
-    nubank: 'idle',
-    cielo: 'idle'
+  const [testingGateway, setTestingGateway] = useState(false);
+  const [gatewayStatus, setGatewayStatus] = useState<{[key: string]: {status: 'idle' | 'testing' | 'success' | 'error', tested_at: string | null}}>({
+    pagseguro: { status: 'idle', tested_at: null },
+    mercadopago: { status: 'idle', tested_at: null },
+    rede: { status: 'idle', tested_at: null },
+    stone: { status: 'idle', tested_at: null },
+    nubank: { status: 'idle', tested_at: null },
+    cielo: { status: 'idle', tested_at: null }
   });
   
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
     loadSettings();
+    loadGatewayStatus();
   }, []);
+
+  const loadGatewayStatus = () => {
+    try {
+      const saved = localStorage.getItem('gateway_status');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const now = new Date().getTime();
+        const validStatuses: any = {};
+        Object.keys(parsed).forEach(key => {
+          if (parsed[key].tested_at) {
+            const testedAt = new Date(parsed[key].tested_at).getTime();
+            const hoursDiff = (now - testedAt) / (1000 * 60 * 60);
+            if (hoursDiff < 24) {
+              validStatuses[key] = parsed[key];
+            } else {
+              validStatuses[key] = { status: 'idle', tested_at: null };
+            }
+          } else {
+            validStatuses[key] = { status: 'idle', tested_at: null };
+          }
+        });
+        setGatewayStatus(validStatuses);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar status dos gateways:', error);
+    }
+  };
+
+  const saveGatewayStatus = (gateway: string, status: 'idle' | 'testing' | 'success' | 'error') => {
+    const newStatus = {
+      ...gatewayStatus,
+      [gateway]: {
+        status,
+        tested_at: status === 'success' ? new Date().toISOString() : null
+      }
+    };
+    setGatewayStatus(newStatus);
+    localStorage.setItem('gateway_status', JSON.stringify(newStatus));
+  };
 
   const loadSettings = async () => {
     try {

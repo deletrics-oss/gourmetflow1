@@ -19,16 +19,30 @@ serve(async (req) => {
 
     const { amount, orderId, paymentMethod, customerEmail } = await req.json();
 
-    console.log('[MERCADOPAGO] Criando pagamento:', { amount, orderId, paymentMethod });
+    console.log('[MERCADOPAGO] Iniciando pagamento:', {
+      amount,
+      orderId,
+      paymentMethod,
+      customerEmail,
+      timestamp: new Date().toISOString()
+    });
 
     // Buscar credenciais
-    const { data: settings } = await supabaseClient
+    const { data: settings, error: settingsError } = await supabaseClient
       .from('restaurant_settings')
       .select('mercadopago_access_token')
       .single();
 
+    console.log('[MERCADOPAGO] Settings response:', { settings, settingsError });
+
+    if (settingsError) {
+      console.error('[MERCADOPAGO] Erro ao buscar settings:', settingsError);
+      throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
+    }
+
     if (!settings?.mercadopago_access_token) {
-      throw new Error('Mercado Pago não configurado');
+      console.error('[MERCADOPAGO] Token não configurado');
+      throw new Error('Mercado Pago não configurado - token ausente');
     }
 
     // Criar pagamento via API do Mercado Pago
@@ -41,20 +55,29 @@ serve(async (req) => {
       },
     };
 
+    console.log('[MERCADOPAGO] Enviando para API:', paymentData);
+
     const response = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${settings.mercadopago_access_token}`,
+        'X-Idempotency-Key': `${orderId}-${Date.now()}`
       },
       body: JSON.stringify(paymentData),
     });
 
     const result = await response.json();
-    console.log('[MERCADOPAGO] Resposta:', result);
+    console.log('[MERCADOPAGO] Resposta API:', {
+      status: response.status,
+      statusText: response.statusText,
+      result
+    });
 
     if (!response.ok) {
-      throw new Error(result.message || 'Erro ao criar pagamento');
+      const errorMsg = result.message || result.error || 'Erro ao criar pagamento';
+      console.error('[MERCADOPAGO] Erro na API:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     // Se for PIX, extrair QR Code
@@ -79,9 +102,18 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[MERCADOPAGO] Erro:', error);
+    const errorMessage = error.message || 'Erro ao processar pagamento Mercado Pago';
+    console.error('[MERCADOPAGO] Erro fatal:', {
+      message: errorMessage,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro ao processar pagamento Mercado Pago' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error.toString(),
+        timestamp: new Date().toISOString()
+      }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
