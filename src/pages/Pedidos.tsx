@@ -268,11 +268,24 @@ export default function Pedidos() {
         toast.success('Status atualizado!');
       }
       
-      loadOrders();
+      // Forçar reload completo
+      setTimeout(() => {
+        loadOrders();
+      }, 500);
     } catch (error: any) {
       console.error("💥 Erro completo:", error);
-      const errorMessage = error?.message || 'Erro ao atualizar status';
-      toast.error(`Erro: ${errorMessage} - verifique o console`);
+      console.error("💥 Código do erro:", error?.code);
+      console.error("💥 Detalhes:", error?.details);
+      console.error("💥 Hint:", error?.hint);
+      console.error("💥 Message:", error?.message);
+      
+      const errorMessage = error?.message || 'Erro desconhecido';
+      const errorCode = error?.code || 'N/A';
+      
+      toast.error(`Erro ${errorCode}: ${errorMessage}`, {
+        description: 'Verifique o console (F12) para mais detalhes',
+        duration: 5000
+      });
     }
   };
 

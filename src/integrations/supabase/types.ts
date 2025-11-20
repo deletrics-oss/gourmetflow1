@@ -1127,16 +1127,31 @@ export type Database = {
           loyalty_points_per_real: number | null
           loyalty_redemption_value: number | null
           max_delivery_radius: number | null
+          mercadopago_access_token: string | null
+          mercadopago_enabled: boolean | null
+          mercadopago_public_key: string | null
           name: string
           neighborhood: string | null
           ninefood_token: string | null
+          nubank_client_id: string | null
+          nubank_client_secret: string | null
+          nubank_enabled: boolean | null
           number: string | null
           paghiper_api_key: string | null
+          pagseguro_email: string | null
+          pagseguro_enabled: boolean | null
+          pagseguro_token: string | null
           payment_methods: Json | null
           phone: string | null
+          rede_enabled: boolean | null
+          rede_pv: string | null
+          rede_token: string | null
           responsible_name: string | null
           segment: string | null
           state: string | null
+          stone_api_key: string | null
+          stone_enabled: boolean | null
+          stone_merchant_id: string | null
           street: string | null
           twilio_account_sid: string | null
           twilio_auth_token: string | null
@@ -1173,16 +1188,31 @@ export type Database = {
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           max_delivery_radius?: number | null
+          mercadopago_access_token?: string | null
+          mercadopago_enabled?: boolean | null
+          mercadopago_public_key?: string | null
           name: string
           neighborhood?: string | null
           ninefood_token?: string | null
+          nubank_client_id?: string | null
+          nubank_client_secret?: string | null
+          nubank_enabled?: boolean | null
           number?: string | null
           paghiper_api_key?: string | null
+          pagseguro_email?: string | null
+          pagseguro_enabled?: boolean | null
+          pagseguro_token?: string | null
           payment_methods?: Json | null
           phone?: string | null
+          rede_enabled?: boolean | null
+          rede_pv?: string | null
+          rede_token?: string | null
           responsible_name?: string | null
           segment?: string | null
           state?: string | null
+          stone_api_key?: string | null
+          stone_enabled?: boolean | null
+          stone_merchant_id?: string | null
           street?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
@@ -1219,16 +1249,31 @@ export type Database = {
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           max_delivery_radius?: number | null
+          mercadopago_access_token?: string | null
+          mercadopago_enabled?: boolean | null
+          mercadopago_public_key?: string | null
           name?: string
           neighborhood?: string | null
           ninefood_token?: string | null
+          nubank_client_id?: string | null
+          nubank_client_secret?: string | null
+          nubank_enabled?: boolean | null
           number?: string | null
           paghiper_api_key?: string | null
+          pagseguro_email?: string | null
+          pagseguro_enabled?: boolean | null
+          pagseguro_token?: string | null
           payment_methods?: Json | null
           phone?: string | null
+          rede_enabled?: boolean | null
+          rede_pv?: string | null
+          rede_token?: string | null
           responsible_name?: string | null
           segment?: string | null
           state?: string | null
+          stone_api_key?: string | null
+          stone_enabled?: boolean | null
+          stone_merchant_id?: string | null
           street?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
