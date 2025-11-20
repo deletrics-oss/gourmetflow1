@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { logActionWithContext } from '@/lib/logging';
 
 interface UserWithPermissions {
   id: string;
@@ -139,12 +140,12 @@ export default function PermissoesUsuarios() {
         if (error) throw error;
 
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'remove_user_permission',
-          p_entity_type: 'system_user_permissions',
-          p_entity_id: existing.id,
-          p_details: { screen_name: screen.name, screen_path: screenPath }
-        });
+        await logActionWithContext(
+          'remove_user_permission',
+          'system_user_permissions',
+          existing.id,
+          { screen_name: screen.name, screen_path: screenPath }
+        );
       } else if (!currentAccess && !existing) {
         // Add permission (insert)
         const { data, error } = await supabase
@@ -160,12 +161,12 @@ export default function PermissoesUsuarios() {
         if (error) throw error;
 
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'grant_user_permission',
-          p_entity_type: 'system_user_permissions',
-          p_entity_id: data?.id,
-          p_details: { screen_name: screen.name, screen_path: screenPath }
-        });
+        await logActionWithContext(
+          'grant_user_permission',
+          'system_user_permissions',
+          data?.id,
+          { screen_name: screen.name, screen_path: screenPath }
+        );
       }
 
       toast.success('Permissão atualizada!');

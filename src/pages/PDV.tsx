@@ -216,9 +216,9 @@ export default function PDV() {
       await supabase
         .from('cash_movements' as any)
         .insert({
-          type: 'entrada',
+          type: 'income',
           amount: currentOrder.total,
-          category: 'Venda',
+          category: 'sale',
           description: `Pedido ${currentOrder.order_number}`,
           payment_method: paymentMethodMap[currentOrder.payment_method] || 'Dinheiro',
           movement_date: new Date().toISOString().split('T')[0]
@@ -434,12 +434,12 @@ export default function PDV() {
 
       // Registrar movimentação no caixa
       const { error: cashError } = await supabase.from('cash_movements').insert([{
-        type: 'entrada',
+        type: 'income',
         description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
         amount: total,
         movement_date: new Date().toISOString().split('T')[0],
-        payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
-        category: 'Venda',
+        payment_method: paymentMethodMap[paymentSelected] || 'Dinheiro',
+        category: 'sale',
         created_by: (await supabase.auth.getUser()).data.user?.id
       }]);
 

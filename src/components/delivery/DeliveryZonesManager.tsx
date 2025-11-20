@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { MapPin, Plus, Trash2, RotateCcw, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { logActionWithContext } from '@/lib/logging';
 
 interface DeliveryZone {
   id?: string;
@@ -174,18 +175,17 @@ export const DeliveryZonesManager = () => {
         if (error) throw error;
 
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'update_delivery_zone',
-          p_entity_type: 'delivery_zones',
-          p_entity_id: zone.id,
-          p_details: {
+        await logActionWithContext(
+          'update_delivery_zone',
+          'delivery_zones',
+          zone.id,
+          {
             min_distance: zone.min_distance,
             max_distance: zone.max_distance,
             fee: zone.fee,
             is_active: zone.is_active
-          },
-          p_restaurant_id: restaurantId
-        });
+          }
+        );
       } else {
         const { data, error } = await supabase
           .from('delivery_zones')
@@ -202,18 +202,17 @@ export const DeliveryZonesManager = () => {
         if (error) throw error;
 
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'create_delivery_zone',
-          p_entity_type: 'delivery_zones',
-          p_entity_id: data?.id,
-          p_details: {
+        await logActionWithContext(
+          'create_delivery_zone',
+          'delivery_zones',
+          data?.id,
+          {
             min_distance: zone.min_distance,
             max_distance: zone.max_distance,
             fee: zone.fee,
             is_active: zone.is_active
-          },
-          p_restaurant_id: restaurantId
-        });
+          }
+        );
       }
 
       await loadZones();
@@ -236,13 +235,12 @@ export const DeliveryZonesManager = () => {
       if (error) throw error;
 
       // Log da ação
-      await supabase.rpc('log_action', {
-        p_action: 'delete_delivery_zone',
-        p_entity_type: 'delivery_zones',
-        p_entity_id: id,
-        p_details: {},
-        p_restaurant_id: restaurantId
-      });
+      await logActionWithContext(
+        'delete_delivery_zone',
+        'delivery_zones',
+        id,
+        {}
+      );
 
       await loadZones();
       toast.success('Zona removida com sucesso!');
@@ -282,12 +280,12 @@ export const DeliveryZonesManager = () => {
       if (error) throw error;
 
       // Log da ação
-      await supabase.rpc('log_action', {
-        p_action: 'restore_default_zones',
-        p_entity_type: 'delivery_zones',
-        p_details: { zones_count: DEFAULT_ZONES.length },
-        p_restaurant_id: restaurantId
-      });
+      await logActionWithContext(
+        'restore_default_zones',
+        'delivery_zones',
+        null,
+        { zones_count: DEFAULT_ZONES.length }
+      );
 
       await loadZones();
       toast.success('Zonas restauradas para valores padrão!');

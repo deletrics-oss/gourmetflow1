@@ -90,10 +90,6 @@ const adminNavItems: NavItem[] = [{
   href: "/usuarios",
   icon: Users
 }, {
-  title: "Permissões de Usuários",
-  href: "/permissoes",
-  icon: Shield
-}, {
   title: "Logs do Sistema",
   href: "/system-logs",
   icon: ClipboardList

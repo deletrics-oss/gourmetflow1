@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { logActionWithContext } from "@/lib/logging";
 
 export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -69,16 +70,16 @@ export default function Pedidos() {
         .single();
 
       // Log da ação
-      await supabase.rpc('log_action', {
-        p_action: 'assign_motoboy',
-        p_entity_type: 'order',
-        p_entity_id: orderId,
-        p_details: {
+      await logActionWithContext(
+        'assign_motoboy',
+        'orders',
+        orderId,
+        {
           motoboy_id: motoboyId,
           motoboy_name: motoboy?.name,
           order_number: orderNumber
         }
-      });
+      );
 
       toast.success(`Motoboy ${motoboy?.name} atribuído!`);
       loadOrders();
@@ -160,17 +161,17 @@ export default function Pedidos() {
         console.log("✅ Pedido DEPOIS:", updated);
 
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'complete_order',
-          p_entity_type: 'orders',
-          p_entity_id: orderId,
-          p_details: {
+        await logActionWithContext(
+          'complete_order',
+          'orders',
+          orderId,
+          {
             old_status: order.status,
             new_status: 'completed',
             order_number: order.order_number,
             total: order.total
           }
-        });
+        );
 
         // Liberar mesa se for pedido no local
         if (order.table_id) {
@@ -253,16 +254,16 @@ export default function Pedidos() {
         console.log("✅ Pedido atualizado com sucesso:", updated);
         
         // Log da ação
-        await supabase.rpc('log_action', {
-          p_action: 'update_order_status',
-          p_entity_type: 'order',
-          p_entity_id: orderId,
-          p_details: {
+        await logActionWithContext(
+          'update_order_status',
+          'orders',
+          orderId,
+          {
             old_status: order.status,
             new_status: newStatus,
             motoboy_id: motoboyId || null
           }
-        });
+        );
         
         toast.success('Status atualizado!');
       }

@@ -71,6 +71,9 @@ export default function GestaoFinanceira() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
         loadFinancialData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_movements' }, () => {
+        loadFinancialData();
+      })
       .subscribe();
 
     return () => {
