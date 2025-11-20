@@ -40,19 +40,37 @@ export const DeliveryZonesManager = () => {
   const [updatingCoords, setUpdatingCoords] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [maxRadius, setMaxRadius] = useState(50);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
   useEffect(() => {
-    if (settings?.id) {
+    if (restaurantId) {
       loadZones();
     }
-  }, [settings?.id]);
+  }, [restaurantId]);
 
   const loadSettings = async () => {
     try {
+      // Primeiro buscar o restaurant_id via user_restaurants
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data: userRestaurant, error: userRestError } = await supabase
+        .from('user_restaurants')
+        .select('restaurant_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (userRestError) throw userRestError;
+      if (!userRestaurant?.restaurant_id) throw new Error('Restaurante não encontrado');
+
+      setRestaurantId(userRestaurant.restaurant_id);
+
+      // Agora buscar as configurações
       const { data, error } = await supabase
         .from('restaurant_settings')
         .select('*')
@@ -68,14 +86,14 @@ export const DeliveryZonesManager = () => {
   };
 
   const loadZones = async () => {
-    if (!settings?.id) return;
+    if (!restaurantId) return;
     
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('delivery_zones')
         .select('*')
-        .eq('restaurant_id', settings.id)
+        .eq('restaurant_id', restaurantId)
         .order('min_distance');
 
       if (error) throw error;
@@ -136,7 +154,7 @@ export const DeliveryZonesManager = () => {
   };
 
   const saveZone = async (zone: DeliveryZone) => {
-    if (!settings?.id) {
+    if (!restaurantId) {
       toast.error('Configure o restaurante primeiro');
       return;
     }
@@ -154,18 +172,48 @@ export const DeliveryZonesManager = () => {
           .eq('id', zone.id);
 
         if (error) throw error;
+
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'update_delivery_zone',
+          p_entity_type: 'delivery_zones',
+          p_entity_id: zone.id,
+          p_details: {
+            min_distance: zone.min_distance,
+            max_distance: zone.max_distance,
+            fee: zone.fee,
+            is_active: zone.is_active
+          },
+          p_restaurant_id: restaurantId
+        });
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('delivery_zones')
           .insert({
-            restaurant_id: settings.id,
+            restaurant_id: restaurantId,
             min_distance: zone.min_distance,
             max_distance: zone.max_distance,
             fee: zone.fee,
             is_active: zone.is_active,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'create_delivery_zone',
+          p_entity_type: 'delivery_zones',
+          p_entity_id: data?.id,
+          p_details: {
+            min_distance: zone.min_distance,
+            max_distance: zone.max_distance,
+            fee: zone.fee,
+            is_active: zone.is_active
+          },
+          p_restaurant_id: restaurantId
+        });
       }
 
       await loadZones();
@@ -177,6 +225,8 @@ export const DeliveryZonesManager = () => {
   };
 
   const deleteZone = async (id: string) => {
+    if (!restaurantId) return;
+
     try {
       const { error } = await supabase
         .from('delivery_zones')
@@ -184,6 +234,15 @@ export const DeliveryZonesManager = () => {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Log da ação
+      await supabase.rpc('log_action', {
+        p_action: 'delete_delivery_zone',
+        p_entity_type: 'delivery_zones',
+        p_entity_id: id,
+        p_details: {},
+        p_restaurant_id: restaurantId
+      });
 
       await loadZones();
       toast.success('Zona removida com sucesso!');
@@ -194,7 +253,7 @@ export const DeliveryZonesManager = () => {
   };
 
   const restoreDefaults = async () => {
-    if (!settings?.id) {
+    if (!restaurantId) {
       toast.error('Configure o restaurante primeiro');
       return;
     }
@@ -207,7 +266,7 @@ export const DeliveryZonesManager = () => {
         await supabase
           .from('delivery_zones')
           .delete()
-          .eq('restaurant_id', settings.id);
+          .eq('restaurant_id', restaurantId);
       }
 
       // Inserir zonas padrão
@@ -216,11 +275,19 @@ export const DeliveryZonesManager = () => {
         .insert(
           DEFAULT_ZONES.map((zone) => ({
             ...zone,
-            restaurant_id: settings.id,
+            restaurant_id: restaurantId,
           }))
         );
 
       if (error) throw error;
+
+      // Log da ação
+      await supabase.rpc('log_action', {
+        p_action: 'restore_default_zones',
+        p_entity_type: 'delivery_zones',
+        p_details: { zones_count: DEFAULT_ZONES.length },
+        p_restaurant_id: restaurantId
+      });
 
       await loadZones();
       toast.success('Zonas restauradas para valores padrão!');

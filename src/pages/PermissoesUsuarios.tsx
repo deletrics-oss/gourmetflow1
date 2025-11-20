@@ -77,17 +77,23 @@ export default function PermissoesUsuarios() {
       
       if (rolesError) throw rolesError;
 
-      // Get all permissions
+      // Get all permissions from system_user_permissions
       const { data: permissions, error: permError } = await supabase
-        .from('user_permissions')
-        .select('user_id, screen_path, can_access');
+        .from('system_user_permissions')
+        .select('user_id, screen_id, screen_name');
       
       if (permError) throw permError;
 
-      // Combine the data
+      // Combine the data - convert system_user_permissions to expected format
       const usersWithData = (profiles || []).map((profile) => {
         const userRole = roles?.find(r => r.user_id === profile.user_id);
-        const userPermissions = permissions?.filter(p => p.user_id === profile.user_id) || [];
+        const userPerms = permissions?.filter(p => p.user_id === profile.user_id) || [];
+        
+        // Convert system_user_permissions format to user_permissions format
+        const userPermissions = userPerms.map(p => ({
+          screen_path: p.screen_id,
+          can_access: true // system_user_permissions only stores granted permissions
+        }));
         
         return {
           id: profile.user_id,
@@ -111,33 +117,55 @@ export default function PermissoesUsuarios() {
 
   const handlePermissionToggle = async (userId: string, screenPath: string, currentAccess: boolean) => {
     try {
+      // Find screen info
+      const screen = AVAILABLE_SCREENS.find(s => s.path === screenPath);
+      if (!screen) return;
+
       const { data: existing } = await supabase
-        .from('user_permissions')
+        .from('system_user_permissions')
         .select('*')
         .eq('user_id', userId)
-        .eq('screen_path', screenPath)
+        .eq('screen_id', screenPath)
         .maybeSingle();
 
-      if (existing) {
-        // Update existing permission
+      if (currentAccess && existing) {
+        // Remove permission (delete)
         const { error } = await supabase
-          .from('user_permissions')
-          .update({ can_access: !currentAccess })
+          .from('system_user_permissions')
+          .delete()
           .eq('user_id', userId)
-          .eq('screen_path', screenPath);
+          .eq('screen_id', screenPath);
 
         if (error) throw error;
-      } else {
-        // Create new permission
-        const { error } = await supabase
-          .from('user_permissions')
+
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'remove_user_permission',
+          p_entity_type: 'system_user_permissions',
+          p_entity_id: existing.id,
+          p_details: { screen_name: screen.name, screen_path: screenPath }
+        });
+      } else if (!currentAccess && !existing) {
+        // Add permission (insert)
+        const { data, error } = await supabase
+          .from('system_user_permissions')
           .insert({
             user_id: userId,
-            screen_path: screenPath,
-            can_access: !currentAccess
-          });
+            screen_id: screenPath,
+            screen_name: screen.name
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Log da ação
+        await supabase.rpc('log_action', {
+          p_action: 'grant_user_permission',
+          p_entity_type: 'system_user_permissions',
+          p_entity_id: data?.id,
+          p_details: { screen_name: screen.name, screen_path: screenPath }
+        });
       }
 
       toast.success('Permissão atualizada!');
