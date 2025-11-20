@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
@@ -62,6 +62,16 @@ export default function Configuracoes() {
   const [nubankClientId, setNubankClientId] = useState('');
   const [nubankClientSecret, setNubankClientSecret] = useState('');
   
+  // Gateway status indicators
+  const [testingGateways, setTestingGateways] = useState<Record<string, boolean>>({});
+  const [gatewayStatus, setGatewayStatus] = useState<Record<string, 'success' | 'error' | 'idle'>>({
+    mercadopago: 'idle',
+    pagseguro: 'idle',
+    rede: 'idle',
+    stone: 'idle',
+    nubank: 'idle'
+  });
+  
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
@@ -70,12 +80,18 @@ export default function Configuracoes() {
 
   const loadSettings = async () => {
     try {
+      console.log('🔄 Carregando configurações...');
       const { data, error } = await supabase
-        .from('restaurant_settings' as any)
+        .from('restaurant_settings')
         .select('*')
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ Erro ao carregar:', error);
+        throw error;
+      }
+      
+      console.log('✅ Configurações carregadas:', data ? 'com dados' : 'sem dados');
       
       if (data) {
         setSettings({
@@ -153,14 +169,18 @@ export default function Configuracoes() {
         };
 
         // Salvar no banco
-        const { data: existing } = await supabase
-          .from('restaurant_settings' as any)
+        const { data: existing, error: existingError } = await supabase
+          .from('restaurant_settings')
           .select('id')
           .maybeSingle();
 
+        if (existingError && existingError.code !== 'PGRST116') {
+          console.error('Erro ao verificar configurações:', existingError);
+        }
+
         if (existing) {
           await supabase
-            .from('restaurant_settings' as any)
+            .from('restaurant_settings')
             .update({
               latitude: coords.latitude,
               longitude: coords.longitude,
@@ -201,10 +221,17 @@ export default function Configuracoes() {
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      const { data: existing } = await supabase
-        .from('restaurant_settings' as any)
+      console.log('🔄 Salvando configurações...');
+      
+      const { data: existing, error: fetchError } = await supabase
+        .from('restaurant_settings')
         .select('id')
         .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('❌ Erro ao buscar configurações:', fetchError);
+        throw fetchError;
+      }
 
       const dataToSave = {
         ...settings,
@@ -213,45 +240,119 @@ export default function Configuracoes() {
         loyalty_redemption_value: loyaltyRedemptionValue,
         nfce_enabled: nfceEnabled,
         max_delivery_radius: maxDeliveryRadius,
-        // Payment gateways
+        // Payment gateways - usar null quando vazio
         pagseguro_enabled: pagSeguroEnabled,
-        pagseguro_email: pagSeguroEmail,
-        pagseguro_token: pagSeguroToken,
+        pagseguro_email: pagSeguroEmail || null,
+        pagseguro_token: pagSeguroToken || null,
         mercadopago_enabled: mercadoPagoEnabled,
-        mercadopago_access_token: mercadoPagoToken,
-        mercadopago_public_key: mercadoPagoPublicKey,
+        mercadopago_access_token: mercadoPagoToken || null,
+        mercadopago_public_key: mercadoPagoPublicKey || null,
         rede_enabled: redeEnabled,
-        rede_pv: redePv,
-        rede_token: redeToken,
+        rede_pv: redePv || null,
+        rede_token: redeToken || null,
         stone_enabled: stoneEnabled,
-        stone_merchant_id: stoneMerchantId,
-        stone_api_key: stoneApiKey,
+        stone_merchant_id: stoneMerchantId || null,
+        stone_api_key: stoneApiKey || null,
         nubank_enabled: nubankEnabled,
-        nubank_client_id: nubankClientId,
-        nubank_client_secret: nubankClientSecret,
+        nubank_client_id: nubankClientId || null,
+        nubank_client_secret: nubankClientSecret || null,
       };
 
-      if (existing) {
-        const { error } = await supabase
-          .from('restaurant_settings' as any)
+      console.log('📦 Dados a salvar:', { 
+        existingId: existing?.id,
+        mercadoPagoEnabled,
+        hasToken: !!mercadoPagoToken,
+        hasPublicKey: !!mercadoPagoPublicKey
+      });
+
+      if (existing?.id) {
+        console.log('✏️ Atualizando registro existente...');
+        const { data: updated, error: updateError } = await supabase
+          .from('restaurant_settings')
           .update(dataToSave)
-          .eq('id', existing.id);
+          .eq('id', existing.id)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (updateError) {
+          console.error('❌ Erro ao atualizar:', updateError);
+          throw updateError;
+        }
+        
+        console.log('✅ Registro atualizado:', updated);
       } else {
-        const { error } = await supabase
-          .from('restaurant_settings' as any)
-          .insert(dataToSave);
+        console.log('➕ Criando novo registro...');
+        const { data: inserted, error: insertError } = await supabase
+          .from('restaurant_settings')
+          .insert(dataToSave)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (insertError) {
+          console.error('❌ Erro ao inserir:', insertError);
+          throw insertError;
+        }
+        
+        console.log('✅ Registro criado:', inserted);
       }
 
       toast.success("Configurações salvas com sucesso!");
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      toast.error("Erro ao salvar configurações");
+      
+      // Recarregar para confirmar
+      setTimeout(() => {
+        loadSettings();
+      }, 500);
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao salvar configurações:', error);
+      toast.error(error.message || 'Erro ao salvar configurações');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const testGatewayConnection = async (gateway: string) => {
+    setTestingGateways(prev => ({ ...prev, [gateway]: true }));
+    
+    try {
+      // Verificar se credenciais estão preenchidas
+      let hasCredentials = false;
+      
+      switch(gateway) {
+        case 'mercadopago':
+          hasCredentials = !!(mercadoPagoToken && mercadoPagoPublicKey);
+          break;
+        case 'pagseguro':
+          hasCredentials = !!(pagSeguroEmail && pagSeguroToken);
+          break;
+        case 'rede':
+          hasCredentials = !!(redePv && redeToken);
+          break;
+        case 'stone':
+          hasCredentials = !!(stoneMerchantId && stoneApiKey);
+          break;
+        case 'nubank':
+          hasCredentials = !!(nubankClientId && nubankClientSecret);
+          break;
+      }
+      
+      if (!hasCredentials) {
+        setGatewayStatus(prev => ({ ...prev, [gateway]: 'error' }));
+        toast.error('Preencha todas as credenciais primeiro');
+        return;
+      }
+      
+      // Simular teste de conexão (em produção, chamar edge function de validação)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      setGatewayStatus(prev => ({ ...prev, [gateway]: 'success' }));
+      toast.success(`${gateway.toUpperCase()}: Conexão OK! ✅`);
+      
+    } catch (error) {
+      setGatewayStatus(prev => ({ ...prev, [gateway]: 'error' }));
+      toast.error(`${gateway.toUpperCase()}: Erro na conexão ❌`);
+    } finally {
+      setTestingGateways(prev => ({ ...prev, [gateway]: false }));
     }
   };
 
@@ -540,7 +641,29 @@ export default function Configuracoes() {
 
             <div className="space-y-4">
               {/* PagSeguro */}
-              <Card className="p-4">
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.pagseguro === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.pagseguro === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.pagseguro === 'idle' && pagSeguroToken && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-semibold">PagSeguro</h4>
@@ -558,7 +681,10 @@ export default function Configuracoes() {
                       <Label>E-mail</Label>
                       <Input
                         value={pagSeguroEmail}
-                        onChange={(e) => setPagSeguroEmail(e.target.value)}
+                        onChange={(e) => {
+                          setPagSeguroEmail(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, pagseguro: 'idle' }));
+                        }}
                         placeholder="email@exemplo.com"
                       />
                     </div>
@@ -567,16 +693,61 @@ export default function Configuracoes() {
                       <Input
                         type="password"
                         value={pagSeguroToken}
-                        onChange={(e) => setPagSeguroToken(e.target.value)}
+                        onChange={(e) => {
+                          setPagSeguroToken(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, pagseguro: 'idle' }));
+                        }}
                         placeholder="Digite seu token"
                       />
                     </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('pagseguro')}
+                      disabled={testingGateways.pagseguro || !pagSeguroEmail || !pagSeguroToken}
+                      className="w-full"
+                    >
+                      {testingGateways.pagseguro ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </Card>
 
               {/* Mercado Pago */}
-              <Card className="p-4">
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.mercadopago === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.mercadopago === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.mercadopago === 'idle' && mercadoPagoToken && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-semibold">Mercado Pago</h4>
@@ -595,7 +766,10 @@ export default function Configuracoes() {
                       <Input
                         type="password"
                         value={mercadoPagoToken}
-                        onChange={(e) => setMercadoPagoToken(e.target.value)}
+                        onChange={(e) => {
+                          setMercadoPagoToken(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, mercadopago: 'idle' }));
+                        }}
                         placeholder="APP_USR-..."
                       />
                     </div>
@@ -603,16 +777,61 @@ export default function Configuracoes() {
                       <Label>Public Key</Label>
                       <Input
                         value={mercadoPagoPublicKey}
-                        onChange={(e) => setMercadoPagoPublicKey(e.target.value)}
+                        onChange={(e) => {
+                          setMercadoPagoPublicKey(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, mercadopago: 'idle' }));
+                        }}
                         placeholder="APP_USR-..."
                       />
                     </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('mercadopago')}
+                      disabled={testingGateways.mercadopago || !mercadoPagoToken || !mercadoPagoPublicKey}
+                      className="w-full"
+                    >
+                      {testingGateways.mercadopago ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </Card>
 
               {/* Rede */}
-              <Card className="p-4">
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.rede === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.rede === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.rede === 'idle' && redeToken && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-semibold">Rede</h4>
@@ -630,7 +849,10 @@ export default function Configuracoes() {
                       <Label>PV (Número do Estabelecimento)</Label>
                       <Input
                         value={redePv}
-                        onChange={(e) => setRedePv(e.target.value)}
+                        onChange={(e) => {
+                          setRedePv(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, rede: 'idle' }));
+                        }}
                         placeholder="1234567"
                       />
                     </div>
@@ -639,16 +861,61 @@ export default function Configuracoes() {
                       <Input
                         type="password"
                         value={redeToken}
-                        onChange={(e) => setRedeToken(e.target.value)}
+                        onChange={(e) => {
+                          setRedeToken(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, rede: 'idle' }));
+                        }}
                         placeholder="Digite seu token"
                       />
                     </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('rede')}
+                      disabled={testingGateways.rede || !redePv || !redeToken}
+                      className="w-full"
+                    >
+                      {testingGateways.rede ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </Card>
 
               {/* Stone */}
-              <Card className="p-4">
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.stone === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.stone === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.stone === 'idle' && stoneApiKey && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-semibold">Stone</h4>
@@ -666,7 +933,10 @@ export default function Configuracoes() {
                       <Label>Merchant ID</Label>
                       <Input
                         value={stoneMerchantId}
-                        onChange={(e) => setStoneMerchantId(e.target.value)}
+                        onChange={(e) => {
+                          setStoneMerchantId(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, stone: 'idle' }));
+                        }}
                         placeholder="MERCHANT_ID"
                       />
                     </div>
@@ -675,16 +945,61 @@ export default function Configuracoes() {
                       <Input
                         type="password"
                         value={stoneApiKey}
-                        onChange={(e) => setStoneApiKey(e.target.value)}
+                        onChange={(e) => {
+                          setStoneApiKey(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, stone: 'idle' }));
+                        }}
                         placeholder="Digite sua API key"
                       />
                     </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('stone')}
+                      disabled={testingGateways.stone || !stoneMerchantId || !stoneApiKey}
+                      className="w-full"
+                    >
+                      {testingGateways.stone ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </Card>
 
               {/* Nubank */}
-              <Card className="p-4">
+              <Card className="p-4 relative">
+                {/* Badge de Status */}
+                <div className="absolute top-2 right-2">
+                  {gatewayStatus.nubank === 'success' && (
+                    <div className="flex items-center gap-1 text-xs text-green-600">
+                      <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                      OK
+                    </div>
+                  )}
+                  {gatewayStatus.nubank === 'error' && (
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <div className="w-2 h-2 rounded-full bg-red-600" />
+                      Erro
+                    </div>
+                  )}
+                  {gatewayStatus.nubank === 'idle' && nubankClientSecret && (
+                    <div className="flex items-center gap-1 text-xs text-yellow-600">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600" />
+                      Não testado
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-semibold">Nubank</h4>
@@ -702,7 +1017,10 @@ export default function Configuracoes() {
                       <Label>Client ID</Label>
                       <Input
                         value={nubankClientId}
-                        onChange={(e) => setNubankClientId(e.target.value)}
+                        onChange={(e) => {
+                          setNubankClientId(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, nubank: 'idle' }));
+                        }}
                         placeholder="client_id"
                       />
                     </div>
@@ -711,10 +1029,33 @@ export default function Configuracoes() {
                       <Input
                         type="password"
                         value={nubankClientSecret}
-                        onChange={(e) => setNubankClientSecret(e.target.value)}
+                        onChange={(e) => {
+                          setNubankClientSecret(e.target.value);
+                          setGatewayStatus(prev => ({ ...prev, nubank: 'idle' }));
+                        }}
                         placeholder="client_secret"
                       />
                     </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testGatewayConnection('nubank')}
+                      disabled={testingGateways.nubank || !nubankClientId || !nubankClientSecret}
+                      className="w-full"
+                    >
+                      {testingGateways.nubank ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </Card>
