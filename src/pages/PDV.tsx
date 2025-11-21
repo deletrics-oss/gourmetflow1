@@ -85,6 +85,8 @@ export default function PDV() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [searchOrderNumber, setSearchOrderNumber] = useState("");
   const [searchingOrder, setSearchingOrder] = useState(false);
+  const [customerCpf, setCustomerCpf] = useState("");
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -253,12 +255,13 @@ export default function PDV() {
           tables(number)
         `)
         .ilike('order_number', `%${orderNum}%`)
-        .in('status', ['pending_payment', 'confirmed', 'new'])
+        .in('status', ['pending_payment', 'confirmed', 'new', 'preparing', 'ready'])
         .single();
 
       if (order) {
         handleSelectPendingOrder(order);
         sonnerToast.success(`Pedido ${order.order_number} encontrado!`);
+        setSearchOrderNumber("");
       } else {
         sonnerToast.error(`Pedido não encontrado`);
       }
@@ -267,6 +270,50 @@ export default function PDV() {
       sonnerToast.error('Erro ao buscar pedido');
     } finally {
       setSearchingOrder(false);
+    }
+  };
+
+  const searchCustomerByPhoneOrCpf = async (searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 8) {
+      return;
+    }
+
+    setSearchingCustomer(true);
+    try {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('*')
+        .or(`phone.eq.${searchTerm},cpf.eq.${searchTerm}`)
+        .maybeSingle();
+
+      if (customer) {
+        setCustomerName(customer.name || "");
+        setCustomerPhone(customer.phone || "");
+        setCustomerCpf(customer.cpf || "");
+        
+        if (customer.address) {
+          const addr = customer.address as any;
+          setCustomerAddress({
+            street: addr.street || "",
+            number: addr.number || "",
+            complement: addr.complement || "",
+            neighborhood: addr.neighborhood || "",
+            city: addr.city || "",
+            state: addr.state || "",
+            zipcode: addr.zipcode || "",
+            latitude: addr.latitude,
+            longitude: addr.longitude
+          });
+        }
+        
+        sonnerToast.success(`Cliente ${customer.name} carregado!`);
+      } else {
+        sonnerToast.info('Cliente não encontrado. Será cadastrado ao finalizar pedido.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar cliente:', error);
+    } finally {
+      setSearchingCustomer(false);
     }
   };
 
@@ -291,7 +338,8 @@ export default function PDV() {
 
   const handleSelectPendingOrder = (order: any) => {
     setCurrentOrder(order);
-    sonnerToast.info(`Pedido ${order.order_number} carregado no caixa`);
+    setActiveTab("new");
+    sonnerToast.info(`Pedido ${order.order_number} carregado - selecione forma de pagamento para fechar`);
   };
 
   const handleViewClosedOrder = (order: any) => {
@@ -471,11 +519,54 @@ export default function PDV() {
     setPaymentGatewayDialogOpen(false);
     
     try {
+      // Se há pedido existente, apenas fechar
+      if (currentOrder) {
+        // Atualizar status para completed
+        await supabase
+          .from('orders')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            payment_method: paymentMethod
+          })
+          .eq('id', currentOrder.id);
+
+        // Registrar caixa
+        const paymentMethodMap: any = {
+          'cash': 'Dinheiro',
+          'credit_card': 'Cartão',
+          'debit_card': 'Cartão',
+          'pix': 'PIX'
+        };
+
+        await supabase.from('cash_movements').insert([{
+          type: 'income',
+          description: `Pedido ${currentOrder.order_number}`,
+          amount: currentOrder.total,
+          movement_date: new Date().toISOString().split('T')[0],
+          payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
+          category: 'sale',
+          created_by: (await supabase.auth.getUser()).data.user?.id
+        }]);
+
+        // Imprimir
+        if (printOnClose) {
+          generatePrintReceipt(currentOrder, restaurantName, undefined, 'customer');
+        }
+
+        sonnerToast.success(`Pedido ${currentOrder.order_number} fechado!`);
+        setCurrentOrder(null);
+        loadPendingOrders();
+        loadRecentlyClosedOrders();
+        return;
+      }
+
+      // Criar novo pedido
       const orderNumber = `PDV${Date.now().toString().slice(-6)}`;
       let finalDeliveryType: 'delivery' | 'pickup' | 'dine_in' = 'dine_in';
       if (deliveryType === "online" || deliveryType === "delivery") {
         finalDeliveryType = "delivery";
-      } else if (deliveryType === "pickup") {
+      } else if (deliveryType === "pickup" || deliveryType === "counter") {
         finalDeliveryType = "pickup";
       }
 
@@ -485,6 +576,35 @@ export default function PDV() {
         initialStatus = 'pending_payment';
       }
       
+      // Buscar ou criar cliente
+      let customerId = null;
+      if (customerPhone || customerCpf) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .or(`phone.eq.${customerPhone},cpf.eq.${customerCpf}`)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+        } else if (customerName && customerPhone) {
+          const { data: newCustomer } = await supabase
+            .from('customers')
+            .insert({
+              name: customerName,
+              phone: customerPhone,
+              cpf: customerCpf || null,
+              address: (deliveryType === 'delivery' || deliveryType === 'online') ? customerAddress : null
+            })
+            .select('id')
+            .single();
+          
+          if (newCustomer) {
+            customerId = newCustomer.id;
+          }
+        }
+      }
+
       const { data: orderData, error: orderError } = await supabase
         .from('orders' as any)
         .insert([{
@@ -496,10 +616,12 @@ export default function PDV() {
           subtotal: subtotal,
           service_fee: serviceFee,
           delivery_fee: deliveryFee,
-          delivery_address: deliveryType === 'delivery' ? customerAddress : null,
+          delivery_address: (deliveryType === 'delivery' || deliveryType === 'online') ? customerAddress : null,
           total: total,
+          customer_id: customerId,
           customer_name: customerName || null,
           customer_phone: customerPhone || null,
+          customer_cpf: customerCpf || null,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
         }])
         .select()
@@ -632,6 +754,7 @@ export default function PDV() {
       setSelectedTable("");
       setCustomerName("");
       setCustomerPhone("");
+      setCustomerCpf("");
       setSelectedMotoboy("none");
       setCustomerAddress({
         street: "", number: "", complement: "",
@@ -765,22 +888,58 @@ export default function PDV() {
               </div>
             )}
 
-            {(deliveryType === "online" || deliveryType === "delivery") && (
-              <div className="space-y-4 mb-4">
+            {(deliveryType === "online" || deliveryType === "delivery" || deliveryType === "counter") && (
+              <div className="space-y-4 mb-4 p-4 border rounded-lg bg-accent/10">
+                <p className="text-sm font-semibold text-muted-foreground">Dados do Cliente</p>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label>Buscar por Telefone</Label>
+                    <div className="flex gap-1">
+                      <Input
+                        placeholder="(00) 00000-0000"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        onBlur={() => customerPhone && searchCustomerByPhoneOrCpf(customerPhone)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => searchCustomerByPhoneOrCpf(customerPhone)}
+                        disabled={searchingCustomer || !customerPhone}
+                      >
+                        {searchingCustomer ? <Loader2 className="h-4 w-4 animate-spin" /> : "🔍"}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>ou CPF</Label>
+                    <div className="flex gap-1">
+                      <Input
+                        placeholder="000.000.000-00"
+                        value={customerCpf}
+                        onChange={(e) => setCustomerCpf(e.target.value)}
+                        onBlur={() => customerCpf && searchCustomerByPhoneOrCpf(customerCpf)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => searchCustomerByPhoneOrCpf(customerCpf)}
+                        disabled={searchingCustomer || !customerCpf}
+                      >
+                        {searchingCustomer ? <Loader2 className="h-4 w-4 animate-spin" /> : "🔍"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Nome do Cliente</Label>
                   <Input
                     placeholder="Nome do cliente"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Telefone *</Label>
-                  <Input
-                    placeholder="(00) 00000-0000"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
                   />
                 </div>
               </div>
@@ -1103,88 +1262,196 @@ export default function PDV() {
           <Badge variant="secondary" className="ml-2">{pendingOrders.length}</Badge>
         </div>
         
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {pendingOrders.length === 0 ? (
-            <Card className="p-8 text-center col-span-full">
-              <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Nenhum pedido pendente</p>
-            </Card>
-          ) : (
-            pendingOrders.map((order) => (
-              <Card 
-                key={order.id} 
-                className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
-                onClick={() => handleSelectPendingOrder(order)}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-bold text-lg">#{order.order_number}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(order.created_at).toLocaleTimeString('pt-BR')}
-                    </p>
-                    {order.tables ? (
-                      <Badge variant="outline" className="mt-1">
-                        Mesa {order.tables.number}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="mt-1">
-                        {order.delivery_type === 'online' && '🌐 Online'}
-                        {order.delivery_type === 'delivery' && '🚚 Entrega'}
-                        {order.delivery_type === 'pickup' && '🏪 Retirada'}
-                        {order.delivery_type === 'dine_in' && '🍽️ Local'}
-                        {order.delivery_type === 'counter' && '🏪 Balcão'}
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge variant={
-                    order.status === 'ready' ? 'default' : 
-                    order.status === 'preparing' ? 'secondary' : 'outline'
-                  }>
-                    {order.status === 'new' && 'Novo'}
-                    {order.status === 'confirmed' && 'Confirmado'}
-                    {order.status === 'preparing' && 'Preparando'}
-                    {order.status === 'ready' && 'Pronto'}
-                  </Badge>
-                </div>
-
-                {order.customer_name && (
-                  <p className="text-sm mb-2">
-                    <strong>Cliente:</strong> {order.customer_name}
-                  </p>
-                )}
-
-                {order.customer_phone && (
-                  <p className="text-sm mb-2">
-                    <strong>Telefone:</strong> {order.customer_phone}
-                  </p>
-                )}
-
-                <div className="bg-muted/50 rounded-md p-2 mb-3">
-                  <p className="text-xs font-semibold mb-1">Itens do pedido:</p>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {order.order_items && order.order_items.length > 0 ? (
-                      order.order_items.map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-xs">
-                          <span className="truncate">{item.quantity}x {item.name}</span>
-                          <span className="ml-2 flex-shrink-0">R$ {item.total_price.toFixed(2)}</span>
+        {/* Campo de Busca por Número do Pedido */}
+        <Card className="p-4 mb-4 bg-accent/10">
+          <div className="flex items-center gap-3">
+            <Label className="whitespace-nowrap">Buscar pedido online:</Label>
+            <Input
+              placeholder="Digite o número do pedido (ex: PED782821)"
+              value={searchOrderNumber}
+              onChange={(e) => setSearchOrderNumber(e.target.value.toUpperCase())}
+              onKeyPress={(e) => e.key === 'Enter' && searchOrderByNumber(searchOrderNumber)}
+            />
+            <Button
+              onClick={() => searchOrderByNumber(searchOrderNumber)}
+              disabled={searchingOrder || !searchOrderNumber}
+              className="gap-2"
+            >
+              {searchingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : '🔍'}
+              Buscar
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            💡 Pedidos do Customer Menu já pagos vão direto para cozinha. Pedidos "pagar depois" aparecem aqui.
+          </p>
+        </Card>
+        
+        <Tabs defaultValue="online" className="mb-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="online">
+              Pedidos Online/Delivery ({pendingOrders.filter(o => o.delivery_type === 'delivery' || o.delivery_type === 'pickup').length})
+            </TabsTrigger>
+            <TabsTrigger value="mesa">
+              Pedidos de Mesa ({pendingOrders.filter(o => o.delivery_type === 'dine_in').length})
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="online" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{pendingOrders.filter(order => 
+                order.delivery_type === 'delivery' || 
+                order.delivery_type === 'pickup' ||
+                order.delivery_type === 'counter'
+              ).length === 0 ? (
+                <Card className="p-8 text-center col-span-full">
+                  <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Nenhum pedido online/delivery pendente</p>
+                </Card>
+              ) : (
+                pendingOrders
+                  .filter(order => order.delivery_type === 'delivery' || order.delivery_type === 'pickup' || order.delivery_type === 'counter')
+                  .map((order) => (
+                    <Card 
+                      key={order.id} 
+                      className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
+                      onClick={() => handleSelectPendingOrder(order)}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-bold text-lg">#{order.order_number}</h3>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(order.created_at).toLocaleTimeString('pt-BR')}
+                          </p>
+                          <Badge variant="secondary" className="mt-1">
+                            {order.delivery_type === 'delivery' && '🚚 Entrega'}
+                            {order.delivery_type === 'pickup' && '🏪 Retirada'}
+                            {order.delivery_type === 'counter' && '🏪 Balcão'}
+                          </Badge>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">Sem itens</p>
-                    )}
-                  </div>
-                </div>
+                        <Badge variant={
+                          order.status === 'ready' ? 'default' : 
+                          order.status === 'preparing' ? 'secondary' : 'outline'
+                        }>
+                          {order.status === 'new' && 'Novo'}
+                          {order.status === 'confirmed' && 'Confirmado'}
+                          {order.status === 'preparing' && 'Preparando'}
+                          {order.status === 'ready' && 'Pronto'}
+                          {order.status === 'pending_payment' && '💳 Pagar'}
+                        </Badge>
+                      </div>
 
-                <div className="pt-3 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold">Total:</span>
-                    <span className="text-xl font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
+                      {order.customer_name && (
+                        <p className="text-sm mb-2">
+                          <strong>Cliente:</strong> {order.customer_name}
+                        </p>
+                      )}
+
+                      {order.customer_phone && (
+                        <p className="text-sm mb-2">
+                          <strong>Telefone:</strong> {order.customer_phone}
+                        </p>
+                      )}
+
+                      <div className="bg-muted/50 rounded-md p-2 mb-3">
+                        <p className="text-xs font-semibold mb-1">Itens do pedido:</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {order.order_items && order.order_items.length > 0 ? (
+                            order.order_items.map((item: any) => (
+                              <div key={item.id} className="flex justify-between text-xs">
+                                <span className="truncate">{item.quantity}x {item.name}</span>
+                                <span className="ml-2 flex-shrink-0">R$ {item.total_price.toFixed(2)}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">Sem itens</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold">Total:</span>
+                          <span className="text-xl font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="mesa" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {pendingOrders.filter(order => order.delivery_type === 'dine_in').length === 0 ? (
+                <Card className="p-8 text-center col-span-full">
+                  <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Nenhum pedido de mesa pendente</p>
+                </Card>
+              ) : (
+                pendingOrders
+                  .filter(order => order.delivery_type === 'dine_in')
+                  .map((order) => (
+                    <Card 
+                      key={order.id} 
+                      className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
+                      onClick={() => handleSelectPendingOrder(order)}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-bold text-lg">#{order.order_number}</h3>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(order.created_at).toLocaleTimeString('pt-BR')}
+                          </p>
+                          {order.tables && (
+                            <Badge variant="outline" className="mt-1">
+                              Mesa {order.tables.number}
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge variant={
+                          order.status === 'ready' ? 'default' : 
+                          order.status === 'preparing' ? 'secondary' : 'outline'
+                        }>
+                          {order.status === 'new' && 'Novo'}
+                          {order.status === 'confirmed' && 'Confirmado'}
+                          {order.status === 'preparing' && 'Preparando'}
+                          {order.status === 'ready' && 'Pronto'}
+                        </Badge>
+                      </div>
+
+                      {order.customer_name && (
+                        <p className="text-sm mb-2">
+                          <strong>Cliente:</strong> {order.customer_name}
+                        </p>
+                      )}
+
+                      <div className="bg-muted/50 rounded-md p-2 mb-3">
+                        <p className="text-xs font-semibold mb-1">Itens do pedido:</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {order.order_items && order.order_items.length > 0 ? (
+                            order.order_items.map((item: any) => (
+                              <div key={item.id} className="flex justify-between text-xs">
+                                <span className="truncate">{item.quantity}x {item.name}</span>
+                                <span className="ml-2 flex-shrink-0">R$ {item.total_price.toFixed(2)}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">Sem itens</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold">Total:</span>
+                          <span className="text-xl font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Últimos Pedidos Fechados */}
