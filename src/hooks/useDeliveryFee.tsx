@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -104,6 +104,7 @@ export const useDeliveryFee = () => {
           latitude: data.latitude,
           longitude: data.longitude,
         });
+        console.log(`✅ Coordenadas do restaurante carregadas: ${data.latitude}, ${data.longitude}`);
       } else if (data?.street && data?.city) {
         // Se não tem coordenadas salvas, tentar buscar
         const address = `${data.street}, ${data.number || ''}, ${data.neighborhood}, ${data.city}, ${data.state}`;
@@ -127,6 +128,7 @@ export const useDeliveryFee = () => {
           }
           
           setRestaurantCoords(coords);
+          console.log(`✅ Coordenadas do restaurante atualizadas: ${coords.latitude}, ${coords.longitude}`);
         }
       }
     } catch (error) {
@@ -134,23 +136,47 @@ export const useDeliveryFee = () => {
     }
   };
 
-  // Buscar zonas de entrega
-  const loadDeliveryZones = async (restaurantId: string) => {
+  // Buscar zonas de entrega - modificado para buscar sem restaurant_id se necessário
+  const loadDeliveryZones = async (restaurantId?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('delivery_zones')
         .select('*')
-        .eq('restaurant_id', restaurantId)
         .eq('is_active', true)
         .order('min_distance');
+
+      if (restaurantId) {
+        query = query.eq('restaurant_id', restaurantId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
       setDeliveryZones(data || []);
+      console.log(`✅ ${data?.length || 0} zonas de entrega carregadas`);
     } catch (error) {
       console.error('Erro ao carregar zonas de entrega:', error);
     }
   };
+
+  // Carregar zonas e coordenadas automaticamente ao montar o hook
+  useEffect(() => {
+    const initialize = async () => {
+      await loadRestaurantCoordinates();
+      
+      // Buscar restaurant_id
+      const { data: settings } = await supabase
+        .from('restaurant_settings')
+        .select('id')
+        .single();
+      
+      if (settings) {
+        await loadDeliveryZones(settings.id);
+      }
+    };
+    initialize();
+  }, []);
 
   // Calcular taxa de entrega baseada na distância
   const calculateDeliveryFee = (distance: number): number => {
@@ -184,6 +210,18 @@ export const useDeliveryFee = () => {
         return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
       }
 
+      // Garantir que as zonas estão carregadas
+      if (deliveryZones.length === 0) {
+        const { data: settings } = await supabase
+          .from('restaurant_settings')
+          .select('id')
+          .single();
+        
+        if (settings) {
+          await loadDeliveryZones(settings.id);
+        }
+      }
+
       if (!restaurantCoords) {
         await loadRestaurantCoordinates();
       }
@@ -213,6 +251,8 @@ export const useDeliveryFee = () => {
 
         const maxRange = settings?.max_delivery_radius || 50;
         const withinRange = isWithinDeliveryRange(distance, maxRange);
+
+        console.log(`📍 Distância: ${distance}km, Taxa: R$ ${fee.toFixed(2)}`);
 
         return {
           distance,
@@ -251,6 +291,8 @@ export const useDeliveryFee = () => {
 
       const maxRange = settings?.max_delivery_radius || 50;
       const withinRange = isWithinDeliveryRange(distance, maxRange);
+
+      console.log(`📍 Distância: ${distance}km, Taxa: R$ ${fee.toFixed(2)}`);
 
       return { distance, fee, coordinates: coords, isWithinRange: withinRange };
     } catch (error) {

@@ -231,7 +231,7 @@ export default function PDV() {
           order_items:order_items(*),
           tables(number)
         `)
-        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'pending_payment'])
+        .in('status', ['new', 'confirmed', 'preparing', 'ready'])
         .order('created_at', { ascending: false });
 
       if (orders) setPendingOrders(orders);
@@ -255,12 +255,12 @@ export default function PDV() {
           tables(number)
         `)
         .ilike('order_number', `%${orderNum}%`)
-        .in('status', ['pending_payment', 'confirmed', 'new', 'preparing', 'ready'])
-        .single();
+        .in('status', ['confirmed', 'new', 'preparing', 'ready'])
+        .maybeSingle();
 
       if (order) {
         handleSelectPendingOrder(order);
-        sonnerToast.success(`Pedido ${order.order_number} encontrado!`);
+        sonnerToast.success(`Pedido ${order.order_number} encontrado e carregado!`);
         setSearchOrderNumber("");
       } else {
         sonnerToast.error(`Pedido não encontrado`);

@@ -403,6 +403,7 @@ export default function Balcao() {
         }
       }
 
+      // Status: pedidos de balcão com pagamento agora vão como 'new' para aparecerem em pendentes
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -414,12 +415,11 @@ export default function Balcao() {
           delivery_type: deliveryType === 'entrega' ? "delivery" : "pickup",
           delivery_address: deliveryType === 'entrega' && customerAddress.street ? customerAddress : null,
           delivery_fee: deliveryFee || 0,
-          payment_method: paymentMethod,
+          payment_method: 'pending',
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
-          status: "completed",
+          status: "new",
           subtotal: subtotal,
-          total: total,
-          completed_at: new Date().toISOString()
+          total: total
         })
         .select()
         .single();
@@ -469,13 +469,7 @@ export default function Balcao() {
           });
       }
 
-      await supabase.from("cash_movements").insert({
-        type: "income",
-        category: "sale",
-        amount: total,
-        payment_method: paymentMethod,
-        description: `Venda balcão ${orderNumber}`
-      });
+      // NÃO registrar movimento de caixa agora - será feito quando pagar no PDV
 
       // Log action with context
       await logActionWithContext(
@@ -515,13 +509,16 @@ export default function Balcao() {
         }
       }
 
-      sonnerToast.success(`Venda ${orderNumber} finalizada!`);
+      sonnerToast.success(`✅ Pedido ${orderNumber} criado! Pagar no PDV.`, {
+        description: `Total: R$ ${total.toFixed(2)}`
+      });
       
-      if (selectedMotoboy && selectedMotoboy !== "none") {
-        setTimeout(() => {
-          notifyMotoboy(order.id, orderNumber, total);
-        }, 500);
-      }
+      // Notificar motoboy apenas se foi pago diretamente (não deve acontecer agora)
+      // if (selectedMotoboy && selectedMotoboy !== "none") {
+      //   setTimeout(() => {
+      //     notifyMotoboy(order.id, orderNumber, total);
+      //   }, 500);
+      // }
 
       setCart([]);
       setCustomerName('');
