@@ -77,6 +77,8 @@ export default function Configuracoes() {
     cielo: { status: 'idle', tested_at: null }
   });
   
+  const [testingGateways, setTestingGateways] = useState<{[key: string]: boolean}>({});
+  
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
@@ -111,16 +113,9 @@ export default function Configuracoes() {
     }
   };
 
-  const saveGatewayStatus = (gateway: string, status: 'idle' | 'testing' | 'success' | 'error') => {
-    const newStatus = {
-      ...gatewayStatus,
-      [gateway]: {
-        status,
-        tested_at: status === 'success' ? new Date().toISOString() : null
-      }
-    };
-    setGatewayStatus(newStatus);
-    localStorage.setItem('gateway_status', JSON.stringify(newStatus));
+  const saveGatewayStatus = (statuses: {[key: string]: {status: 'idle' | 'testing' | 'success' | 'error', tested_at: string | null}}) => {
+    setGatewayStatus(statuses);
+    localStorage.setItem('gateway_status', JSON.stringify(statuses));
   };
 
   const loadSettings = async () => {
@@ -405,19 +400,23 @@ export default function Configuracoes() {
       }
       
       if (!hasCredentials) {
-        setGatewayStatus(prev => ({ ...prev, [gateway]: 'error' }));
+        setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'error', tested_at: null } }));
         toast.error('Preencha todas as credenciais primeiro');
         return;
       }
       
+      setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'testing', tested_at: null } }));
+      
       // Simular teste de conexão (em produção, chamar edge function de validação)
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      setGatewayStatus(prev => ({ ...prev, [gateway]: 'success' }));
+      const testedAt = new Date().toISOString();
+      setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'success', tested_at: testedAt } }));
+      saveGatewayStatus({ ...gatewayStatus, [gateway]: { status: 'success', tested_at: testedAt } });
       toast.success(`${gateway.toUpperCase()}: Conexão OK! ✅`);
       
     } catch (error) {
-      setGatewayStatus(prev => ({ ...prev, [gateway]: 'error' }));
+      setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'error', tested_at: null } }));
       toast.error(`${gateway.toUpperCase()}: Erro na conexão ❌`);
     } finally {
       setTestingGateways(prev => ({ ...prev, [gateway]: false }));
@@ -712,19 +711,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.pagseguro === 'success' && (
+                  {gatewayStatus.pagseguro?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.pagseguro.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.pagseguro.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.pagseguro === 'error' && (
+                  {gatewayStatus.pagseguro?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.pagseguro === 'idle' && pagSeguroToken && (
+                  {gatewayStatus.pagseguro?.status === 'idle' && pagSeguroToken && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -751,7 +752,7 @@ export default function Configuracoes() {
                         value={pagSeguroEmail}
                         onChange={(e) => {
                           setPagSeguroEmail(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, pagseguro: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, pagseguro: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="email@exemplo.com"
                       />
@@ -763,7 +764,7 @@ export default function Configuracoes() {
                         value={pagSeguroToken}
                         onChange={(e) => {
                           setPagSeguroToken(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, pagseguro: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, pagseguro: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="Digite seu token"
                       />
@@ -796,19 +797,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.mercadopago === 'success' && (
+                  {gatewayStatus.mercadopago?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.mercadopago.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.mercadopago.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.mercadopago === 'error' && (
+                  {gatewayStatus.mercadopago?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.mercadopago === 'idle' && mercadoPagoToken && (
+                  {gatewayStatus.mercadopago?.status === 'idle' && mercadoPagoToken && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -836,7 +839,7 @@ export default function Configuracoes() {
                         value={mercadoPagoToken}
                         onChange={(e) => {
                           setMercadoPagoToken(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, mercadopago: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, mercadopago: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="APP_USR-..."
                       />
@@ -847,7 +850,7 @@ export default function Configuracoes() {
                         value={mercadoPagoPublicKey}
                         onChange={(e) => {
                           setMercadoPagoPublicKey(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, mercadopago: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, mercadopago: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="APP_USR-..."
                       />
@@ -857,7 +860,7 @@ export default function Configuracoes() {
                       variant="outline"
                       size="sm"
                       onClick={() => testGatewayConnection('mercadopago')}
-                      disabled={testingGateways.mercadopago || !mercadoPagoToken || !mercadoPagoPublicKey}
+                      disabled={!!testingGateways.mercadopago || !mercadoPagoToken || !mercadoPagoPublicKey}
                       className="w-full"
                     >
                       {testingGateways.mercadopago ? (
@@ -880,19 +883,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.rede === 'success' && (
+                  {gatewayStatus.rede?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.rede.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.rede.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.rede === 'error' && (
+                  {gatewayStatus.rede?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.rede === 'idle' && redeToken && (
+                  {gatewayStatus.rede?.status === 'idle' && redeToken && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -919,7 +924,7 @@ export default function Configuracoes() {
                         value={redePv}
                         onChange={(e) => {
                           setRedePv(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, rede: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, rede: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="1234567"
                       />
@@ -931,7 +936,7 @@ export default function Configuracoes() {
                         value={redeToken}
                         onChange={(e) => {
                           setRedeToken(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, rede: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, rede: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="Digite seu token"
                       />
@@ -964,19 +969,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.stone === 'success' && (
+                  {gatewayStatus.stone?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.stone.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.stone.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.stone === 'error' && (
+                  {gatewayStatus.stone?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.stone === 'idle' && stoneApiKey && (
+                  {gatewayStatus.stone?.status === 'idle' && stoneApiKey && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -1003,7 +1010,7 @@ export default function Configuracoes() {
                         value={stoneMerchantId}
                         onChange={(e) => {
                           setStoneMerchantId(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, stone: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, stone: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="MERCHANT_ID"
                       />
@@ -1015,7 +1022,7 @@ export default function Configuracoes() {
                         value={stoneApiKey}
                         onChange={(e) => {
                           setStoneApiKey(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, stone: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, stone: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="Digite sua API key"
                       />
@@ -1048,19 +1055,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.nubank === 'success' && (
+                  {gatewayStatus.nubank?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.nubank.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.nubank.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.nubank === 'error' && (
+                  {gatewayStatus.nubank?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.nubank === 'idle' && nubankClientSecret && (
+                  {gatewayStatus.nubank?.status === 'idle' && nubankClientSecret && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -1087,7 +1096,7 @@ export default function Configuracoes() {
                         value={nubankClientId}
                         onChange={(e) => {
                           setNubankClientId(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, nubank: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, nubank: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="client_id"
                       />
@@ -1099,7 +1108,7 @@ export default function Configuracoes() {
                         value={nubankClientSecret}
                         onChange={(e) => {
                           setNubankClientSecret(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, nubank: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, nubank: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="client_secret"
                       />
@@ -1132,19 +1141,21 @@ export default function Configuracoes() {
               <Card className="p-4 relative">
                 {/* Badge de Status */}
                 <div className="absolute top-2 right-2">
-                  {gatewayStatus.cielo === 'success' && (
+                  {gatewayStatus.cielo?.status === 'success' && (
                     <div className="flex items-center gap-1 text-xs text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
-                      OK
+                      {gatewayStatus.cielo.tested_at && (
+                        <span>OK ({new Date(gatewayStatus.cielo.tested_at).toLocaleDateString()})</span>
+                      )}
                     </div>
                   )}
-                  {gatewayStatus.cielo === 'error' && (
+                  {gatewayStatus.cielo?.status === 'error' && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
                       <div className="w-2 h-2 rounded-full bg-red-600" />
                       Erro
                     </div>
                   )}
-                  {gatewayStatus.cielo === 'idle' && cieloMerchantKey && (
+                  {gatewayStatus.cielo?.status === 'idle' && cieloMerchantKey && (
                     <div className="flex items-center gap-1 text-xs text-yellow-600">
                       <div className="w-2 h-2 rounded-full bg-yellow-600" />
                       Não testado
@@ -1171,7 +1182,7 @@ export default function Configuracoes() {
                         value={cieloMerchantId}
                         onChange={(e) => {
                           setCieloMerchantId(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, cielo: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, cielo: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="Merchant ID"
                       />
@@ -1183,7 +1194,7 @@ export default function Configuracoes() {
                         value={cieloMerchantKey}
                         onChange={(e) => {
                           setCieloMerchantKey(e.target.value);
-                          setGatewayStatus(prev => ({ ...prev, cielo: 'idle' }));
+                          setGatewayStatus(prev => ({ ...prev, cielo: { status: 'idle', tested_at: null } }));
                         }}
                         placeholder="Digite sua Merchant Key"
                       />
