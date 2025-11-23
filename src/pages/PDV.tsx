@@ -337,9 +337,58 @@ export default function PDV() {
   };
 
   const handleSelectPendingOrder = (order: any) => {
+    console.log("📋 [PDV] Carregando pedido pendente:", order);
+    
+    // 1. Definir pedido atual
     setCurrentOrder(order);
+    
+    // 2. Carregar items no carrinho VISUAL
+    const cartItems = order.order_items.map((item: any) => ({
+      id: item.menu_item_id,
+      name: item.name,
+      price: item.unit_price,
+      quantity: item.quantity,
+      finalPrice: item.unit_price,
+      customizationsText: item.notes || '',
+    }));
+    setCart(cartItems);
+    console.log("🛒 [PDV] Items carregados no carrinho:", cartItems);
+    
+    // 3. Carregar dados do cliente
+    setCustomerName(order.customer_name || '');
+    setCustomerPhone(order.customer_phone || '');
+    setCustomerCpf(order.customer_cpf || '');
+    console.log("👤 [PDV] Cliente:", order.customer_name, order.customer_phone);
+    
+    // 4. Carregar endereço (se delivery)
+    if (order.delivery_address) {
+      setCustomerAddress(order.delivery_address);
+      console.log("📍 [PDV] Endereço carregado:", order.delivery_address);
+    }
+    
+    // 5. Carregar taxa de entrega
+    setDeliveryFee(order.delivery_fee || 0);
+    setDeliveryDistance(null);
+    console.log("💰 [PDV] Taxa de entrega: R$", order.delivery_fee || 0);
+    
+    // 6. Carregar tipo de entrega
+    if (order.delivery_type === 'delivery') {
+      setDeliveryType('delivery');
+    } else if (order.delivery_type === 'pickup') {
+      setDeliveryType('pickup');
+    } else if (order.delivery_type === 'dine_in') {
+      setDeliveryType('dine_in');
+      setSelectedTable(order.table_id || '');
+    }
+    
+    // 7. Mudar para aba de Pedido Atual
     setActiveTab("new");
-    sonnerToast.info(`Pedido ${order.order_number} carregado - selecione forma de pagamento para fechar`);
+    
+    // 8. Toast informativo
+    sonnerToast.info(
+      `✅ Pedido ${order.order_number} carregado!\nTotal: R$ ${order.total.toFixed(2)}\nSelecione a forma de pagamento e clique em "Finalizar Pedido".`,
+      { duration: 5000 }
+    );
   };
 
   const handleViewClosedOrder = (order: any) => {
@@ -484,6 +533,14 @@ export default function PDV() {
   const total = subtotal + serviceFee + deliveryFee;
 
   const handleFinishOrder = async () => {
+    // Se há pedido atual carregado (de pendentes), permitir finalizar
+    if (currentOrder && currentOrder.id) {
+      console.log("💳 [PDV] Finalizando pedido existente:", currentOrder.order_number);
+      setPaymentGatewayDialogOpen(true);
+      return;
+    }
+    
+    // Para novos pedidos, validar carrinho
     if (cart.length === 0) {
       toast({
         title: "Carrinho vazio",
@@ -555,7 +612,23 @@ export default function PDV() {
         }
 
         sonnerToast.success(`Pedido ${currentOrder.order_number} fechado!`);
+        
+        // Limpar estado completo
         setCurrentOrder(null);
+        setCart([]);
+        setCustomerName("");
+        setCustomerPhone("");
+        setCustomerCpf("");
+        setCustomerAddress({
+          street: "", number: "", complement: "",
+          neighborhood: "", city: "", state: "", zipcode: "",
+          latitude: undefined, longitude: undefined,
+        });
+        setDeliveryFee(0);
+        setDeliveryDistance(null);
+        setSelectedTable("");
+        setSelectedMotoboy("none");
+        
         loadPendingOrders();
         loadRecentlyClosedOrders();
         return;

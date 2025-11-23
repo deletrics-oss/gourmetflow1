@@ -202,16 +202,23 @@ export const useDeliveryFee = () => {
     isWithinRange: boolean;
   }> => {
     setLoading(true);
+    console.log("🚚 [useDeliveryFee] Iniciando cálculo de taxa...");
 
     try {
       // Se não há endereço completo, retorna taxa 0
       if (!customerAddress.street || !customerAddress.city) {
+        console.log("⚠️ [useDeliveryFee] Endereço incompleto");
         setLoading(false);
         return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
       }
 
+      console.log("📦 [useDeliveryFee] Zonas carregadas:", deliveryZones.length);
+      console.log("📍 [useDeliveryFee] Coordenadas do restaurante:", restaurantCoords);
+      console.log("📍 [useDeliveryFee] Endereço do cliente:", customerAddress);
+
       // Garantir que as zonas estão carregadas
       if (deliveryZones.length === 0) {
+        console.warn("⚠️ Nenhuma zona de entrega carregada! Carregando...");
         const { data: settings } = await supabase
           .from('restaurant_settings')
           .select('id')
@@ -223,36 +230,38 @@ export const useDeliveryFee = () => {
       }
 
       if (!restaurantCoords) {
+        console.warn("⚠️ Coordenadas do restaurante não carregadas! Carregando...");
         await loadRestaurantCoordinates();
       }
 
       if (!restaurantCoords) {
-        console.warn('Coordenadas do restaurante não configuradas');
+        console.error('❌ Coordenadas do restaurante não configuradas');
         setLoading(false);
         return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
       }
 
       // Se já tem coordenadas salvas
       if (customerAddress.latitude && customerAddress.longitude) {
-        const distance = calculateDistance(
-          restaurantCoords.latitude,
-          restaurantCoords.longitude,
-          customerAddress.latitude,
-          customerAddress.longitude
-        );
+      const distance = calculateDistance(
+        restaurantCoords.latitude,
+        restaurantCoords.longitude,
+        customerAddress.latitude,
+        customerAddress.longitude
+      );
 
-        const fee = calculateDeliveryFee(distance);
-        
-        // Buscar raio máximo
-        const { data: settings } = await supabase
-          .from('restaurant_settings')
-          .select('max_delivery_radius')
-          .single();
+      const fee = calculateDeliveryFee(distance);
+      
+      // Buscar raio máximo
+      const { data: settings } = await supabase
+        .from('restaurant_settings')
+        .select('max_delivery_radius')
+        .single();
 
-        const maxRange = settings?.max_delivery_radius || 50;
-        const withinRange = isWithinDeliveryRange(distance, maxRange);
+      const maxRange = settings?.max_delivery_radius || 50;
+      const withinRange = isWithinDeliveryRange(distance, maxRange);
 
-        console.log(`📍 Distância: ${distance}km, Taxa: R$ ${fee.toFixed(2)}`);
+      console.log(`📊 [useDeliveryFee] Distância calculada: ${distance.toFixed(2)}km`);
+      console.log(`💰 [useDeliveryFee] Taxa calculada: R$ ${fee.toFixed(2)}`);
 
         return {
           distance,
@@ -292,7 +301,8 @@ export const useDeliveryFee = () => {
       const maxRange = settings?.max_delivery_radius || 50;
       const withinRange = isWithinDeliveryRange(distance, maxRange);
 
-      console.log(`📍 Distância: ${distance}km, Taxa: R$ ${fee.toFixed(2)}`);
+      console.log(`📊 [useDeliveryFee] Distância calculada: ${distance.toFixed(2)}km`);
+      console.log(`💰 [useDeliveryFee] Taxa calculada: R$ ${fee.toFixed(2)}`);
 
       return { distance, fee, coordinates: coords, isWithinRange: withinRange };
     } catch (error) {
