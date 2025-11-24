@@ -11,11 +11,16 @@ export const logActionWithContext = async (
   details?: any
 ) => {
   try {
-    // Capture user agent
     const userAgent = navigator.userAgent;
+    
+    console.log('[LOGGING] Tentando registrar:', {
+      action,
+      entityType,
+      entityId,
+      details
+    });
 
-    // Call the log_action RPC with context
-    await supabase.rpc('log_action', {
+    const { data, error } = await supabase.rpc('log_action', {
       p_action: action,
       p_entity_type: entityType || null,
       p_entity_id: entityId || null,
@@ -25,8 +30,14 @@ export const logActionWithContext = async (
         timestamp: new Date().toISOString()
       }
     });
+
+    if (error) {
+      console.error('[LOGGING] ❌ Erro ao registrar:', error);
+      // Não throw - logging não deve quebrar o app
+    } else {
+      console.log('[LOGGING] ✅ Log gravado:', data);
+    }
   } catch (error) {
-    // Log to console but don't throw - logging should not break app flow
-    console.log('Log action error (non-critical):', error);
+    console.error('[LOGGING] ❌ Erro fatal:', error);
   }
 };

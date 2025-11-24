@@ -2,18 +2,25 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { logActionWithContext } from "@/lib/logging";
+import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 
 export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [motoboys, setMotoboys] = useState<any[]>([]);
   const [selectedMotoboy, setSelectedMotoboy] = useState<Record<string, string>>({});
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -289,6 +296,36 @@ export default function Pedidos() {
     }
   };
 
+  const getFilteredCompletedOrders = () => {
+    let filtered = orders.filter((o) => o.status === "completed");
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (dateFilter === 'today') {
+      filtered = filtered.filter((o) => new Date(o.created_at) >= today);
+    } else if (dateFilter === 'week') {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter((o) => new Date(o.created_at) >= weekAgo);
+    } else if (dateFilter === 'month') {
+      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter((o) => new Date(o.created_at) >= monthAgo);
+    }
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((o) =>
+        o.order_number.toLowerCase().includes(query) ||
+        o.customer_name?.toLowerCase().includes(query) ||
+        o.customer_cpf?.includes(query)
+      );
+    }
+    
+    return filtered.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  };
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -299,7 +336,7 @@ export default function Pedidos() {
   const newOrders = orders.filter((o) => o.status === "new");
   const preparingOrders = orders.filter((o) => o.status === "preparing");
   const readyOrders = orders.filter((o) => o.status === "ready");
-  const completedOrders = todayOrders.filter((o) => o.status === "completed");
+  const completedOrders = getFilteredCompletedOrders();
 
   const getDeliveryTypeLabel = (type: string) => {
     const labels: any = {
@@ -652,15 +689,72 @@ export default function Pedidos() {
         </TabsContent>
 
         <TabsContent value="concluidos" className="mt-6">
+          {/* Filtros */}
+          <div className="flex gap-4 mb-6">
+            <Input
+              placeholder="Buscar por número, cliente ou CPF..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1"
+            />
+            <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Últimos 7 dias</SelectItem>
+                <SelectItem value="month">Últimos 30 dias</SelectItem>
+                <SelectItem value="all">Todos os pedidos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cards de Estatísticas */}
+          <div className="grid gap-4 md:grid-cols-4 mb-6">
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Total de Pedidos</p>
+              <p className="text-2xl font-bold">{completedOrders.length}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Faturamento Total</p>
+              <p className="text-2xl font-bold">
+                R$ {completedOrders.reduce((sum, o) => sum + o.total, 0).toFixed(2)}
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Ticket Médio</p>
+              <p className="text-2xl font-bold">
+                R$ {(completedOrders.reduce((sum, o) => sum + o.total, 0) / 
+                    Math.max(1, completedOrders.length)).toFixed(2)}
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Formas de Pagamento</p>
+              <div className="text-xs text-muted-foreground">
+                💵 {completedOrders.filter(o => o.payment_method === 'cash').length} | 
+                💳 {completedOrders.filter(o => o.payment_method === 'credit_card' || o.payment_method === 'debit_card').length} | 
+                📱 {completedOrders.filter(o => o.payment_method === 'pix').length}
+              </div>
+            </Card>
+          </div>
+
           {completedOrders.length === 0 ? (
             <Card className="p-12 text-center">
               <CheckCircle2 className="h-16 w-16 text-muted-foreground/20 mb-4 mx-auto" />
-              <p className="text-xl font-medium text-muted-foreground mb-2">Nenhum pedido concluído hoje</p>
+              <p className="text-xl font-medium text-muted-foreground mb-2">Nenhum pedido concluído no período selecionado</p>
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
               {completedOrders.map((order) => (
-                <Card key={order.id} className="p-4">
+                <Card 
+                  key={order.id} 
+                  className="p-4 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setDetailsDialogOpen(true);
+                  }}
+                >
                   <h3 className="text-lg font-bold mb-2">#{order.order_number}</h3>
                   <div className="space-y-1">
                     <p className="text-sm">
@@ -669,8 +763,13 @@ export default function Pedidos() {
                     <p className="text-sm">
                       <span className="text-muted-foreground">Tipo:</span> {getDeliveryTypeLabel(order.delivery_type)}
                     </p>
+                    {order.customer_name && (
+                      <p className="text-xs text-muted-foreground">
+                        👤 {order.customer_name}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      {new Date(order.created_at).toLocaleTimeString('pt-BR')}
+                      {new Date(order.created_at).toLocaleString('pt-BR')}
                     </p>
                   </div>
                 </Card>
@@ -679,6 +778,13 @@ export default function Pedidos() {
           )}
         </TabsContent>
       </Tabs>
+
+      <OrderDetailsDialog
+        order={selectedOrder}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        restaurantName="Napoli"
+      />
     </div>
   );
 }
