@@ -60,6 +60,11 @@ export default function Balcao() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [isSuspicious, setIsSuspicious] = useState(false);
+  
+  // ✅ FASE 3: Estados para uso de pontos de fidelidade
+  const [usePoints, setUsePoints] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState(0);
+  const [pointsDiscount, setPointsDiscount] = useState(0);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [restaurantName, setRestaurantName] = useState("Restaurante");
   const [printOnClose, setPrintOnClose] = useState(true);
@@ -287,7 +292,18 @@ export default function Balcao() {
 
   // Calcular subtotal e total ANTES de usar em outras funções
   const subtotal = cart.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0);
-  const total = subtotal + deliveryFee;
+  
+  // ✅ FASE 3: Calcular desconto por pontos
+  useEffect(() => {
+    if (usePoints && pointsToUse > 0 && loyaltyRedemptionValue > 0) {
+      const discount = pointsToUse * loyaltyRedemptionValue;
+      setPointsDiscount(Math.min(discount, subtotal)); // Não pode ser maior que subtotal
+    } else {
+      setPointsDiscount(0);
+    }
+  }, [usePoints, pointsToUse, loyaltyRedemptionValue, subtotal]);
+  
+  const total = subtotal + deliveryFee - pointsDiscount;
 
   // Cálculo de pontos em tempo real
   const calculatePointsToEarn = () => {
@@ -438,7 +454,27 @@ export default function Balcao() {
         });
       }
 
-      // Atualizar pontos de fidelidade
+      // ✅ FASE 3: Registrar uso de pontos primeiro
+      if (usePoints && pointsToUse > 0 && finalCustomerId) {
+        await supabase
+          .from('customers')
+          .update({ 
+            loyalty_points: loyaltyPoints - pointsToUse
+          })
+          .eq('id', finalCustomerId);
+
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: finalCustomerId,
+            order_id: order.id,
+            points: -pointsToUse,
+            type: 'redeem',
+            description: `Desconto no pedido ${orderNumber}`
+          });
+      }
+      
+      // Atualizar pontos de fidelidade (ganhos)
       if (loyaltyEnabled && customerCpf && finalCustomerId) {
         const pointsEarned = Math.floor(total * loyaltyPointsPerReal);
         
@@ -820,6 +856,49 @@ export default function Balcao() {
                   )}
 
                   <div className="border-t pt-4 space-y-4">
+                    {/* ✅ FASE 3: Seção de Fidelidade */}
+                    {loyaltyEnabled && customerId && loyaltyPoints > 0 && (
+                      <Card className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Gift className="h-5 w-5 text-yellow-600" />
+                            <div>
+                              <p className="font-semibold text-sm">Você tem {loyaltyPoints} pontos!</p>
+                              <p className="text-xs text-muted-foreground">
+                                Cada ponto vale R$ {loyaltyRedemptionValue.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                          <Checkbox
+                            checked={usePoints}
+                            onCheckedChange={(checked) => {
+                              setUsePoints(!!checked);
+                              if (!checked) {
+                                setPointsToUse(0);
+                                setPointsDiscount(0);
+                              }
+                            }}
+                          />
+                        </div>
+                        
+                        {usePoints && (
+                          <div className="space-y-2">
+                            <Label>Quantos pontos usar?</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={loyaltyPoints}
+                              value={pointsToUse}
+                              onChange={(e) => setPointsToUse(Math.min(Number(e.target.value), loyaltyPoints))}
+                            />
+                            <p className="text-sm text-green-600 font-semibold">
+                              Desconto: -R$ {pointsDiscount.toFixed(2)}
+                            </p>
+                          </div>
+                        )}
+                      </Card>
+                    )}
+                    
                   {/* Motoboy */}
                   <div>
                     <Label htmlFor="motoboy">Motoboy (Opcional)</Label>

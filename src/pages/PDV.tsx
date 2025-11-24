@@ -1724,12 +1724,12 @@ export default function PDV() {
               </div>
             </Card>
 
-            {/* PIX via Gateways */}
+            {/* ✅ FASE 5: PIX via Gateways - Renderizar TODOS os habilitados */}
             {paymentMethod === 'pix' && (
-              <>
+              <div className="space-y-3">
                 {restaurantSettings?.mercadopago_enabled && (
                   <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('mercadopago')}>
-                    <h4 className="font-semibold">📱 PIX - Mercado Pago</h4>
+                    <h4 className="font-semibold">💳 PIX - Mercado Pago</h4>
                     <p className="text-xs text-muted-foreground">QR Code gerado automaticamente</p>
                   </Card>
                 )}
@@ -1741,11 +1741,20 @@ export default function PDV() {
                 )}
                 {restaurantSettings?.nubank_enabled && (
                   <Card className="p-4 cursor-pointer hover:border-primary border-2" onClick={() => processPayment('nubank')}>
-                    <h4 className="font-semibold">📱 PIX - Nubank</h4>
+                    <h4 className="font-semibold">💰 PIX - Nubank</h4>
                     <p className="text-xs text-muted-foreground">QR Code gerado automaticamente</p>
                   </Card>
                 )}
-              </>
+                {!restaurantSettings?.mercadopago_enabled && 
+                 !restaurantSettings?.pagseguro_enabled && 
+                 !restaurantSettings?.nubank_enabled && (
+                  <div className="text-center text-sm text-muted-foreground p-4">
+                    Nenhum gateway PIX configurado.
+                    <br/>
+                    Configure em Configurações → Integrações de Pagamento
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Cartão via Gateways */}

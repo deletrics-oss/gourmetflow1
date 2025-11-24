@@ -160,7 +160,7 @@ export default function Configuracoes() {
         }
         setMaxDeliveryRadius(data.max_delivery_radius || 200);
         
-        // Payment gateways
+        // Payment gateways - ✅ FASE 1: Carregar estados corretamente
         setPagSeguroEnabled(data.pagseguro_enabled || false);
         setPagSeguroEmail(data.pagseguro_email || '');
         setPagSeguroToken(data.pagseguro_token || '');
@@ -407,17 +407,46 @@ export default function Configuracoes() {
       
       setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'testing', tested_at: null } }));
       
-      // Simular teste de conexão (em produção, chamar edge function de validação)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // ✅ FASE 2: Teste REAL de gateway chamando edge functions
+      let result;
+      
+      if (gateway === 'mercadopago') {
+        result = await supabase.functions.invoke('mercadopago-payment', {
+          body: {
+            amount: 1,
+            orderId: 'TEST-' + Date.now(),
+            paymentMethod: 'pix',
+            customerEmail: 'teste@teste.com'
+          }
+        });
+      } else if (gateway === 'pagseguro') {
+        result = await supabase.functions.invoke('pagseguro-payment', {
+          body: {
+            amount: 1,
+            orderId: 'TEST-' + Date.now(),
+            customerEmail: 'teste@teste.com'
+          }
+        });
+      } else {
+        // Outros gateways: simular por enquanto
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        result = { error: null };
+      }
+      
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
       
       const testedAt = new Date().toISOString();
       setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'success', tested_at: testedAt } }));
       saveGatewayStatus({ ...gatewayStatus, [gateway]: { status: 'success', tested_at: testedAt } });
       toast.success(`${gateway.toUpperCase()}: Conexão OK! ✅`);
       
-    } catch (error) {
-      setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'error', tested_at: null } }));
-      toast.error(`${gateway.toUpperCase()}: Erro na conexão ❌`);
+    } catch (error: any) {
+      const testedAt = new Date().toISOString();
+      setGatewayStatus(prev => ({ ...prev, [gateway]: { status: 'error', tested_at: testedAt } }));
+      saveGatewayStatus({ ...gatewayStatus, [gateway]: { status: 'error', tested_at: testedAt } });
+      toast.error(`${gateway.toUpperCase()}: Erro - ${error.message} ❌`);
     } finally {
       setTestingGateways(prev => ({ ...prev, [gateway]: false }));
     }
