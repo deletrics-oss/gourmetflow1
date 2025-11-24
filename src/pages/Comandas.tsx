@@ -3,13 +3,17 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Users, Plus, Search, Clock, DollarSign, Eye, Printer } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Users, Plus, Search, Clock, DollarSign, Eye, Printer, Edit, UserCircle2, Minus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { AddComandaDialog } from "@/components/dialogs/AddComandaDialog";
 import { AddItemsToComandaDialog } from "@/components/dialogs/AddItemsToComandaDialog";
+import { EditComandaCustomerDialog } from "@/components/dialogs/EditComandaCustomerDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { generatePrintReceipt } from "@/components/PrintReceipt";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Comandas() {
   const [comandas, setComandas] = useState<any[]>([]);
@@ -18,6 +22,9 @@ export default function Comandas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [addItemsDialogOpen, setAddItemsDialogOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
+  const [selectedEditItem, setSelectedEditItem] = useState<any>(null);
+  const [editCustomerDialogOpen, setEditCustomerDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -157,6 +164,29 @@ export default function Comandas() {
               </div>
 
               <div className="space-y-2 mb-4">
+                {comanda.customer_name && (
+                  <div className="flex items-center justify-between text-sm bg-muted/30 p-2 rounded">
+                    <div className="flex items-center gap-2">
+                      <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{comanda.customer_name}</p>
+                        {comanda.customer_phone && (
+                          <p className="text-xs text-muted-foreground">{comanda.customer_phone}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedOrderId(comanda.id);
+                        setEditCustomerDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total:</span>
                   <span className="font-bold text-lg">R$ {comanda.total.toFixed(2)}</span>
@@ -177,19 +207,48 @@ export default function Comandas() {
                 <CollapsibleContent className="space-y-2 mb-3">
                   {comanda.order_items?.map((item: any) => (
                     <div key={item.id} className="p-2 bg-muted/50 rounded text-sm">
-                      <div className="flex justify-between">
-                        <span>{item.quantity}x {item.name}</span>
-                        <span className="font-medium">R$ {item.total_price.toFixed(2)}</span>
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="flex justify-between">
+                            <span>{item.quantity}x {item.name}</span>
+                            <span className="font-medium">R$ {item.total_price.toFixed(2)}</span>
+                          </div>
+                          {item.notes && (
+                            <p className="text-xs text-muted-foreground mt-1">Obs: {item.notes}</p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-2 h-7 w-7 p-0"
+                          onClick={() => {
+                            setSelectedEditItem(item);
+                            setEditItemDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
                       </div>
-                      {item.notes && (
-                        <p className="text-xs text-muted-foreground mt-1">Obs: {item.notes}</p>
-                      )}
                     </div>
                   ))}
                 </CollapsibleContent>
               </Collapsible>
 
               <div className="space-y-2">
+                {!comanda.customer_name && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedOrderId(comanda.id);
+                      setEditCustomerDialogOpen(true);
+                    }}
+                  >
+                    <UserCircle2 className="h-3 w-3 mr-1" />
+                    Adicionar Cliente
+                  </Button>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button 
                     variant="outline" 
@@ -269,6 +328,134 @@ export default function Comandas() {
       <AddItemsToComandaDialog
         open={addItemsDialogOpen}
         onOpenChange={setAddItemsDialogOpen}
+        orderId={selectedOrderId}
+        onSuccess={loadData}
+      />
+
+      {/* Dialog para Editar Item */}
+      <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Item</DialogTitle>
+          </DialogHeader>
+          {selectedEditItem && (
+            <div className="space-y-4">
+              <div>
+                <Label>Produto</Label>
+                <Input value={selectedEditItem.name} disabled />
+              </div>
+              <div>
+                <Label>Quantidade</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSelectedEditItem({
+                      ...selectedEditItem,
+                      quantity: Math.max(1, selectedEditItem.quantity - 1)
+                    })}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={selectedEditItem.quantity}
+                    onChange={(e) => setSelectedEditItem({
+                      ...selectedEditItem,
+                      quantity: Math.max(1, parseInt(e.target.value) || 1)
+                    })}
+                    className="text-center"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSelectedEditItem({
+                      ...selectedEditItem,
+                      quantity: selectedEditItem.quantity + 1
+                    })}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label>Observações</Label>
+                <Textarea
+                  value={selectedEditItem.notes || ''}
+                  onChange={(e) => setSelectedEditItem({
+                    ...selectedEditItem,
+                    notes: e.target.value
+                  })}
+                  placeholder="Ex: sem cebola, bem passado..."
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditItemDialogOpen(false);
+                setSelectedEditItem(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  const { error } = await supabase
+                    .from('order_items')
+                    .update({
+                      quantity: selectedEditItem.quantity,
+                      notes: selectedEditItem.notes,
+                      total_price: selectedEditItem.unit_price * selectedEditItem.quantity
+                    })
+                    .eq('id', selectedEditItem.id);
+
+                  if (error) throw error;
+
+                  // Recalcular total do pedido
+                  const comanda = comandas.find(c => 
+                    c.order_items.some((i: any) => i.id === selectedEditItem.id)
+                  );
+                  
+                  if (comanda) {
+                    const { data: items } = await supabase
+                      .from('order_items')
+                      .select('total_price')
+                      .eq('order_id', comanda.id);
+
+                    if (items) {
+                      const newTotal = items.reduce((sum, i) => sum + i.total_price, 0);
+                      await supabase
+                        .from('orders')
+                        .update({ total: newTotal, subtotal: newTotal })
+                        .eq('id', comanda.id);
+                    }
+                  }
+
+                  toast.success('Item atualizado!');
+                  setEditItemDialogOpen(false);
+                  setSelectedEditItem(null);
+                  loadData();
+                } catch (error: any) {
+                  console.error('Erro ao atualizar item:', error);
+                  toast.error('Erro ao atualizar item');
+                }
+              }}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Editar Cliente */}
+      <EditComandaCustomerDialog
+        open={editCustomerDialogOpen}
+        onOpenChange={setEditCustomerDialogOpen}
         orderId={selectedOrderId}
         onSuccess={loadData}
       />
