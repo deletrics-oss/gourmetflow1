@@ -21,14 +21,23 @@ serve(async (req) => {
 
     console.log('[PAGSEGURO] Criando pagamento:', { amount, orderId });
 
-    // Buscar credenciais
-    const { data: settings } = await supabaseClient
+    // Buscar credenciais (pega o primeiro registro disponível)
+    const { data: settings, error: settingsError } = await supabaseClient
       .from('restaurant_settings')
       .select('pagseguro_token, pagseguro_email')
-      .single();
+      .limit(1)
+      .maybeSingle();
+
+    console.log('[PAGSEGURO] Settings:', { settings, settingsError });
+
+    if (settingsError) {
+      console.error('[PAGSEGURO] Erro ao buscar settings:', settingsError);
+      throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
+    }
 
     if (!settings?.pagseguro_token || !settings?.pagseguro_email) {
-      throw new Error('PagSeguro não configurado');
+      console.error('[PAGSEGURO] Credenciais não configuradas:', settings);
+      throw new Error('PagSeguro não configurado. Configure email e token em Configurações → Integrações de Pagamento');
     }
 
     // Criar transação PIX no PagSeguro (API v2)
