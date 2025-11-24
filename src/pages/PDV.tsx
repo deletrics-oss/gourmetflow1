@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin, Star, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -88,6 +88,8 @@ export default function PDV() {
   const [customerCpf, setCustomerCpf] = useState("");
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [pixCopyPaste, setPixCopyPaste] = useState('');
+  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState(0);
+  const [isCustomerSuspicious, setIsCustomerSuspicious] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -292,6 +294,10 @@ export default function PDV() {
         setCustomerPhone(customer.phone || "");
         setCustomerCpf(customer.cpf || "");
         
+        // ✅ Carregar pontos e status suspeito
+        setCustomerLoyaltyPoints(customer.loyalty_points || 0);
+        setIsCustomerSuspicious(customer.is_suspicious || false);
+        
         if (customer.address) {
           const addr = customer.address as any;
           setCustomerAddress({
@@ -307,9 +313,19 @@ export default function PDV() {
           });
         }
         
-        sonnerToast.success(`Cliente ${customer.name} carregado!`);
+        // ✅ Toast com informações completas
+        const warnings = [];
+        if (customer.is_suspicious) warnings.push("⚠️ Cliente Suspeito");
+        if (customer.loyalty_points > 0) warnings.push(`⭐ ${customer.loyalty_points} pontos`);
+        
+        sonnerToast.success(
+          `Cliente ${customer.name} carregado!\n${warnings.join(' | ')}`,
+          { duration: 5000 }
+        );
       } else {
         sonnerToast.info('Cliente não encontrado. Será cadastrado ao finalizar pedido.');
+        setCustomerLoyaltyPoints(0);
+        setIsCustomerSuspicious(false);
       }
     } catch (error) {
       console.error('Erro ao buscar cliente:', error);
@@ -360,6 +376,24 @@ export default function PDV() {
     setCustomerPhone(order.customer_phone || '');
     setCustomerCpf(order.customer_cpf || '');
     console.log("👤 [PDV] Cliente:", order.customer_name, order.customer_phone);
+    
+    // ✅ Carregar dados do cliente se existir customer_id
+    if (order.customer_id) {
+      const loadCustomerData = async () => {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('loyalty_points, is_suspicious')
+          .eq('id', order.customer_id)
+          .single();
+        
+        if (customer) {
+          setCustomerLoyaltyPoints(customer.loyalty_points || 0);
+          setIsCustomerSuspicious(customer.is_suspicious || false);
+        }
+      };
+      
+      loadCustomerData();
+    }
     
     // 4. Carregar endereço (se delivery)
     if (order.delivery_address) {
@@ -629,6 +663,8 @@ export default function PDV() {
         setDeliveryDistance(null);
         setSelectedTable("");
         setSelectedMotoboy("none");
+        setCustomerLoyaltyPoints(0);
+        setIsCustomerSuspicious(false);
         
         loadPendingOrders();
         loadRecentlyClosedOrders();
@@ -838,6 +874,8 @@ export default function PDV() {
       });
       setShouldPrint(true);
       setDeliveryType("dine_in");
+      setCustomerLoyaltyPoints(0);
+      setIsCustomerSuspicious(false);
       loadTables();
       loadPendingOrders();
       loadRecentlyClosedOrders();
@@ -963,7 +1001,7 @@ export default function PDV() {
               </div>
             )}
 
-            {(deliveryType === "online" || deliveryType === "delivery" || deliveryType === "counter") && (
+            {(deliveryType === "online" || deliveryType === "delivery" || deliveryType === "pickup" || deliveryType === "counter") && (
               <div className="space-y-4 mb-4 p-4 border rounded-lg bg-accent/10">
                 <p className="text-sm font-semibold text-muted-foreground">Dados do Cliente</p>
                 
@@ -1017,6 +1055,32 @@ export default function PDV() {
                     onChange={(e) => setCustomerName(e.target.value)}
                   />
                 </div>
+
+                {/* ✅ Badges de Fidelidade e Status */}
+                {customerName && (
+                  <div className="flex gap-2 flex-wrap">
+                    {customerLoyaltyPoints > 0 && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                        {customerLoyaltyPoints} pontos de fidelidade
+                      </Badge>
+                    )}
+                    
+                    {isCustomerSuspicious && (
+                      <Badge variant="destructive" className="gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Cliente Suspeito
+                      </Badge>
+                    )}
+                    
+                    {!isCustomerSuspicious && customerName && (
+                      <Badge variant="outline" className="gap-1 border-green-500 text-green-700">
+                        <CheckCircle className="h-3 w-3" />
+                        Cliente Confiável
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1243,9 +1307,66 @@ export default function PDV() {
             )}
 
             {currentOrder.customer_phone && (
-              <p className="text-sm mb-4">
+              <p className="text-sm mb-2">
                 <strong>Telefone:</strong> {currentOrder.customer_phone}
               </p>
+            )}
+
+            {currentOrder.customer_cpf && (
+              <p className="text-sm mb-2">
+                <strong>CPF:</strong> {currentOrder.customer_cpf}
+              </p>
+            )}
+
+            {/* ✅ Badges de Status do Cliente */}
+            <div className="flex gap-2 flex-wrap mb-4">
+              {currentOrder.loyalty_points_earned > 0 && (
+                <Badge variant="secondary" className="gap-1">
+                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                  +{currentOrder.loyalty_points_earned} pontos nesta compra
+                </Badge>
+              )}
+              
+              {currentOrder.loyalty_points_used > 0 && (
+                <Badge variant="outline" className="gap-1">
+                  <Star className="h-3 w-3" />
+                  {currentOrder.loyalty_points_used} pontos usados
+                </Badge>
+              )}
+              
+              {customerLoyaltyPoints > 0 && (
+                <Badge variant="secondary" className="gap-1">
+                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                  {customerLoyaltyPoints} pontos totais
+                </Badge>
+              )}
+              
+              {isCustomerSuspicious && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Cliente Suspeito
+                </Badge>
+              )}
+            </div>
+
+            {/* ✅ Endereço de entrega (se delivery) */}
+            {currentOrder.delivery_type === 'delivery' && currentOrder.delivery_address && (
+              <div className="bg-muted/50 rounded-lg p-3 mb-4">
+                <p className="font-semibold mb-2 flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Endereço de Entrega:
+                </p>
+                <p className="text-sm">
+                  {currentOrder.delivery_address.street}, {currentOrder.delivery_address.number}
+                  {currentOrder.delivery_address.complement && ` - ${currentOrder.delivery_address.complement}`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {currentOrder.delivery_address.neighborhood} - {currentOrder.delivery_address.city}/{currentOrder.delivery_address.state}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  CEP: {currentOrder.delivery_address.zipcode}
+                </p>
+              </div>
             )}
 
             <div className="bg-muted/50 rounded-lg p-4 mb-4">
