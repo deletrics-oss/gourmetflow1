@@ -46,9 +46,16 @@ serve(async (req) => {
     }
 
     // ✅ FASE 4: Validar formato do token
-    if (!settings.mercadopago_access_token.startsWith('APP_USR-') && 
-        !settings.mercadopago_access_token.startsWith('TEST-')) {
+    const isProduction = settings.mercadopago_access_token.startsWith('APP_USR-');
+    const isTest = settings.mercadopago_access_token.startsWith('TEST-');
+    
+    if (!isProduction && !isTest) {
       throw new Error('Token do Mercado Pago inválido - deve começar com APP_USR- ou TEST-');
+    }
+    
+    // Avisar se usar credenciais de produção
+    if (isProduction) {
+      console.warn('[MERCADOPAGO] ⚠️ Usando credenciais de PRODUÇÃO. Para testes, use credenciais TEST-');
     }
 
     // Criar pagamento via API do Mercado Pago
@@ -108,7 +115,14 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    const errorMessage = error.message || 'Erro ao processar pagamento Mercado Pago';
+    let errorMessage = error.message || 'Erro ao processar pagamento Mercado Pago';
+    
+    // Detectar erro de credenciais não autorizadas
+    if (errorMessage.includes('Unauthorized use of live credentials') || 
+        errorMessage.includes('unauthorized')) {
+      errorMessage = '⚠️ Credenciais de PRODUÇÃO não autorizadas. Use credenciais de TESTE (começando com TEST-) para testar a integração. Obtenha em: https://www.mercadopago.com.br/developers/panel/app';
+    }
+    
     console.error('[MERCADOPAGO] Erro fatal:', {
       message: errorMessage,
       stack: error.stack,

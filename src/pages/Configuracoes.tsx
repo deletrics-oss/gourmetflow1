@@ -852,6 +852,17 @@ export default function Configuracoes() {
                   <div>
                     <h4 className="font-semibold">Mercado Pago</h4>
                     <p className="text-xs text-muted-foreground">PIX e Cartão</p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      💡 Para testes, use credenciais TEST- do{' '}
+                      <a 
+                        href="https://www.mercadopago.com.br/developers/panel/app" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        Painel
+                      </a>
+                    </p>
                   </div>
                   <Switch
                     checked={mercadoPagoEnabled}
