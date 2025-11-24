@@ -45,11 +45,17 @@ serve(async (req) => {
       throw new Error('Mercado Pago não configurado - token ausente');
     }
 
+    // ✅ FASE 4: Validar formato do token
+    if (!settings.mercadopago_access_token.startsWith('APP_USR-') && 
+        !settings.mercadopago_access_token.startsWith('TEST-')) {
+      throw new Error('Token do Mercado Pago inválido - deve começar com APP_USR- ou TEST-');
+    }
+
     // Criar pagamento via API do Mercado Pago
     const paymentData = {
       transaction_amount: amount,
       description: `Pedido #${orderId}`,
-      payment_method_id: paymentMethod === 'pix' ? 'pix' : 'credit_card',
+      payment_method_id: 'pix', // ✅ FASE 4: Sempre PIX
       payer: {
         email: customerEmail || 'cliente@email.com',
       },

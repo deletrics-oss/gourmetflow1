@@ -232,6 +232,28 @@ export default function AdminAssinaturas() {
         </p>
       </div>
 
+      {/* ✅ FASE 6: Banner Explicativo do Sistema */}
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+              <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">
+                Como Funciona o Sistema de Assinaturas
+              </h4>
+              <ul className="text-sm space-y-1.5 list-disc list-inside text-blue-800 dark:text-blue-200">
+                <li><strong>Trial Automático:</strong> Novos usuários recebem 30 dias grátis automaticamente</li>
+                <li><strong>Planos:</strong> Essencial, Essencial + Mesas, Customizado</li>
+                <li><strong>Stripe:</strong> Processa pagamentos recorrentes mensais via Stripe</li>
+                <li><strong>Status:</strong> trial (teste), active (pago), past_due (atrasado), canceled (cancelado), blocked (bloqueado)</li>
+                <li><strong>Bloqueio Manual:</strong> Admin pode bloquear usuário suspeito diretamente nesta tela</li>
+                <li><strong>Renovação:</strong> Assinaturas são renovadas automaticamente pelo Stripe mensalmente</li>
+              </ul>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
