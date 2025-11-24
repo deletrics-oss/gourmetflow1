@@ -87,6 +87,7 @@ export default function PDV() {
   const [searchingOrder, setSearchingOrder] = useState(false);
   const [customerCpf, setCustomerCpf] = useState("");
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [pixCopyPaste, setPixCopyPaste] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -745,6 +746,7 @@ export default function PDV() {
 
         if (paymentData?.qrCode) {
           setPaymentQrCode(paymentData.qrCode);
+          setPixCopyPaste(paymentData.pixCopyPaste || '');
           setQrDialogOpen(true);
           sonnerToast.success('QR Code PIX gerado! Aguardando pagamento...');
         } else if (paymentData?.paymentLink) {
@@ -1665,6 +1667,30 @@ export default function PDV() {
           {paymentQrCode && (
             <div className="flex flex-col items-center gap-4 p-6">
               <img src={paymentQrCode} alt="QR Code PIX" className="max-w-xs border rounded-lg" />
+              
+              {pixCopyPaste && (
+                <div className="w-full space-y-2">
+                  <Label className="text-xs text-muted-foreground">Código PIX Copia e Cola:</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={pixCopyPaste} 
+                      readOnly 
+                      className="text-xs font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pixCopyPaste);
+                        sonnerToast.success('Código PIX copiado!');
+                      }}
+                    >
+                      📋 Copiar
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Aguardando confirmação do pagamento...
