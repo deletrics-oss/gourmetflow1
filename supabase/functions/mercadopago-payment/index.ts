@@ -55,7 +55,7 @@ serve(async (req) => {
     
     // Avisar se usar credenciais de produção
     if (isProduction) {
-      console.warn('[MERCADOPAGO] ⚠️ Usando credenciais de PRODUÇÃO. Para testes, use credenciais TEST-');
+      console.warn('[MERCADOPAGO] ⚠️ Usando credenciais APP_USR- em modo sandbox. Pode falhar se não aprovado pelo Mercado Pago.');
     }
 
     // Criar pagamento via API do Mercado Pago
@@ -116,12 +116,6 @@ serve(async (req) => {
 
   } catch (error: any) {
     let errorMessage = error.message || 'Erro ao processar pagamento Mercado Pago';
-    
-    // Detectar erro de credenciais não autorizadas
-    if (errorMessage.includes('Unauthorized use of live credentials') || 
-        errorMessage.includes('unauthorized')) {
-      errorMessage = '⚠️ Credenciais de PRODUÇÃO não autorizadas. Use credenciais de TESTE (começando com TEST-) para testar a integração. Obtenha em: https://www.mercadopago.com.br/developers/panel/app';
-    }
     
     console.error('[MERCADOPAGO] Erro fatal:', {
       message: errorMessage,
