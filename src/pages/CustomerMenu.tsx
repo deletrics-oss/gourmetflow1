@@ -75,6 +75,11 @@ export default function CustomerMenu() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [restaurantSettings, setRestaurantSettings] = useState<any>(null);
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
+  const [paymentGatewayDialogOpen, setPaymentGatewayDialogOpen] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [pixCopyPaste, setPixCopyPaste] = useState('');
   
   // Checkout form
   const [customerName, setCustomerName] = useState('');
@@ -175,7 +180,14 @@ export default function CustomerMenu() {
         .select('*')
         .single();
       
-      if (data) setRestaurantSettings(data);
+      if (data) {
+        setRestaurantSettings(data);
+        console.log('[CUSTOMER_MENU] Configurações carregadas:', {
+          pagseguro_enabled: data.pagseguro_enabled,
+          mercadopago_enabled: data.mercadopago_enabled,
+          loyalty_enabled: data.loyalty_enabled
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
     }
@@ -381,6 +393,18 @@ export default function CustomerMenu() {
       return;
     }
 
+    // Se PIX selecionado E PagSeguro habilitado, abrir diálogo de gateway
+    if (paymentMethod === 'pix' && restaurantSettings?.pagseguro_enabled) {
+      console.log('[CUSTOMER_MENU] Abrindo diálogo de gateway de pagamento');
+      setPaymentGatewayDialogOpen(true);
+      return;
+    }
+
+    // Processar pedido sem gateway (fluxo original)
+    await createOrderWithoutGateway();
+  };
+
+  const createOrderWithoutGateway = async () => {
     try {
       const orderNumber = `PED${Date.now().toString().slice(-6)}`;
 
@@ -528,6 +552,181 @@ export default function CustomerMenu() {
     } catch (error) {
       console.error('❌ Erro geral ao criar pedido:', error);
       toast.error('Erro ao finalizar pedido. Tente novamente.');
+    }
+  };
+
+  const processPaymentGateway = async (gateway: string) => {
+    setPaymentGatewayDialogOpen(false);
+    setProcessingPayment(true);
+
+    try {
+      console.log('[CUSTOMER_MENU] Processando pagamento via gateway:', gateway);
+      
+      // 1. Criar pedido com status 'pending_payment'
+      const orderNumber = `PED${Date.now().toString().slice(-6)}`;
+
+      // Auto-create or update customer
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+
+      let customerId = existingCustomer?.id;
+      const earnedPoints = restaurantSettings?.loyalty_enabled 
+        ? Math.floor(total * (restaurantSettings.loyalty_points_per_real || 1))
+        : 0;
+
+      if (!existingCustomer) {
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .insert({
+            name: customerName,
+            phone: customerPhone,
+            cpf: customerCPF || null,
+            address: deliveryType === 'delivery' ? address : null,
+            loyalty_points: 0
+          })
+          .select()
+          .single();
+        customerId = newCustomer?.id;
+      } else {
+        await supabase
+          .from('customers')
+          .update({
+            name: customerName,
+            cpf: customerCPF || existingCustomer.cpf,
+            address: deliveryType === 'delivery' ? address : existingCustomer.address
+          })
+          .eq('id', existingCustomer.id);
+        customerId = existingCustomer.id;
+      }
+
+      // Create order com status pending_payment
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderNumber,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_cpf: customerCPF || null,
+          delivery_type: deliveryType === 'delivery' ? 'delivery' : 'pickup',
+          status: 'new', // Manter como 'new' para compatibilidade
+          subtotal: cartTotal,
+          delivery_fee: deliveryFee,
+          service_fee: 0,
+          discount: loyaltyDiscount,
+          coupon_discount: couponDiscount,
+          coupon_code: appliedCoupon?.code || null,
+          total: total,
+          payment_method: 'pix',
+          delivery_address: deliveryType === 'delivery' ? address : null,
+          notes: observations || null,
+          loyalty_points_earned: earnedPoints,
+          loyalty_points_used: pointsToUse
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Insert order items
+      const orderItems = cart.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.finalPrice || item.promotional_price || item.price,
+        total_price: (item.finalPrice || item.promotional_price || item.price) * item.quantity,
+        notes: item.customizationsText || null
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Update coupon usage
+      if (appliedCoupon) {
+        await supabase
+          .from('coupons')
+          .update({ current_uses: appliedCoupon.current_uses + 1 })
+          .eq('id', appliedCoupon.id);
+      }
+
+      // Loyalty points redemption
+      if (customerId && restaurantSettings?.loyalty_enabled && pointsToUse > 0) {
+        const updatedPoints = Math.max(0, (existingCustomer?.loyalty_points || 0) - pointsToUse);
+        await supabase
+          .from('customers')
+          .update({ loyalty_points: updatedPoints })
+          .eq('id', customerId);
+        
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: customerId,
+            order_id: order.id,
+            points: -pointsToUse,
+            type: 'redeemed',
+            description: `Pontos usados no pedido ${orderNumber}`
+          });
+      }
+
+      console.log('[CUSTOMER_MENU] Pedido criado, chamando edge function:', {
+        gateway,
+        orderId: order.id,
+        total
+      });
+
+      // 2. Chamar edge function do gateway
+      const { data: paymentData, error } = await supabase.functions.invoke(
+        `${gateway}-payment`,
+        {
+          body: {
+            amount: total,
+            orderId: order.id,
+            customerEmail: customerPhone ? `${customerPhone}@temp.com` : 'cliente@temp.com',
+            customerPhone: customerPhone,
+            paymentMethod: 'pix'
+          }
+        }
+      );
+
+      if (error) {
+        console.error('[CUSTOMER_MENU] Erro ao gerar pagamento:', error);
+        throw error;
+      }
+
+      console.log('[CUSTOMER_MENU] QR Code recebido:', paymentData);
+
+      // 3. Exibir QR Code
+      if (paymentData?.qrCode) {
+        setPaymentQrCode(paymentData.qrCode);
+        setPixCopyPaste(paymentData.pixCopyPaste || '');
+        setQrDialogOpen(true);
+        toast.success('QR Code PIX gerado! Aguardando pagamento...');
+        
+        // Limpar carrinho e formulário
+        setCart([]);
+        setCheckoutOpen(false);
+        setObservations('');
+        setAppliedCoupon(null);
+        setCouponCode('');
+        setUseLoyaltyPoints(false);
+        setPointsToUse(0);
+        
+        // Save customer data
+        localStorage.setItem('customer_name', customerName);
+        localStorage.setItem('customer_phone', customerPhone);
+        if (customerCPF) localStorage.setItem('customer_cpf', customerCPF);
+      }
+    } catch (error) {
+      console.error('[CUSTOMER_MENU] Erro ao processar pagamento:', error);
+      toast.error('Erro ao gerar pagamento. Tente novamente.');
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -1278,6 +1477,131 @@ export default function CustomerMenu() {
               Salvar Dados
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Gateway Dialog */}
+      <Dialog open={paymentGatewayDialogOpen} onOpenChange={setPaymentGatewayDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Método de Pagamento PIX</DialogTitle>
+            <DialogDescription>
+              Escolha como deseja pagar
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3">
+            {/* Opção manual (pedido criado, aguarda confirmação) */}
+            <Card 
+              className="p-4 cursor-pointer hover:bg-accent transition-colors"
+              onClick={() => {
+                setPaymentGatewayDialogOpen(false);
+                createOrderWithoutGateway();
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <Banknote className="h-6 w-6 text-primary mt-1" />
+                <div>
+                  <h4 className="font-semibold mb-1">💵 Pagar na Entrega/Retirada</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Pedido criado, pagamento confirmado manualmente
+                  </p>
+                </div>
+              </div>
+            </Card>
+            
+            {/* PagSeguro PIX */}
+            {restaurantSettings?.pagseguro_enabled && (
+              <Card 
+                className="p-4 cursor-pointer hover:bg-accent transition-colors border-primary"
+                onClick={() => processPaymentGateway('pagseguro')}
+              >
+                <div className="flex items-start gap-3">
+                  <Smartphone className="h-6 w-6 text-primary mt-1" />
+                  <div>
+                    <h4 className="font-semibold mb-1 flex items-center gap-2">
+                      📱 PIX - PagSeguro
+                      <Badge variant="secondary" className="text-xs">Recomendado</Badge>
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Gerar QR Code para pagamento imediato
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PIX QR Code Dialog */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pagar com PIX</DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code ou copie o código
+            </DialogDescription>
+          </DialogHeader>
+          
+          {paymentQrCode && (
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-white p-4 rounded-lg">
+                <img src={paymentQrCode} alt="QR Code PIX" className="max-w-[250px]" />
+              </div>
+              
+              {pixCopyPaste && (
+                <div className="w-full space-y-2">
+                  <Label>Código PIX Copia e Cola:</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={pixCopyPaste} 
+                      readOnly 
+                      className="flex-1 text-xs font-mono"
+                    />
+                    <Button 
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pixCopyPaste);
+                        toast.success('Código PIX copiado!');
+                      }}
+                    >
+                      📋
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-yellow-800">
+                  <div className="animate-pulse">⏳</div>
+                  <div>
+                    <p className="font-semibold">Aguardando confirmação do pagamento...</p>
+                    <p className="text-xs mt-1">O pedido será confirmado automaticamente após o pagamento</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 w-full">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setQrDialogOpen(false)}
+                >
+                  Fechar
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={() => {
+                    setQrDialogOpen(false);
+                    toast.info('Você pode acompanhar seu pedido em "Meus Pedidos"');
+                  }}
+                >
+                  Ver Meus Pedidos
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
