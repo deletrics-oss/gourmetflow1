@@ -849,25 +849,35 @@ export default function Configuracoes() {
                 </div>
 
                 <div className="flex items-center justify-between mb-4">
-                  <div>
+                  <div className="flex-1">
                     <h4 className="font-semibold">Mercado Pago</h4>
                     <p className="text-xs text-muted-foreground">PIX e Cartão</p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      💡 Para testes, use credenciais TEST- do{' '}
-                      <a 
-                        href="https://www.mercadopago.com.br/developers/panel/app" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="underline"
-                      >
-                        Painel
-                      </a>
-                    </p>
+                    {mercadoPagoToken && mercadoPagoToken.startsWith('APP_USR-') && (
+                      <p className="text-xs text-red-600 mt-1 font-medium">
+                        ⚠️ Credenciais de PRODUÇÃO detectadas - substitua por TEST-
+                      </p>
+                    )}
                   </div>
-                  <Switch
-                    checked={mercadoPagoEnabled}
-                    onCheckedChange={setMercadoPagoEnabled}
-                  />
+                  <div className="flex items-center gap-2">
+                    {mercadoPagoToken && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMercadoPagoToken('');
+                          setMercadoPagoPublicKey('');
+                          setGatewayStatus(prev => ({ ...prev, mercadopago: { status: 'idle', tested_at: null } }));
+                        }}
+                        className="text-xs"
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                    <Switch
+                      checked={mercadoPagoEnabled}
+                      onCheckedChange={setMercadoPagoEnabled}
+                    />
+                  </div>
                 </div>
                 
                 {mercadoPagoEnabled && (
