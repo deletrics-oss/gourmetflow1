@@ -293,8 +293,8 @@ export default function Comandas() {
                       const { error: orderError } = await supabase
                         .from('orders' as any)
                         .update({ 
-                          status: 'completed',
-                          completed_at: new Date().toISOString()
+                          status: 'ready_for_payment',
+                          updated_at: new Date().toISOString()
                         })
                         .eq('id', comanda.id);
 
@@ -320,7 +320,10 @@ export default function Comandas() {
                           table_number: comanda.tables?.number,
                           total: comanda.total,
                           number_of_guests: comanda.number_of_guests || 0,
-                          items_count: comanda.order_items?.length || 0
+                          items_count: comanda.order_items?.length || 0,
+                          old_status: comanda.status,
+                          new_status: 'ready_for_payment',
+                          action_description: 'Comanda fechada, aguardando pagamento no PDV'
                         }
                       );
                       

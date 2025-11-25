@@ -235,7 +235,7 @@ export default function PDV() {
           order_items:order_items(*),
           tables(number)
         `)
-        .in('status', ['new', 'confirmed', 'preparing', 'ready'])
+        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
         .order('created_at', { ascending: false });
 
       if (orders) setPendingOrders(orders);
@@ -1539,13 +1539,15 @@ export default function PDV() {
                           </Badge>
                         </div>
                         <Badge variant={
-                          order.status === 'ready' ? 'default' : 
-                          order.status === 'preparing' ? 'secondary' : 'outline'
-                        }>
+                          order.status === 'ready_for_payment' ? 'default' :
+                          order.status === 'ready' ? 'secondary' : 
+                          order.status === 'preparing' ? 'outline' : 'outline'
+                        } className={order.status === 'ready_for_payment' ? 'bg-green-600' : ''}>
                           {order.status === 'new' && 'Novo'}
                           {order.status === 'confirmed' && 'Confirmado'}
                           {order.status === 'preparing' && 'Preparando'}
                           {order.status === 'ready' && 'Pronto'}
+                          {order.status === 'ready_for_payment' && '💰 Aguardando Pagamento'}
                           {order.status === 'pending_payment' && '💳 Pagar'}
                         </Badge>
                       </div>
@@ -1619,14 +1621,21 @@ export default function PDV() {
                           )}
                         </div>
                         <Badge variant={
-                          order.status === 'ready' ? 'default' : 
-                          order.status === 'preparing' ? 'secondary' : 'outline'
-                        }>
+                          order.status === 'ready_for_payment' ? 'default' :
+                          order.status === 'ready' ? 'secondary' : 
+                          order.status === 'preparing' ? 'outline' : 'outline'
+                        } className={order.status === 'ready_for_payment' ? 'bg-green-600' : ''}>
                           {order.status === 'new' && 'Novo'}
                           {order.status === 'confirmed' && 'Confirmado'}
                           {order.status === 'preparing' && 'Preparando'}
                           {order.status === 'ready' && 'Pronto'}
+                          {order.status === 'ready_for_payment' && '💰 Aguardando Pagamento'}
                         </Badge>
+                        {order.status === 'ready_for_payment' && order.tables && (
+                          <Badge variant="outline" className="mt-1 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                            ✅ Comanda Fechada
+                          </Badge>
+                        )}
                       </div>
 
                       {order.customer_name && (

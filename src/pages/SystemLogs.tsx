@@ -54,7 +54,30 @@ export default function SystemLogs() {
       navigate("/");
       return;
     }
+    
     loadLogs();
+    
+    // ✅ REALTIME SUBSCRIPTION para logs
+    const channel = supabase
+      .channel('system-logs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'system_logs'
+        },
+        (payload) => {
+          console.log('📡 [REALTIME] Novo log:', payload);
+          // Recarregar logs automaticamente
+          loadLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isAdmin]);
 
   const loadLogs = async () => {

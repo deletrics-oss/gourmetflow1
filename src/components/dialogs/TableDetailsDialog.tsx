@@ -77,12 +77,12 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
     if (!table?.id || orders.length === 0) return;
 
     try {
-      // Completar todas as comandas da mesa
+      // Mudar status para 'ready_for_payment' (aguardando pagamento no PDV)
       const { error: ordersError } = await supabase
         .from('orders')
         .update({ 
-          status: 'completed',
-          completed_at: new Date().toISOString()
+          status: 'ready_for_payment',
+          updated_at: new Date().toISOString()
         })
         .eq('table_id', table.id)
         .in('status', ['new', 'confirmed', 'preparing', 'ready']);
@@ -106,7 +106,9 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
           table_number: table.number,
           orders_closed: orders.length,
           total_amount: orders.reduce((sum, o) => sum + (o.total || 0), 0),
-          total_guests: orders.reduce((sum, o) => sum + (o.number_of_guests || 0), 0)
+          total_guests: orders.reduce((sum, o) => sum + (o.number_of_guests || 0), 0),
+          new_status: 'ready_for_payment',
+          action_description: 'Mesa fechada, comandas aguardando pagamento no PDV'
         }
       );
 
