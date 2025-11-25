@@ -46,7 +46,7 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
           )
         `)
         .eq('table_id', table.id)
-        .in('status', ['new', 'confirmed', 'preparing', 'ready'])
+        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;

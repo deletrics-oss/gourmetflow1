@@ -168,6 +168,30 @@ export type Database = {
           },
         ]
       }
+      comandas_fixas: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          numero: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          numero: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          numero?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       coupons: {
         Row: {
           code: string
@@ -881,6 +905,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          comanda_fixa_id: string | null
           completed_at: string | null
           coupon_code: string | null
           coupon_discount: number | null
@@ -912,6 +937,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          comanda_fixa_id?: string | null
           completed_at?: string | null
           coupon_code?: string | null
           coupon_discount?: number | null
@@ -943,6 +969,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          comanda_fixa_id?: string | null
           completed_at?: string | null
           coupon_code?: string | null
           coupon_discount?: number | null
@@ -974,6 +1001,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_comanda_fixa_id_fkey"
+            columns: ["comanda_fixa_id"]
+            isOneToOne: false
+            referencedRelation: "comandas_fixas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_customer_id_fkey"
             columns: ["customer_id"]

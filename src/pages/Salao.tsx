@@ -10,8 +10,19 @@ import { QRCodeGenerator } from "@/components/QRCodeGenerator";
 import { TableDetailsDialog } from "@/components/dialogs/TableDetailsDialog";
 import { logActionWithContext } from "@/lib/logging";
 
+interface TableWithStats {
+  id: string;
+  number: number;
+  status: string;
+  capacity: number;
+  total_guests?: number;
+  total_amount?: number;
+  oldest_order_time?: string;
+  active_orders_count?: number;
+}
+
 export default function Salao() {
-  const [tables, setTables] = useState<any[]>([]);
+  const [tables, setTables] = useState<TableWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -19,24 +30,92 @@ export default function Salao() {
 
   useEffect(() => {
     loadTables();
+    
+    // Realtime subscription for table changes
+    const channel = supabase
+      .channel('tables-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tables'
+        },
+        () => {
+          loadTables();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadTables = async () => {
     try {
-      const { data, error } = await supabase
+      // Get tables with aggregated order data
+      const { data: tablesData, error: tablesError } = await supabase
         .from('tables')
         .select('*')
         .order('number');
 
-      if (error) throw error;
+      if (tablesError) throw tablesError;
 
-      setTables(data || []);
+      // Get active orders stats for each table
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('table_id, number_of_guests, total, created_at')
+        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
+        .not('table_id', 'is', null);
+
+      if (ordersError) throw ordersError;
+
+      // Aggregate stats by table
+      const tableStats = new Map();
+      ordersData?.forEach(order => {
+        if (!order.table_id) return;
+        
+        const existing = tableStats.get(order.table_id) || {
+          total_guests: 0,
+          total_amount: 0,
+          oldest_order_time: order.created_at,
+          active_orders_count: 0
+        };
+
+        tableStats.set(order.table_id, {
+          total_guests: existing.total_guests + (order.number_of_guests || 0),
+          total_amount: existing.total_amount + (order.total || 0),
+          oldest_order_time: order.created_at < existing.oldest_order_time ? order.created_at : existing.oldest_order_time,
+          active_orders_count: existing.active_orders_count + 1
+        });
+      });
+
+      // Merge tables with stats
+      const enrichedTables = tablesData?.map(table => ({
+        ...table,
+        ...(tableStats.get(table.id) || {})
+      })) || [];
+
+      setTables(enrichedTables);
     } catch (error) {
       console.error('Erro ao carregar mesas:', error);
       toast.error('Erro ao carregar mesas');
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatElapsedTime = (timestamp: string) => {
+    const now = new Date();
+    const created = new Date(timestamp);
+    const diffMs = now.getTime() - created.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 60) return `${diffMins} min`;
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    return `${hours}h ${mins}min`;
   };
 
   const getStatusColor = (status: string) => {
@@ -136,8 +215,32 @@ export default function Salao() {
                   {getStatusLabel(table.status)}
                 </Badge>
                 <div className="text-xs text-muted-foreground mt-2">
-                  {table.capacity} pessoas
+                  Capacidade: {table.capacity} pessoas
                 </div>
+                
+                {/* Mini-preview de informações da mesa */}
+                {table.status === 'occupied' && table.active_orders_count > 0 && (
+                  <div className="mt-3 pt-3 border-t space-y-1">
+                    <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                      <span>👥</span>
+                      <span>{table.total_guests || 0} {table.total_guests === 1 ? 'pessoa' : 'pessoas'}</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-1 text-xs font-semibold text-primary">
+                      <span>💰</span>
+                      <span>R$ {(table.total_amount || 0).toFixed(2)}</span>
+                    </div>
+                    {table.oldest_order_time && (
+                      <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                        <span>⏱️</span>
+                        <span>{formatElapsedTime(table.oldest_order_time)}</span>
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      {table.active_orders_count} {table.active_orders_count === 1 ? 'comanda' : 'comandas'}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex flex-col gap-2 mt-3">
                   {table.status === 'occupied' && (
                     <Button 

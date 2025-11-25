@@ -71,18 +71,35 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
 
       // Update table status if table was selected
       if (tableId) {
-        const { error: tableError } = await supabase
+        const selectedTable = tables.find(t => t.id === tableId);
+        const { data: tableData, error: tableError } = await supabase
           .from('tables')
-          .update({ status: 'occupied' })
-          .eq('id', tableId);
+          .update({ 
+            status: 'occupied',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', tableId)
+          .select()
+          .single();
         
         if (tableError) {
-          console.error('❌ Erro ao atualizar status da mesa:', tableError);
-          toast.error('Comanda criada, mas erro ao ocupar mesa');
-        } else {
-          // ✅ FASE 2: Log de mesa ocupada
+          console.error('❌ ERRO ao ocupar mesa:', tableError);
           await logActionWithContext(
-            'table_status_change',
+            'table_status_update_failed',
+            'tables',
+            tableId,
+            {
+              error: tableError.message,
+              error_code: tableError.code,
+              table_number: selectedTable?.number,
+              attempted_status: 'occupied'
+            }
+          );
+          toast.error(`Comanda criada, mas erro ao ocupar mesa ${selectedTable?.number}`);
+        } else {
+          console.log('✅ Mesa ocupada com sucesso:', tableData);
+          await logActionWithContext(
+            'table_status_changed',
             'tables',
             tableId,
             {
@@ -90,6 +107,7 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
               old_status: 'free',
               new_status: 'occupied',
               reason: 'comanda_created',
+              order_id: data.id,
               order_number: orderNumber,
               number_of_guests: numberOfGuests
             }
