@@ -131,7 +131,7 @@ export default function Configuracoes() {
         throw error;
       }
       
-      console.log('✅ Configurações carregadas:', data ? 'com dados' : 'sem dados');
+      console.log('[CONFIGURACOES] ✅ Configurações carregadas:', data);
       
       if (data) {
         setSettings({
@@ -160,10 +160,15 @@ export default function Configuracoes() {
         }
         setMaxDeliveryRadius(data.max_delivery_radius || 200);
         
-        // Payment gateways - ✅ FASE 1: Carregar estados corretamente
+        // Payment gateways - ✅ Carregar estados
         setPagSeguroEnabled(data.pagseguro_enabled || false);
         setPagSeguroEmail(data.pagseguro_email || '');
         setPagSeguroToken(data.pagseguro_token || '');
+        console.log('[CONFIGURACOES] PagSeguro carregado:', {
+          enabled: data.pagseguro_enabled,
+          email: data.pagseguro_email,
+          hasToken: !!data.pagseguro_token
+        });
         
         setMercadoPagoEnabled(data.mercadopago_enabled || false);
         setMercadoPagoToken(data.mercadopago_access_token || '');
@@ -186,7 +191,7 @@ export default function Configuracoes() {
         setCieloMerchantKey(data.cielo_merchant_key || '');
       }
     } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
+      console.error('[CONFIGURACOES] Erro ao carregar configurações:', error);
     }
   };
 
@@ -265,10 +270,12 @@ export default function Configuracoes() {
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      console.log('[CONFIGURACOES] Salvando configurações...', {
+      console.log('[CONFIGURACOES] ============ INICIANDO SALVAMENTO ============');
+      console.log('[CONFIGURACOES] Estados atuais:', {
         pagseguroEnabled: pagSeguroEnabled,
         pagseguroEmail: pagSeguroEmail,
-        pagseguroTokenLength: pagSeguroToken?.length || 0
+        pagseguroTokenLength: pagSeguroToken?.length || 0,
+        mercadoPagoEnabled: mercadoPagoEnabled
       });
       
       // Buscar ID do restaurante settings
@@ -282,7 +289,7 @@ export default function Configuracoes() {
         throw fetchError;
       }
 
-      // Construir objeto de dados sem conflitos de campos
+      // Construir objeto de dados
       const dataToSave = {
         name: settings.name || null,
         phone: settings.phone || null,
@@ -301,7 +308,7 @@ export default function Configuracoes() {
         loyalty_points_per_real: loyaltyPointsPerReal,
         loyalty_redemption_value: loyaltyRedemptionValue,
         max_delivery_radius: maxDeliveryRadius,
-        // Payment gateways - usar null quando vazio
+        // Payment gateways
         pagseguro_enabled: pagSeguroEnabled,
         pagseguro_email: pagSeguroEmail || null,
         pagseguro_token: pagSeguroToken || null,
@@ -322,15 +329,16 @@ export default function Configuracoes() {
         cielo_merchant_key: cieloMerchantKey || null,
       };
 
-      console.log('📦 Dados a salvar:', {
+      console.log('[CONFIGURACOES] 📦 Dados que serão salvos:', {
         existingId: existing?.id,
-        mercadoPagoEnabled,
-        hasToken: !!mercadoPagoToken,
-        hasPublicKey: !!mercadoPagoPublicKey
+        pagseguro_enabled: dataToSave.pagseguro_enabled,
+        pagseguro_email: dataToSave.pagseguro_email,
+        pagseguro_token: dataToSave.pagseguro_token ? `${dataToSave.pagseguro_token.slice(0, 10)}...` : null,
+        mercadopago_enabled: dataToSave.mercadopago_enabled
       });
 
       if (existing?.id) {
-        console.log('✏️ Atualizando registro existente...');
+        console.log('[CONFIGURACOES] ✏️ Atualizando registro existente...');
         const { data: updated, error: updateError } = await supabase
           .from('restaurant_settings')
           .update(dataToSave)
@@ -339,13 +347,18 @@ export default function Configuracoes() {
           .single();
 
         if (updateError) {
-          console.error('❌ Erro ao atualizar:', updateError);
+          console.error('[CONFIGURACOES] ❌ Erro ao atualizar:', updateError);
           throw updateError;
         }
         
-        console.log('✅ Registro atualizado:', updated);
+        console.log('[CONFIGURACOES] ✅ Registro atualizado:', {
+          id: updated.id,
+          pagseguro_enabled: updated.pagseguro_enabled,
+          pagseguro_email: updated.pagseguro_email,
+          hasToken: !!updated.pagseguro_token
+        });
       } else {
-        console.log('➕ Criando novo registro...');
+        console.log('[CONFIGURACOES] ➕ Criando novo registro...');
         const { data: inserted, error: insertError } = await supabase
           .from('restaurant_settings')
           .insert(dataToSave)
@@ -357,11 +370,25 @@ export default function Configuracoes() {
           throw insertError;
         }
         
-        console.log('[CONFIGURACOES] ✅ Registro criado:', inserted);
+        console.log('[CONFIGURACOES] ✅ Registro criado:', {
+          id: inserted.id,
+          pagseguro_enabled: inserted.pagseguro_enabled,
+          pagseguro_email: inserted.pagseguro_email
+        });
       }
 
-      console.log('[CONFIGURACOES] ✅ Dados salvos com sucesso no banco!');
-      toast.success("✅ Configurações salvas com sucesso!");
+      console.log('[CONFIGURACOES] ✅ ============ SALVAMENTO CONCLUÍDO ============');
+      
+      // Toast detalhado
+      const savedGateways = [];
+      if (pagSeguroEnabled && pagSeguroEmail && pagSeguroToken) savedGateways.push('PagSeguro');
+      if (mercadoPagoEnabled && mercadoPagoToken) savedGateways.push('Mercado Pago');
+      
+      toast.success(
+        savedGateways.length > 0 
+          ? `✅ Configurações salvas! Gateways: ${savedGateways.join(', ')}`
+          : '✅ Configurações salvas com sucesso!'
+      );
       
       // Recarregar para confirmar persistência
       await loadSettings();
@@ -843,9 +870,26 @@ export default function Configuracoes() {
                     
                     {pagSeguroEmail && pagSeguroToken && (
                       <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-                        <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3" />
-                          Credenciais configuradas
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            ✅ Credenciais configuradas
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Email: {pagSeguroEmail}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Clique em "Salvar Configurações" no final da página para ativar
+                        </p>
+                      </div>
+                    )}
+                    
+                    {pagSeguroEnabled && (!pagSeguroEmail || !pagSeguroToken) && (
+                      <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          ⚠️ Preencha email e token para habilitar o PagSeguro
                         </p>
                       </div>
                     )}
