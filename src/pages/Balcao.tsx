@@ -507,15 +507,17 @@ export default function Balcao() {
 
       // NÃO registrar movimento de caixa agora - será feito quando pagar no PDV
 
-      // Log action with context
+      // ✅ FASE 2: Log de venda criada
       await logActionWithContext(
         'sale_created',
         'orders',
         order.id,
         {
           order_number: orderNumber,
+          customer_name: customerName || 'Anônimo',
           total: total,
-          payment_method: paymentMethod,
+          items_count: cart.length,
+          delivery_type: deliveryType,
           source: 'balcao'
         }
       );

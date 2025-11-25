@@ -17,6 +17,7 @@ import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { logActionWithContext } from "@/lib/logging";
 
 interface CartItem {
   id: string;
@@ -816,6 +817,20 @@ export default function PDV() {
             completed_at: new Date().toISOString()
           })
           .eq('id', orderData.id);
+        
+        // ✅ FASE 2: Log de pedido processado
+        await logActionWithContext(
+          'order_processed',
+          'orders',
+          orderData.id,
+          {
+            order_number: orderNumber,
+            delivery_type: finalDeliveryType,
+            total: total,
+            payment_method: paymentMethod,
+            source: 'pdv_manual'
+          }
+        );
       }
 
 

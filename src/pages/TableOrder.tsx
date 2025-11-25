@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Minus, ArrowLeft, ShoppingCart } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { logActionWithContext } from "@/lib/logging";
 
 interface CartItem {
   id: string;
@@ -204,6 +205,19 @@ export default function TableOrder() {
           .from('tables')
           .update({ status: 'occupied' })
           .eq('id', tableId);
+        
+        // ✅ FASE 1: Registrar log de mesa ocupada
+        await logActionWithContext(
+          'table_occupied',
+          'tables',
+          tableId,
+          {
+            table_number: table?.number,
+            order_id: newOrder.id,
+            total_items: cart.length,
+            total_amount: total
+          }
+        );
       }
 
       toast.success('Pedido salvo com sucesso!');
