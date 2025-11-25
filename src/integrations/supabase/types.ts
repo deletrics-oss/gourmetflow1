@@ -899,6 +899,7 @@ export type Database = {
           loyalty_points_used: number | null
           motoboy_id: string | null
           notes: string | null
+          number_of_guests: number | null
           order_number: string
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id: string | null
@@ -929,6 +930,7 @@ export type Database = {
           loyalty_points_used?: number | null
           motoboy_id?: string | null
           notes?: string | null
+          number_of_guests?: number | null
           order_number: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id?: string | null
@@ -959,6 +961,7 @@ export type Database = {
           loyalty_points_used?: number | null
           motoboy_id?: string | null
           notes?: string | null
+          number_of_guests?: number | null
           order_number?: string
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id?: string | null

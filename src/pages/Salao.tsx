@@ -7,11 +7,15 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ManageTablesDialog } from "@/components/dialogs/ManageTablesDialog";
 import { QRCodeGenerator } from "@/components/QRCodeGenerator";
+import { TableDetailsDialog } from "@/components/dialogs/TableDetailsDialog";
+import { logActionWithContext } from "@/lib/logging";
 
 export default function Salao() {
   const [tables, setTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<any>(null);
 
   useEffect(() => {
     loadTables();
@@ -61,11 +65,22 @@ export default function Salao() {
     }
   };
 
-  const handleTableClick = (table: any) => {
-    if (table.status === 'occupied') {
-      // Open order management for this table
-      window.location.href = `/table/${table.id}`;
-    }
+  const handleTableClick = async (table: any) => {
+    // ✅ FASE 4: Log de visualização da mesa
+    await logActionWithContext(
+      'view_table_details',
+      'tables',
+      table.id,
+      {
+        table_number: table.number,
+        status: table.status,
+        capacity: table.capacity
+      }
+    );
+
+    // Abrir diálogo de detalhes
+    setSelectedTable(table);
+    setDetailsDialogOpen(true);
   };
 
   if (loading) {
@@ -149,6 +164,13 @@ export default function Salao() {
       <ManageTablesDialog
         open={manageDialogOpen}
         onOpenChange={setManageDialogOpen}
+        onSuccess={loadTables}
+      />
+
+      <TableDetailsDialog
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        table={selectedTable}
         onSuccess={loadTables}
       />
     </div>

@@ -38,6 +38,7 @@ export default function Comandas() {
         .from('orders' as any)
         .select(`
           *,
+          number_of_guests,
           tables(number),
           order_items(
             id,
@@ -188,6 +189,12 @@ export default function Comandas() {
                     </Button>
                   </div>
                 )}
+                {comanda.number_of_guests && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/20 p-2 rounded">
+                    <Users className="h-4 w-4" />
+                    <span>{comanda.number_of_guests} {comanda.number_of_guests === 1 ? 'pessoa' : 'pessoas'}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total:</span>
                   <span className="font-bold text-lg">R$ {comanda.total.toFixed(2)}</span>
@@ -303,15 +310,17 @@ export default function Comandas() {
                         if (tableError) throw tableError;
                       }
                       
-                      // ✅ FASE 2: Log de comanda fechada
+                      // ✅ FASE 3: Log de comanda fechada com número de pessoas
                       await logActionWithContext(
-                        'comanda_closed',
+                        'close_comanda',
                         'orders',
                         comanda.id,
                         {
-                          comanda_number: comanda.order_number,
-                          total_amount: comanda.total,
-                          table_number: comanda.tables?.number
+                          order_number: comanda.order_number,
+                          table_number: comanda.tables?.number,
+                          total: comanda.total,
+                          number_of_guests: comanda.number_of_guests || 0,
+                          items_count: comanda.order_items?.length || 0
                         }
                       );
                       
