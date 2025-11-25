@@ -872,6 +872,30 @@ export default function Configuracoes() {
                 
                 {mercadoPagoEnabled && (
                   <div className="space-y-3">
+                    {/* Alerta sobre credenciais de teste */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div className="space-y-1">
+                          <p className="font-medium text-yellow-800">Para testes, use credenciais TEST-</p>
+                          <p className="text-yellow-700">
+                            Credenciais de produção (APP_USR-) só funcionam em contas aprovadas pelo Mercado Pago.
+                          </p>
+                          <p className="text-yellow-700">
+                            Obtenha credenciais de teste em:{' '}
+                            <a 
+                              href="https://www.mercadopago.com.br/developers/panel/app" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="underline font-medium hover:text-yellow-900"
+                            >
+                              Painel de Desenvolvedores
+                            </a>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Access Token</Label>
                       <Input
@@ -881,8 +905,21 @@ export default function Configuracoes() {
                           setMercadoPagoToken(e.target.value);
                           setGatewayStatus(prev => ({ ...prev, mercadopago: { status: 'idle', tested_at: null } }));
                         }}
-                        placeholder="APP_USR-..."
+                        placeholder="TEST-... (para testes) ou APP_USR-... (produção)"
+                        className={mercadoPagoToken && !mercadoPagoToken.startsWith('TEST-') && !mercadoPagoToken.startsWith('APP_USR-') ? 'border-red-500' : ''}
                       />
+                      {mercadoPagoToken && mercadoPagoToken.startsWith('APP_USR-') && (
+                        <p className="text-xs text-yellow-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Usando credenciais de PRODUÇÃO - podem não funcionar se conta não for aprovada
+                        </p>
+                      )}
+                      {mercadoPagoToken && mercadoPagoToken.startsWith('TEST-') && (
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Credenciais de TESTE - ideal para desenvolvimento
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>Public Key</Label>
@@ -892,7 +929,8 @@ export default function Configuracoes() {
                           setMercadoPagoPublicKey(e.target.value);
                           setGatewayStatus(prev => ({ ...prev, mercadopago: { status: 'idle', tested_at: null } }));
                         }}
-                        placeholder="APP_USR-..."
+                        placeholder="TEST-... (para testes) ou APP_USR-... (produção)"
+                        className={mercadoPagoPublicKey && !mercadoPagoPublicKey.startsWith('TEST-') && !mercadoPagoPublicKey.startsWith('APP_USR-') ? 'border-red-500' : ''}
                       />
                     </div>
                     
