@@ -233,7 +233,8 @@ export default function PDV() {
         .select(`
           *,
           order_items:order_items(*),
-          tables(number)
+          tables(number),
+          comandas_fixas(numero)
         `)
         .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
         .order('created_at', { ascending: false });
@@ -1538,18 +1539,37 @@ export default function PDV() {
                             {order.delivery_type === 'counter' && '🏪 Balcão'}
                           </Badge>
                         </div>
-                        <Badge variant={
-                          order.status === 'ready_for_payment' ? 'default' :
-                          order.status === 'ready' ? 'secondary' : 
-                          order.status === 'preparing' ? 'outline' : 'outline'
-                        } className={order.status === 'ready_for_payment' ? 'bg-green-600' : ''}>
-                          {order.status === 'new' && 'Novo'}
-                          {order.status === 'confirmed' && 'Confirmado'}
-                          {order.status === 'preparing' && 'Preparando'}
-                          {order.status === 'ready' && 'Pronto'}
-                          {order.status === 'ready_for_payment' && '💰 Aguardando Pagamento'}
-                          {order.status === 'pending_payment' && '💳 Pagar'}
-                        </Badge>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={
+                            order.status === 'ready_for_payment' ? 'default' :
+                            order.status === 'ready' ? 'secondary' : 
+                            order.status === 'preparing' ? 'outline' : 'outline'
+                          } className={order.status === 'ready_for_payment' ? 'bg-green-600 dark:bg-green-700' : ''}>
+                            {order.status === 'new' && 'Novo'}
+                            {order.status === 'confirmed' && 'Confirmado'}
+                            {order.status === 'preparing' && 'Preparando'}
+                            {order.status === 'ready' && 'Pronto'}
+                            {order.status === 'ready_for_payment' && '💰 Aguardando Pagamento'}
+                            {order.status === 'pending_payment' && '💳 Pagar'}
+                          </Badge>
+                          
+                          {/* Badge de origem do pedido */}
+                          {order.table_id && order.tables && (
+                            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                              🏠 Mesa {order.tables.number}
+                            </Badge>
+                          )}
+                          {order.comanda_fixa_id && order.comandas_fixas && (
+                            <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800">
+                              🎫 Cartão {order.comandas_fixas.numero}
+                            </Badge>
+                          )}
+                          {!order.table_id && !order.comanda_fixa_id && order.delivery_type === 'dine_in' && (
+                            <Badge variant="outline" className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                              🏪 Balcão
+                            </Badge>
+                          )}
+                        </div>
                       </div>
 
                       {order.customer_name && (
