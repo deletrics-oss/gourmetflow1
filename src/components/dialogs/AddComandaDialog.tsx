@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { logActionWithContext } from '@/lib/logging';
 
 interface AddComandaDialogProps {
   open: boolean;
@@ -19,6 +20,7 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [tableId, setTableId] = useState('');
+  const [numberOfGuests, setNumberOfGuests] = useState(2);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,14 +32,17 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
 
       // Generate order number
       const orderNumber = `CMD${Date.now().toString().slice(-6)}`;
+      
+      const selectedTable = tables.find(t => t.id === tableId);
 
-      const { error } = await supabase.from('orders').insert({
+      const { data, error } = await supabase.from('orders').insert({
         order_number: orderNumber,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
         delivery_type: 'dine_in',
         status: 'new',
         table_id: tableId || null,
+        number_of_guests: numberOfGuests,
         subtotal: 0,
         delivery_fee: 0,
         service_fee: 0,
@@ -45,22 +50,58 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
         total: 0,
         payment_method: 'pending',
         created_by: user.user.id,
-      });
+      }).select().single();
 
       if (error) throw error;
 
+      // ✅ FASE 2: Log de criação de comanda
+      await logActionWithContext(
+        'create_comanda',
+        'orders',
+        data.id,
+        {
+          order_number: orderNumber,
+          table_id: tableId,
+          table_number: selectedTable?.number,
+          customer_name: customerName || 'Sem nome',
+          customer_phone: customerPhone || 'Sem telefone',
+          number_of_guests: numberOfGuests
+        }
+      );
+
       // Update table status if table was selected
       if (tableId) {
-        await supabase
+        const { error: tableError } = await supabase
           .from('tables')
           .update({ status: 'occupied' })
           .eq('id', tableId);
+        
+        if (tableError) {
+          console.error('❌ Erro ao atualizar status da mesa:', tableError);
+          toast.error('Comanda criada, mas erro ao ocupar mesa');
+        } else {
+          // ✅ FASE 2: Log de mesa ocupada
+          await logActionWithContext(
+            'table_status_change',
+            'tables',
+            tableId,
+            {
+              table_number: selectedTable?.number,
+              old_status: 'free',
+              new_status: 'occupied',
+              reason: 'comanda_created',
+              order_number: orderNumber,
+              number_of_guests: numberOfGuests
+            }
+          );
+        }
       }
 
-      toast.success('Comanda criada com sucesso!');
+      toast.success(`Comanda ${orderNumber} criada com sucesso!`);
       setCustomerName('');
       setCustomerPhone('');
       setTableId('');
+      setNumberOfGuests(2);
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -114,6 +155,18 @@ export function AddComandaDialog({ open, onOpenChange, tables, onSuccess }: AddC
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="numberOfGuests">Número de Pessoas</Label>
+            <Input
+              id="numberOfGuests"
+              type="number"
+              min="1"
+              max="20"
+              value={numberOfGuests}
+              onChange={(e) => setNumberOfGuests(parseInt(e.target.value) || 2)}
+            />
           </div>
 
           <div className="flex gap-3">
