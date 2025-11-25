@@ -120,14 +120,14 @@ export default function Configuracoes() {
 
   const loadSettings = async () => {
     try {
-      console.log('🔄 Carregando configurações...');
+      console.log('[CONFIGURACOES] Carregando configurações do banco...');
       const { data, error } = await supabase
         .from('restaurant_settings')
         .select('*')
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('❌ Erro ao carregar:', error);
+        console.error('[CONFIGURACOES] ❌ Erro ao carregar:', error);
         throw error;
       }
       
@@ -265,7 +265,11 @@ export default function Configuracoes() {
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Salvando configurações...');
+      console.log('[CONFIGURACOES] Salvando configurações...', {
+        pagseguroEnabled: pagSeguroEnabled,
+        pagseguroEmail: pagSeguroEmail,
+        pagseguroTokenLength: pagSeguroToken?.length || 0
+      });
       
       // Buscar ID do restaurante settings
       const { data: existing, error: fetchError } = await supabase
@@ -274,7 +278,7 @@ export default function Configuracoes() {
         .maybeSingle();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('❌ Erro ao buscar configurações:', fetchError);
+        console.error('[CONFIGURACOES] ❌ Erro ao buscar configurações:', fetchError);
         throw fetchError;
       }
 
@@ -349,22 +353,21 @@ export default function Configuracoes() {
           .single();
 
         if (insertError) {
-          console.error('❌ Erro ao inserir:', insertError);
+          console.error('[CONFIGURACOES] ❌ Erro ao inserir:', insertError);
           throw insertError;
         }
         
-        console.log('✅ Registro criado:', inserted);
+        console.log('[CONFIGURACOES] ✅ Registro criado:', inserted);
       }
 
-      toast.success("Configurações salvas com sucesso!");
+      console.log('[CONFIGURACOES] ✅ Dados salvos com sucesso no banco!');
+      toast.success("✅ Configurações salvas com sucesso!");
       
-      // Recarregar para confirmar
-      setTimeout(() => {
-        loadSettings();
-      }, 500);
+      // Recarregar para confirmar persistência
+      await loadSettings();
       
     } catch (error: any) {
-      console.error('❌ Erro ao salvar configurações:', error);
+      console.error('[CONFIGURACOES] ❌ Erro ao salvar configurações:', error);
       toast.error(error.message || 'Erro ao salvar configurações');
     } finally {
       setLoading(false);
@@ -776,48 +779,76 @@ export default function Configuracoes() {
                 {pagSeguroEnabled && (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label>E-mail</Label>
+                      <Label htmlFor="pagseguro-email">E-mail PagBank</Label>
                       <Input
+                        id="pagseguro-email"
+                        type="email"
                         value={pagSeguroEmail}
                         onChange={(e) => {
                           setPagSeguroEmail(e.target.value);
                           setGatewayStatus(prev => ({ ...prev, pagseguro: { status: 'idle', tested_at: null } }));
                         }}
-                        placeholder="email@exemplo.com"
+                        placeholder="deletrics@gmail.com"
+                        className="font-mono text-sm"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        E-mail da sua conta PagBank/PagSeguro
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Token API</Label>
+                      <Label htmlFor="pagseguro-token">Token API</Label>
                       <Input
+                        id="pagseguro-token"
                         type="password"
                         value={pagSeguroToken}
                         onChange={(e) => {
                           setPagSeguroToken(e.target.value);
                           setGatewayStatus(prev => ({ ...prev, pagseguro: { status: 'idle', tested_at: null } }));
                         }}
-                        placeholder="Digite seu token"
+                        placeholder="Seu token de integração"
+                        className="font-mono text-sm"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Obtenha em: <a href="https://dev.pagseguro.uol.com.br/" target="_blank" rel="noopener" className="text-primary hover:underline">dev.pagseguro.uol.com.br</a>
+                      </p>
                     </div>
                     
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => testGatewayConnection('pagseguro')}
-                      disabled={testingGateways.pagseguro || !pagSeguroEmail || !pagSeguroToken}
-                      className="w-full"
-                    >
-                      {testingGateways.pagseguro ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Testando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Testar Conexão
-                        </>
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => testGatewayConnection('pagseguro')}
+                        disabled={testingGateways.pagseguro || !pagSeguroEmail || !pagSeguroToken}
+                        className="flex-1"
+                      >
+                        {testingGateways.pagseguro ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Testando...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Testar Conexão
+                          </>
+                        )}
+                      </Button>
+                      {gatewayStatus.pagseguro?.status === 'success' && (
+                        <div className="flex items-center gap-2 text-sm text-green-600">
+                          <div className="h-2 w-2 rounded-full bg-green-600"></div>
+                          OK
+                        </div>
                       )}
-                    </Button>
+                    </div>
+                    
+                    {pagSeguroEmail && pagSeguroToken && (
+                      <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                        <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Credenciais configuradas
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>

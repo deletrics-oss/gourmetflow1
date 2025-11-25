@@ -36,11 +36,11 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Mapping dos planos para os preços do Stripe
+    // Mapping dos planos para os preços do Stripe (PRODUÇÃO)
     const planPrices: Record<string, string> = {
-      essencial: "price_1STeXbAm6vHvVWOZgI5au2ne",
-      essencial_mesas: "price_1STeZdAm6vHvVWOZQHvkj1GN",
-      customizado: "price_1STeZpAm6vHvVWOZW74MqghX",
+      essencial: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
+      essencial_mesas: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
+      customizado: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
     };
 
     const priceId = planPrices[planType];
