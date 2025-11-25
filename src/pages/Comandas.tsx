@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { logActionWithContext } from "@/lib/logging";
 
 export default function Comandas() {
   const [comandas, setComandas] = useState<any[]>([]);
@@ -301,6 +302,18 @@ export default function Comandas() {
                         
                         if (tableError) throw tableError;
                       }
+                      
+                      // ✅ FASE 2: Log de comanda fechada
+                      await logActionWithContext(
+                        'comanda_closed',
+                        'orders',
+                        comanda.id,
+                        {
+                          comanda_number: comanda.order_number,
+                          total_amount: comanda.total,
+                          table_number: comanda.tables?.number
+                        }
+                      );
                       
                       toast.success('Comanda fechada!');
                       loadData();

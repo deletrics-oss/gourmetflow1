@@ -139,6 +139,8 @@ export const useDeliveryFee = () => {
   // Buscar zonas de entrega - modificado para buscar sem restaurant_id se necessário
   const loadDeliveryZones = async (restaurantId?: string) => {
     try {
+      console.log(`🔍 [useDeliveryFee] Carregando zonas para restaurant_id: ${restaurantId}`);
+      
       let query = supabase
         .from('delivery_zones')
         .select('*')
@@ -154,9 +156,9 @@ export const useDeliveryFee = () => {
       if (error) throw error;
 
       setDeliveryZones(data || []);
-      console.log(`✅ ${data?.length || 0} zonas de entrega carregadas`);
+      console.log(`✅ ${data?.length || 0} zonas de entrega carregadas:`, data);
     } catch (error) {
-      console.error('Erro ao carregar zonas de entrega:', error);
+      console.error('❌ Erro ao carregar zonas de entrega:', error);
     }
   };
 
@@ -165,14 +167,20 @@ export const useDeliveryFee = () => {
     const initialize = async () => {
       await loadRestaurantCoordinates();
       
-      // Buscar restaurant_id
-      const { data: settings } = await supabase
-        .from('restaurant_settings')
-        .select('id')
-        .single();
+      // ✅ FASE 4: Buscar restaurant_id através de user_restaurants
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (settings) {
-        await loadDeliveryZones(settings.id);
+      if (user) {
+        const { data: userRestaurant } = await supabase
+          .from('user_restaurants')
+          .select('restaurant_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (userRestaurant?.restaurant_id) {
+          await loadDeliveryZones(userRestaurant.restaurant_id);
+        }
       }
     };
     initialize();
@@ -216,16 +224,29 @@ export const useDeliveryFee = () => {
       console.log("📍 [useDeliveryFee] Coordenadas do restaurante:", restaurantCoords);
       console.log("📍 [useDeliveryFee] Endereço do cliente:", customerAddress);
 
-      // Garantir que as zonas estão carregadas
+      // ✅ FASE 4: Fallback - recarregar zonas se estiver vazio
       if (deliveryZones.length === 0) {
-        console.warn("⚠️ Nenhuma zona de entrega carregada! Carregando...");
-        const { data: settings } = await supabase
-          .from('restaurant_settings')
-          .select('id')
-          .single();
+        console.warn("⚠️ Nenhuma zona de entrega carregada! Recarregando...");
         
-        if (settings) {
-          await loadDeliveryZones(settings.id);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: userRestaurant } = await supabase
+            .from('user_restaurants')
+            .select('restaurant_id')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .single();
+          
+          if (userRestaurant?.restaurant_id) {
+            await loadDeliveryZones(userRestaurant.restaurant_id);
+          }
+        }
+        
+        // Se ainda estiver vazio após recarregar
+        if (deliveryZones.length === 0) {
+          console.log('⚠️ Nenhuma zona de entrega configurada');
+          setLoading(false);
+          return { distance: null, fee: 0, coordinates: null, isWithinRange: true };
         }
       }
 

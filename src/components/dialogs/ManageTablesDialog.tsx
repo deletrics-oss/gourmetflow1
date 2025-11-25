@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { logActionWithContext } from '@/lib/logging';
 
 interface ManageTablesDialogProps {
   open: boolean;
@@ -46,13 +47,23 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('tables').insert({
+      const { data, error } = await supabase.from('tables').insert({
         number: parseInt(newTableNumber),
         capacity: parseInt(newTableCapacity),
         status: 'free',
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // ✅ FASE 1: Log de criação de mesa
+      if (data) {
+        await logActionWithContext(
+          'create_table',
+          'tables',
+          data.id,
+          { number: parseInt(newTableNumber), capacity: parseInt(newTableCapacity) }
+        );
+      }
 
       toast.success('Mesa adicionada com sucesso!');
       setNewTableNumber('');
@@ -71,13 +82,21 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
     }
   };
 
-  const handleDeleteTable = async (id: string) => {
+  const handleDeleteTable = async (table: any) => {
     if (!confirm('Tem certeza que deseja remover esta mesa?')) return;
 
     try {
-      const { error } = await supabase.from('tables').delete().eq('id', id);
+      const { error } = await supabase.from('tables').delete().eq('id', table.id);
 
       if (error) throw error;
+
+      // ✅ FASE 1: Log de deleção de mesa
+      await logActionWithContext(
+        'delete_table',
+        'tables',
+        table.id,
+        { number: table.number }
+      );
 
       toast.success('Mesa removida com sucesso!');
       loadTables();
@@ -168,7 +187,7 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteTable(table.id)}
+                        onClick={() => handleDeleteTable(table)}
                         disabled={table.status !== 'free'}
                       >
                         <Trash2 className="h-4 w-4 text-red-500" />
