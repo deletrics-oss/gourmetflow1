@@ -236,7 +236,7 @@ export default function PDV() {
           tables(number),
           comandas_fixas(numero)
         `)
-        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
+        .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment', 'pending_receipt'])
         .order('created_at', { ascending: false });
 
       if (orders) setPendingOrders(orders);
@@ -1467,11 +1467,141 @@ export default function PDV() {
       )}
 
       {/* Pedidos Pendentes */}
+      {/* Seção Aguardando Comprovante de Maquininha */}
+      {pendingOrders.filter(o => o.status === 'pending_receipt').length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="h-6 w-6 text-yellow-600" />
+            <h2 className="text-2xl font-bold">🧾 Aguardando Comprovante de Maquininha</h2>
+            <Badge variant="secondary" className="ml-2 bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
+              {pendingOrders.filter(o => o.status === 'pending_receipt').length}
+            </Badge>
+          </div>
+          
+          <Card className="p-4 mb-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 mt-1 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                  Atenção: Pagamento efetuado na maquininha do estabelecimento
+                </p>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  O garçom informou que o pagamento foi realizado na maquininha física. 
+                  Solicite e confirme o comprovante de venda antes de finalizar o pedido.
+                </p>
+              </div>
+            </div>
+          </Card>
+          
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {pendingOrders
+              .filter(order => order.status === 'pending_receipt')
+              .map((order) => (
+                <Card 
+                  key={order.id} 
+                  className="p-4 border-2 border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-950/20"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-lg">#{order.order_number}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.created_at).toLocaleTimeString('pt-BR')}
+                      </p>
+                      {order.tables && (
+                        <Badge variant="outline" className="mt-1 bg-blue-50 dark:bg-blue-950">
+                          🏠 Mesa {order.tables.number}
+                        </Badge>
+                      )}
+                      {order.comandas_fixas && (
+                        <Badge variant="outline" className="mt-1 bg-purple-50 dark:bg-purple-950">
+                          🎫 Cartão {order.comandas_fixas.numero}
+                        </Badge>
+                      )}
+                    </div>
+                    <Badge className="bg-yellow-500 text-white">
+                      🧾 Comprovante Pendente
+                    </Badge>
+                  </div>
+
+                  {order.customer_name && (
+                    <p className="text-sm mb-2">
+                      <strong>Cliente:</strong> {order.customer_name}
+                    </p>
+                  )}
+
+                  <div className="bg-muted/50 rounded-md p-2 mb-3">
+                    <p className="text-xs font-semibold mb-1">Itens do pedido:</p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {order.order_items && order.order_items.length > 0 ? (
+                        order.order_items.map((item: any) => (
+                          <div key={item.id} className="flex justify-between text-xs">
+                            <span className="truncate">{item.quantity}x {item.name}</span>
+                            <span className="ml-2 flex-shrink-0">R$ {item.total_price.toFixed(2)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Sem itens</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-semibold">Total:</span>
+                      <span className="text-xl font-bold text-green-600">R$ {order.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('orders' as any)
+                          .update({ 
+                            status: 'completed',
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', order.id);
+
+                        if (error) throw error;
+
+                        await logActionWithContext(
+                          'confirm_receipt',
+                          'orders',
+                          order.id,
+                          {
+                            order_number: order.order_number,
+                            table_number: order.tables?.number,
+                            total: order.total,
+                            payment_method: 'card_machine',
+                            action_description: 'Comprovante de maquininha confirmado pelo caixa'
+                          }
+                        );
+
+                        sonnerToast.success('Comprovante confirmado! Pedido finalizado.');
+                        loadPendingOrders();
+                        loadRecentlyClosedOrders();
+                      } catch (error: any) {
+                        console.error('Erro ao confirmar comprovante:', error);
+                        sonnerToast.error(error?.message || 'Erro ao confirmar');
+                      }
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    ✅ Confirmar Recebimento do Comprovante
+                  </Button>
+                </Card>
+              ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-8">
         <div className="flex items-center gap-2 mb-4">
           <Clock className="h-6 w-6" />
           <h2 className="text-2xl font-bold">Pedidos Pendentes para Fechamento</h2>
-          <Badge variant="secondary" className="ml-2">{pendingOrders.length}</Badge>
+          <Badge variant="secondary" className="ml-2">{pendingOrders.filter(o => o.status !== 'pending_receipt').length}</Badge>
         </div>
         
         {/* Campo de Busca por Número do Pedido */}
@@ -1501,18 +1631,19 @@ export default function PDV() {
         <Tabs defaultValue="online" className="mb-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="online">
-              Pedidos Online/Delivery ({pendingOrders.filter(o => o.delivery_type === 'delivery' || o.delivery_type === 'pickup').length})
+              Pedidos Online/Delivery ({pendingOrders.filter(o => (o.delivery_type === 'delivery' || o.delivery_type === 'pickup') && o.status !== 'pending_receipt').length})
             </TabsTrigger>
             <TabsTrigger value="mesa">
-              Pedidos de Mesa ({pendingOrders.filter(o => o.delivery_type === 'dine_in').length})
+              Pedidos de Mesa ({pendingOrders.filter(o => o.delivery_type === 'dine_in' && o.status !== 'pending_receipt').length})
             </TabsTrigger>
           </TabsList>
           
           <TabsContent value="online" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{pendingOrders.filter(order => 
-                order.delivery_type === 'delivery' || 
+                (order.delivery_type === 'delivery' || 
                 order.delivery_type === 'pickup' ||
-                order.delivery_type === 'counter'
+                order.delivery_type === 'counter') &&
+                order.status !== 'pending_receipt'
               ).length === 0 ? (
                 <Card className="p-8 text-center col-span-full">
                   <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -1520,7 +1651,7 @@ export default function PDV() {
                 </Card>
               ) : (
                 pendingOrders
-                  .filter(order => order.delivery_type === 'delivery' || order.delivery_type === 'pickup' || order.delivery_type === 'counter')
+                  .filter(order => (order.delivery_type === 'delivery' || order.delivery_type === 'pickup' || order.delivery_type === 'counter') && order.status !== 'pending_receipt')
                   .map((order) => (
                     <Card 
                       key={order.id} 
@@ -1614,14 +1745,14 @@ export default function PDV() {
 
           <TabsContent value="mesa" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {pendingOrders.filter(order => order.delivery_type === 'dine_in').length === 0 ? (
+              {pendingOrders.filter(order => order.delivery_type === 'dine_in' && order.status !== 'pending_receipt').length === 0 ? (
                 <Card className="p-8 text-center col-span-full">
                   <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground">Nenhum pedido de mesa pendente</p>
                 </Card>
               ) : (
                 pendingOrders
-                  .filter(order => order.delivery_type === 'dine_in')
+                  .filter(order => order.delivery_type === 'dine_in' && order.status !== 'pending_receipt')
                   .map((order) => (
                     <Card 
                       key={order.id} 
