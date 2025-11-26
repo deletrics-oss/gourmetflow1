@@ -285,58 +285,110 @@ export default function Comandas() {
                     Imprimir
                   </Button>
                 </div>
-                <Button 
-                  size="sm" 
-                  className="w-full"
-                  onClick={async () => {
-                    try {
-                      const { error: orderError } = await supabase
-                        .from('orders' as any)
-                        .update({ 
-                          status: 'ready_for_payment',
-                          updated_at: new Date().toISOString()
-                        })
-                        .eq('id', comanda.id);
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { error: orderError } = await supabase
+                          .from('orders' as any)
+                          .update({ 
+                            status: 'pending_receipt',
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', comanda.id);
 
-                      if (orderError) throw orderError;
-                      
-                      // Liberar mesa
-                      if (comanda.table_id) {
-                        const { error: tableError } = await supabase
-                          .from('tables' as any)
-                          .update({ status: 'free' })
-                          .eq('id', comanda.table_id);
+                        if (orderError) throw orderError;
                         
-                        if (tableError) throw tableError;
-                      }
-                      
-                      // ✅ FASE 3: Log de comanda fechada com número de pessoas
-                      await logActionWithContext(
-                        'close_comanda',
-                        'orders',
-                        comanda.id,
-                        {
-                          order_number: comanda.order_number,
-                          table_number: comanda.tables?.number,
-                          total: comanda.total,
-                          number_of_guests: comanda.number_of_guests || 0,
-                          items_count: comanda.order_items?.length || 0,
-                          old_status: comanda.status,
-                          new_status: 'ready_for_payment',
-                          action_description: 'Comanda fechada, aguardando pagamento no PDV'
+                        // Liberar mesa
+                        if (comanda.table_id) {
+                          const { error: tableError } = await supabase
+                            .from('tables' as any)
+                            .update({ status: 'free' })
+                            .eq('id', comanda.table_id);
+                          
+                          if (tableError) throw tableError;
                         }
-                      );
-                      
-                      toast.success('Comanda fechada!');
-                      loadData();
-                    } catch (error: any) {
-                      console.error('Erro ao fechar comanda:', error);
-                      toast.error(error?.message || 'Erro ao fechar comanda');
-                    }
-                  }}
-                >
-                  Fechar Comanda
-                </Button>
+                        
+                        await logActionWithContext(
+                          'payment_card_machine',
+                          'orders',
+                          comanda.id,
+                          {
+                            order_number: comanda.order_number,
+                            table_number: comanda.tables?.number,
+                            total: comanda.total,
+                            number_of_guests: comanda.number_of_guests || 0,
+                            old_status: comanda.status,
+                            new_status: 'pending_receipt',
+                            action_description: 'Pagamento efetuado na maquininha, aguardando comprovante no PDV'
+                          }
+                        );
+                        
+                        toast.success('Aguardando comprovante no caixa!');
+                        loadData();
+                      } catch (error: any) {
+                        console.error('Erro ao processar pagamento:', error);
+                        toast.error(error?.message || 'Erro ao processar');
+                      }
+                    }}
+                  >
+                    💳 Pagar na Maquininha
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { error: orderError } = await supabase
+                          .from('orders' as any)
+                          .update({ 
+                            status: 'ready_for_payment',
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', comanda.id);
+
+                        if (orderError) throw orderError;
+                        
+                        // Liberar mesa
+                        if (comanda.table_id) {
+                          const { error: tableError } = await supabase
+                            .from('tables' as any)
+                            .update({ status: 'free' })
+                            .eq('id', comanda.table_id);
+                          
+                          if (tableError) throw tableError;
+                        }
+                        
+                        await logActionWithContext(
+                          'close_comanda',
+                          'orders',
+                          comanda.id,
+                          {
+                            order_number: comanda.order_number,
+                            table_number: comanda.tables?.number,
+                            total: comanda.total,
+                            number_of_guests: comanda.number_of_guests || 0,
+                            items_count: comanda.order_items?.length || 0,
+                            old_status: comanda.status,
+                            new_status: 'ready_for_payment',
+                            action_description: 'Comanda enviada para caixa, aguardando pagamento no PDV'
+                          }
+                        );
+                        
+                        toast.success('Enviado para o caixa!');
+                        loadData();
+                      } catch (error: any) {
+                        console.error('Erro ao fechar comanda:', error);
+                        toast.error(error?.message || 'Erro ao fechar comanda');
+                      }
+                    }}
+                  >
+                    📱 Enviar para Caixa
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
