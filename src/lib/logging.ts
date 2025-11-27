@@ -8,7 +8,8 @@ export const logActionWithContext = async (
   action: string,
   entityType?: string | null,
   entityId?: string | null,
-  details?: any
+  details?: any,
+  restaurantId?: string | null
 ) => {
   try {
     const userAgent = navigator.userAgent;
@@ -20,6 +21,18 @@ export const logActionWithContext = async (
       details
     });
 
+    // Buscar restaurant_id do usuário se não fornecido
+    let finalRestaurantId = restaurantId;
+    if (!finalRestaurantId) {
+      const { data: userRestaurant } = await supabase
+        .from('user_restaurants')
+        .select('restaurant_id')
+        .eq('is_active', true)
+        .single();
+      
+      finalRestaurantId = userRestaurant?.restaurant_id || null;
+    }
+
     const { data, error } = await supabase.rpc('log_action', {
       p_action: action,
       p_entity_type: entityType || null,
@@ -28,7 +41,8 @@ export const logActionWithContext = async (
         ...details,
         user_agent: userAgent,
         timestamp: new Date().toISOString()
-      }
+      },
+      p_restaurant_id: finalRestaurantId
     });
 
     if (error) {
