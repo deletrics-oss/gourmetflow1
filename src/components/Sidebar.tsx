@@ -125,6 +125,8 @@ const monitorNavItems: NavItem[] = [{
   href: "/monitor-cozinha",
   icon: Monitor
 }];
+
+// Telas externas não ficam em navItems pois abrirão em nova janela
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -211,6 +213,42 @@ export function Sidebar() {
               <TrendingUp className="h-4 w-4" />
               Monitor Gestor (Externo)
             </Button>}
+        </div>
+
+        <div className="mt-6 space-y-1 px-3">
+          <p className="px-3 text-xs font-semibold text-muted-foreground">TELAS EXTERNAS</p>
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm" 
+            onClick={() => window.open('/balcao-externo', 'Balcão Externo', 'width=1920,height=1080')}
+          >
+            <Users className="h-4 w-4" />
+            🏪 Balcão Externo
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm" 
+            onClick={() => window.open('/menu-tablet', 'Cardápio Tablet', 'width=1024,height=768')}
+          >
+            <UtensilsCrossed className="h-4 w-4" />
+            📱 Cardápio Tablet
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm" 
+            onClick={() => window.open('/totem', 'Totem', 'width=1080,height=1920')}
+          >
+            <Monitor className="h-4 w-4" />
+            🖥️ Totem Autoatendimento
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm" 
+            onClick={() => window.open('/monitor-senhas', 'Monitor Senhas', 'width=1920,height=1080')}
+          >
+            <Receipt className="h-4 w-4" />
+            🎫 Monitor de Senhas
+          </Button>
         </div>
 
         {isAdmin && <div className="mt-6 space-y-1 px-3">

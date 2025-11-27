@@ -61,6 +61,8 @@ export default function CustomerMenuTotem() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [observations, setObservations] = useState('');
+  const [existingCustomer, setExistingCustomer] = useState<any>(null);
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
   
   // Payment
   const [pixQrCode, setPixQrCode] = useState('');
@@ -102,6 +104,31 @@ export default function CustomerMenuTotem() {
     setPixCopyPaste('');
     setOrderNumber('');
     setSelectedCategory('all');
+    setExistingCustomer(null);
+    setShowWelcomeBack(false);
+  };
+
+  const searchCustomer = async (phone: string) => {
+    if (!phone || phone.length < 10) return;
+    
+    try {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+
+      if (data) {
+        setExistingCustomer(data);
+        setCustomerName(data.name);
+        setShowWelcomeBack(true);
+      } else {
+        setExistingCustomer(null);
+        setShowWelcomeBack(false);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar cliente:', error);
+    }
   };
 
   const loadData = async () => {
@@ -201,32 +228,23 @@ export default function CustomerMenuTotem() {
       const genOrderNumber = `TOTEM-${Date.now().toString().slice(-6)}`;
       setOrderNumber(genOrderNumber);
       
-      // Criar cliente anônimo se não informou dados
-      let customerId = null;
-      if (customerPhone) {
-        const { data: existingCustomer } = await supabase
+      // Criar ou buscar cliente
+      let customerId = existingCustomer?.id || null;
+      
+      if (!customerId && customerPhone) {
+        const { data: newCustomer } = await supabase
           .from('customers')
-          .select('*')
-          .eq('phone', customerPhone)
-          .maybeSingle();
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-        } else {
-          const { data: newCustomer } = await supabase
-            .from('customers')
-            .insert({
-              name: customerName || 'Cliente Totem',
-              phone: customerPhone,
-              loyalty_points: 0
-            })
-            .select()
-            .single();
-          customerId = newCustomer?.id;
-        }
+          .insert({
+            name: customerName || 'Cliente Totem',
+            phone: customerPhone,
+            loyalty_points: 0
+          })
+          .select()
+          .single();
+        customerId = newCustomer?.id;
       }
 
-      // Criar pedido
+      // Criar pedido - vai direto para preparing (cozinha)
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -235,7 +253,7 @@ export default function CustomerMenuTotem() {
           customer_phone: customerPhone || null,
           customer_id: customerId,
           delivery_type: 'pickup',
-          status: 'new',
+          status: 'preparing', // Direto para cozinha
           payment_method: 'pix',
           subtotal: cartTotal,
           total: cartTotal,
@@ -257,22 +275,31 @@ export default function CustomerMenuTotem() {
         notes: item.customizationsText || null
       }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      await supabase.from('order_items').insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      // Gerar PIX real com PagSeguro
+      if (restaurantSettings?.pagseguro_enabled && restaurantSettings?.pagseguro_token) {
+        try {
+          const { data: pixData, error: pixError } = await supabase.functions.invoke('pagseguro-payment', {
+            body: {
+              amount: cartTotal,
+              orderId: order.id,
+              customerEmail: customerPhone ? `${customerPhone}@totem.com` : 'totem@example.com'
+            }
+          });
 
-      // Simular geração de PIX (na prática, chamar gateway)
-      if (restaurantSettings?.pagseguro_enabled) {
-        // Aqui seria a chamada ao gateway PagSeguro
-        // Por ora, simulamos
-        setPixQrCode('00020126580014br.gov.bcb.pix...');
-        setPixCopyPaste('00020126580014br.gov.bcb.pix...');
+          if (pixError) throw pixError;
+          
+          setPixQrCode(pixData.qrCode || '');
+          setPixCopyPaste(pixData.copyPaste || '');
+        } catch (pixError) {
+          console.error('Erro ao gerar PIX:', pixError);
+          toast.error('Erro ao gerar PIX. Tente novamente.');
+          return;
+        }
       } else {
-        // PIX manual
-        setPixQrCode('Escanear QR Code do restaurante');
-        setPixCopyPaste('Chave PIX: restaurante@email.com');
+        setPixQrCode('Configurar PagSeguro em Integrações');
+        setPixCopyPaste('Configure o PagSeguro para pagamento automático');
       }
 
       setStep('payment');
@@ -312,14 +339,67 @@ export default function CustomerMenuTotem() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted p-8">
         <div className="max-w-3xl mx-auto">
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={() => setStep('start')}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-6 w-6 mr-2" />
+            Voltar
+          </Button>
+
           <div className="text-center mb-8">
             <User className="h-20 w-20 text-primary mx-auto mb-4" />
             <h2 className="text-4xl font-bold mb-2">Identificação</h2>
-            <p className="text-xl text-muted-foreground">Opcional - para acumular pontos</p>
+            <p className="text-xl text-muted-foreground">
+              {restaurantSettings?.loyalty_enabled 
+                ? 'Informe seu telefone para acumular pontos'
+                : 'Opcional - facilita o atendimento'
+              }
+            </p>
           </div>
           
           <Card className="p-8">
+            {showWelcomeBack && existingCustomer && (
+              <div className="mb-6 p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border-2 border-primary/20 animate-fade-in">
+                <h3 className="text-3xl font-bold text-primary mb-2">
+                  🎉 Bem-vindo de volta, {existingCustomer.name}!
+                </h3>
+                {restaurantSettings?.loyalty_enabled && (
+                  <div className="space-y-2 text-xl">
+                    <p className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-lg px-3 py-1">
+                        ⭐ {existingCustomer.loyalty_points || 0} pontos
+                      </Badge>
+                    </p>
+                    {existingCustomer.loyalty_points > 0 && (
+                      <p className="text-lg text-muted-foreground">
+                        Valor disponível: R$ {((existingCustomer.loyalty_points || 0) * (restaurantSettings?.loyalty_redemption_value || 0.01)).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-6">
+              <div>
+                <Label className="text-2xl">Telefone</Label>
+                <Input
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    if (e.target.value.length >= 10) {
+                      searchCustomer(e.target.value);
+                    }
+                  }}
+                  placeholder="(00) 00000-0000"
+                  className="text-2xl h-16 mt-2"
+                  type="tel"
+                  maxLength={15}
+                />
+              </div>
               <div>
                 <Label className="text-2xl">Nome</Label>
                 <Input
@@ -327,16 +407,7 @@ export default function CustomerMenuTotem() {
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Seu nome"
                   className="text-2xl h-16 mt-2"
-                />
-              </div>
-              <div>
-                <Label className="text-2xl">Telefone</Label>
-                <Input
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                  className="text-2xl h-16 mt-2"
-                  type="tel"
+                  disabled={!!existingCustomer}
                 />
               </div>
             </div>
@@ -349,6 +420,8 @@ export default function CustomerMenuTotem() {
                 onClick={() => {
                   setCustomerName('');
                   setCustomerPhone('');
+                  setExistingCustomer(null);
+                  setShowWelcomeBack(false);
                   setStep('menu');
                 }}
               >

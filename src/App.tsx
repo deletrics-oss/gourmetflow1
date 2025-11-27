@@ -42,6 +42,7 @@ import CustomerMenuTotem from "./pages/CustomerMenuTotem";
 import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
 import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
+import MonitorSenhasExterno from "./pages/MonitorSenhasExterno";
 import Planos from "./pages/Planos";
 import ZapBot from "./pages/ZapBot";
 import SystemLogs from "./pages/SystemLogs";
@@ -93,6 +94,7 @@ const App = () => {
           <Route path="/balcao-externo" element={<BalcaoExterno />} />
           <Route path="/menu-tablet" element={<CustomerMenuTablet />} />
           <Route path="/totem" element={<CustomerMenuTotem />} />
+          <Route path="/monitor-senhas" element={<MonitorSenhasExterno />} />
             {/* Public Route - Balcão */}
             <Route path="/balcao" element={<Balcao />} />
             

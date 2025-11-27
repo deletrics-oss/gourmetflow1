@@ -1193,6 +1193,7 @@ export type Database = {
           stone_enabled: boolean | null
           stone_merchant_id: string | null
           street: string | null
+          tablet_full_flow: boolean | null
           twilio_account_sid: string | null
           twilio_auth_token: string | null
           twilio_phone_number: string | null
@@ -1257,6 +1258,7 @@ export type Database = {
           stone_enabled?: boolean | null
           stone_merchant_id?: string | null
           street?: string | null
+          tablet_full_flow?: boolean | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
           twilio_phone_number?: string | null
@@ -1321,6 +1323,7 @@ export type Database = {
           stone_enabled?: boolean | null
           stone_merchant_id?: string | null
           street?: string | null
+          tablet_full_flow?: boolean | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
           twilio_phone_number?: string | null
