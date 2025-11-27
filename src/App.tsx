@@ -36,6 +36,9 @@ import Despesas from "./pages/Despesas";
 import NotFound from "./pages/NotFound";
 import CustomerMenu from "./pages/CustomerMenu";
 import TableCustomerMenu from "./pages/TableCustomerMenu";
+import BalcaoExterno from "./pages/BalcaoExterno";
+import CustomerMenuTablet from "./pages/CustomerMenuTablet";
+import CustomerMenuTotem from "./pages/CustomerMenuTotem";
 import MonitorCozinhaExterno from "./pages/MonitorCozinhaExterno";
 import CozinhaExterno from "./pages/CozinhaExterno";
 import MonitorGestorExterno from "./pages/MonitorGestorExterno";
@@ -85,8 +88,11 @@ const App = () => {
         <Route path="/cozinha-externo" element={<CozinhaExterno />} />
         <Route path="/monitor-gestor-externo" element={<MonitorGestorExterno />} />
             {/* Public Routes - Cardápio do Cliente */}
-            <Route path="/customer-menu" element={<CustomerMenu />} />
-            <Route path="/table-menu" element={<TableCustomerMenu />} />
+          <Route path="/customer-menu" element={<CustomerMenu />} />
+          <Route path="/table-menu" element={<TableCustomerMenu />} />
+          <Route path="/balcao-externo" element={<BalcaoExterno />} />
+          <Route path="/menu-tablet" element={<CustomerMenuTablet />} />
+          <Route path="/totem" element={<CustomerMenuTotem />} />
             {/* Public Route - Balcão */}
             <Route path="/balcao" element={<Balcao />} />
             
