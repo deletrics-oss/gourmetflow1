@@ -55,6 +55,7 @@ export default function CustomerMenuTablet() {
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [observations, setObservations] = useState('');
   const [loading, setLoading] = useState(true);
+  const [useFullFlow, setUseFullFlow] = useState(false);
 
   useEffect(() => {
     if (tableId) {
@@ -77,7 +78,10 @@ export default function CustomerMenuTablet() {
 
       if (categoriesRes.data) setCategories(categoriesRes.data);
       if (itemsRes.data) setMenuItems(itemsRes.data);
-      if (settingsRes.data) setRestaurantSettings(settingsRes.data);
+      if (settingsRes.data) {
+        setRestaurantSettings(settingsRes.data);
+        setUseFullFlow(settingsRes.data.tablet_full_flow || false);
+      }
       if (tableRes.data) setTable(tableRes.data);
       if (orderRes.data) setCurrentOrder(orderRes.data);
 
