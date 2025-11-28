@@ -646,6 +646,83 @@ export default function CustomerMenuTotem() {
     );
   }
 
+  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
+
+  const handleConfirmPayment = async () => {
+    try {
+      // Buscar o pedido pelo order_number
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('order_number', orderNumber)
+        .single();
+
+      if (!order) {
+        toast.error('Pedido não encontrado');
+        return;
+      }
+
+      // 1. Atualizar pedido para completed
+      await supabase
+        .from('orders')
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          payment_method: 'pix'
+        })
+        .eq('id', order.id);
+
+      // 2. Registrar no caixa (cash_movements)
+      await supabase.from('cash_movements').insert({
+        type: 'income',
+        category: 'sale',
+        description: `Pedido ${orderNumber} - TOTEM`,
+        amount: cartTotal,
+        payment_method: 'PIX',
+        movement_date: new Date().toISOString().split('T')[0]
+      });
+
+      // 3. Adicionar pontos de fidelidade se cliente existir
+      if (existingCustomer && restaurantSettings?.loyalty_enabled) {
+        const pointsEarned = Math.floor(cartTotal * (restaurantSettings.loyalty_points_per_real || 1));
+        
+        if (pointsEarned > 0) {
+          // Atualizar pontos do cliente
+          await supabase
+            .from('customers')
+            .update({ 
+              loyalty_points: (existingCustomer.loyalty_points || 0) + pointsEarned 
+            })
+            .eq('id', existingCustomer.id);
+
+          // Registrar transação de fidelidade
+          await supabase.from('loyalty_transactions').insert({
+            customer_id: existingCustomer.id,
+            order_id: order.id,
+            type: 'earn',
+            points: pointsEarned,
+            description: `Compra no Totem #${orderNumber}`
+          });
+        }
+      }
+
+      // 4. Log da ação
+      console.log('[TOTEM] Pedido finalizado com sucesso:', {
+        order_number: orderNumber,
+        total: cartTotal,
+        customer: existingCustomer?.name || customerName
+      });
+
+      setConfirmedOrderId(order.id);
+      setStep('confirmation');
+      toast.success('Pagamento confirmado!');
+
+    } catch (error) {
+      console.error('[TOTEM] Erro ao confirmar pagamento:', error);
+      toast.error('Erro ao confirmar pagamento');
+    }
+  };
+
   if (step === 'payment') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted p-8">
@@ -660,10 +737,13 @@ export default function CustomerMenuTotem() {
 
           <Card className="p-8 text-center">
             <div className="bg-white p-8 rounded-lg inline-block mb-6">
-              {/* Aqui seria o QR Code real */}
-              <div className="h-80 w-80 bg-muted flex items-center justify-center">
-                <p className="text-muted-foreground">QR Code PIX</p>
-              </div>
+              {pixQrCode && pixQrCode.startsWith('http') ? (
+                <img src={pixQrCode} alt="QR Code PIX" className="h-80 w-80" />
+              ) : (
+                <div className="h-80 w-80 bg-muted flex items-center justify-center">
+                  <p className="text-muted-foreground text-center px-4">{pixQrCode || 'QR Code PIX'}</p>
+                </div>
+              )}
             </div>
 
             <div className="mb-6">
@@ -697,7 +777,7 @@ export default function CustomerMenuTotem() {
             <Button
               size="lg"
               className="w-full text-2xl h-20"
-              onClick={() => setStep('confirmation')}
+              onClick={handleConfirmPayment}
             >
               <Check className="mr-2 h-6 w-6" />
               Confirmar Pagamento
@@ -709,6 +789,10 @@ export default function CustomerMenuTotem() {
   }
 
   if (step === 'confirmation') {
+    const pointsEarned = existingCustomer && restaurantSettings?.loyalty_enabled
+      ? Math.floor(cartTotal * (restaurantSettings.loyalty_points_per_real || 1))
+      : 0;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 p-8 flex items-center justify-center">
         <div className="text-center animate-fade-in">
@@ -726,6 +810,11 @@ export default function CustomerMenuTotem() {
             <p className="text-6xl font-bold text-primary">
               {orderNumber}
             </p>
+            {pointsEarned > 0 && (
+              <p className="text-xl text-green-600 mt-4">
+                🎉 Você ganhou {pointsEarned} pontos de fidelidade!
+              </p>
+            )}
           </div>
           <p className="text-2xl text-muted-foreground mb-8">
             Retire seu pedido no balcão quando chamarmos

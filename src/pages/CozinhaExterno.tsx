@@ -215,9 +215,20 @@ export default function CozinhaExterno() {
             {orders.map((order) => (
               <Card key={order.id} className="bg-slate-800 border-slate-700 overflow-hidden">
                 <div className={`${getStatusColor(order.status)} px-4 py-3 flex items-center justify-between`}>
-                  <div>
-                    <p className="text-white font-bold text-lg">#{order.order_number}</p>
-                    <p className="text-white/80 text-sm">{getDeliveryTypeLabel(order.delivery_type)}</p>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <p className="text-white font-bold text-lg">#{order.order_number}</p>
+                      <p className="text-white/80 text-sm">{getDeliveryTypeLabel(order.delivery_type)}</p>
+                    </div>
+                    {order.order_number.startsWith('TOTEM') && (
+                      <Badge className="bg-purple-600 text-white">🖥️ TOTEM</Badge>
+                    )}
+                    {order.order_number.startsWith('MESA') && (
+                      <Badge className="bg-blue-600 text-white">🏠 MESA</Badge>
+                    )}
+                    {order.order_number.startsWith('PED') && (
+                      <Badge className="bg-green-600 text-white">📱 ONLINE</Badge>
+                    )}
                   </div>
                   <Badge variant="secondary">
                     {order.status === 'confirmed' ? 'Novo' : 'Preparando'}
