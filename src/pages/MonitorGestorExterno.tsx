@@ -90,10 +90,10 @@ export default function MonitorGestorExterno() {
 
   const todayCashMovements = cashMovements.filter(m => new Date(m.created_at) >= today);
   const totalEntries = todayCashMovements
-    .filter(m => m.type === 'entry')
+    .filter(m => m.type === 'income')
     .reduce((sum, m) => sum + (m.amount || 0), 0);
   const totalExits = todayCashMovements
-    .filter(m => m.type === 'exit')
+    .filter(m => m.type === 'expense' || m.type === 'exit')
     .reduce((sum, m) => sum + (m.amount || 0), 0);
   const cashBalance = totalEntries - totalExits;
 
@@ -281,8 +281,8 @@ export default function MonitorGestorExterno() {
                       {new Date(movement.created_at).toLocaleTimeString('pt-BR')}
                     </p>
                   </div>
-                  <p className={`text-2xl font-bold ${movement.type === 'entry' ? 'text-green-600' : 'text-red-600'}`}>
-                    {movement.type === 'entry' ? '+' : '-'} R$ {movement.amount.toFixed(2)}
+                  <p className={`text-2xl font-bold ${movement.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                    {movement.type === 'income' ? '+' : '-'} R$ {movement.amount.toFixed(2)}
                   </p>
                 </div>
               ))}

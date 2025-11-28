@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Package, CheckCircle, Truck } from 'lucide-react';
+import { Clock, Package, CheckCircle, Truck, Filter } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface Order {
   id: string;
@@ -17,11 +18,14 @@ export default function MonitorSenhasExterno() {
   const [preparingOrders, setPreparingOrders] = useState<Order[]>([]);
   const [readyOrders, setReadyOrders] = useState<Order[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
+  const [filterTotem, setFilterTotem] = useState(true);
+  const [restaurantName, setRestaurantName] = useState('');
   const previousReadyCount = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     loadOrders();
+    loadRestaurantSettings();
     
     // Realtime subscription
     const channel = supabase
@@ -40,19 +44,29 @@ export default function MonitorSenhasExterno() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [filterTotem]);
+
+  const loadRestaurantSettings = async () => {
+    const { data } = await supabase.from('restaurant_settings').select('name').maybeSingle();
+    if (data?.name) setRestaurantName(data.name);
+  };
 
   const loadOrders = async () => {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('orders')
         .select('*')
         .gte('created_at', today.toISOString())
-        .like('order_number', 'TOTEM%')
         .order('created_at', { ascending: false });
+
+      if (filterTotem) {
+        query = query.like('order_number', 'TOTEM%');
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -118,8 +132,28 @@ export default function MonitorSenhasExterno() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-8">
       <div className="mb-8 text-center">
-        <h1 className="text-6xl font-bold mb-2">Monitor de Pedidos</h1>
-        <p className="text-2xl text-muted-foreground">Acompanhe seus pedidos em tempo real</p>
+        <h1 className="text-6xl font-bold mb-2">
+          {restaurantName || 'Monitor de Pedidos'}
+        </h1>
+        <p className="text-2xl text-muted-foreground mb-4">Acompanhe seus pedidos em tempo real</p>
+        <div className="flex justify-center gap-2">
+          <Button
+            variant={filterTotem ? 'default' : 'outline'}
+            onClick={() => setFilterTotem(true)}
+            className="gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Apenas TOTEM
+          </Button>
+          <Button
+            variant={!filterTotem ? 'default' : 'outline'}
+            onClick={() => setFilterTotem(false)}
+            className="gap-2"
+          >
+            <Package className="h-4 w-4" />
+            Todos os Pedidos
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-8">

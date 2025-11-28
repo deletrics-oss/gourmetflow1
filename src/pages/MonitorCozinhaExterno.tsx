@@ -210,7 +210,18 @@ export default function MonitorCozinhaExterno() {
               <div className={`absolute top-0 right-0 w-4 h-4 rounded-bl-lg ${getDelayColor(delayStatus)}`} />
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-3xl font-bold">#{order.order_number}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-3xl font-bold">#{order.order_number}</h3>
+                    {order.order_number.startsWith('TOTEM') && (
+                      <Badge className="bg-purple-600 text-white">🖥️ TOTEM</Badge>
+                    )}
+                    {order.order_number.startsWith('MESA') && (
+                      <Badge className="bg-blue-600 text-white">🏠 MESA</Badge>
+                    )}
+                    {order.order_number.startsWith('PED') && (
+                      <Badge className="bg-green-600 text-white">📱 ONLINE</Badge>
+                    )}
+                  </div>
                   {order.tables && (
                     <Badge variant="outline" className="mt-2">
                       Mesa {order.tables.number}
