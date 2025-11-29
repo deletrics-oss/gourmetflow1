@@ -221,6 +221,9 @@ export default function MonitorCozinhaExterno() {
                     {order.order_number.startsWith('PED') && (
                       <Badge className="bg-green-600 text-white">📱 ONLINE</Badge>
                     )}
+                    {!order.order_number.startsWith('TOTEM') && !order.order_number.startsWith('MESA') && !order.order_number.startsWith('PED') && (
+                      <Badge className="bg-gray-600 text-white">🏪 BALCÃO</Badge>
+                    )}
                   </div>
                   {order.tables && (
                     <Badge variant="outline" className="mt-2">

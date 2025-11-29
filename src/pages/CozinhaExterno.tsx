@@ -229,6 +229,9 @@ export default function CozinhaExterno() {
                     {order.order_number.startsWith('PED') && (
                       <Badge className="bg-green-600 text-white">📱 ONLINE</Badge>
                     )}
+                    {!order.order_number.startsWith('TOTEM') && !order.order_number.startsWith('MESA') && !order.order_number.startsWith('PED') && (
+                      <Badge className="bg-gray-600 text-white">🏪 BALCÃO</Badge>
+                    )}
                   </div>
                   <Badge variant="secondary">
                     {order.status === 'confirmed' ? 'Novo' : 'Preparando'}

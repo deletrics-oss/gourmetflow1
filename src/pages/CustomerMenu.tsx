@@ -555,6 +555,88 @@ export default function CustomerMenu() {
     }
   };
 
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [currentOrderNumber, setCurrentOrderNumber] = useState<string | null>(null);
+  const [currentOrderTotal, setCurrentOrderTotal] = useState<number>(0);
+  const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(null);
+  const [currentEarnedPoints, setCurrentEarnedPoints] = useState<number>(0);
+
+  const handleConfirmPixPayment = async () => {
+    if (!currentOrderId) {
+      toast.error('Pedido não encontrado');
+      return;
+    }
+
+    try {
+      // 1. Atualizar pedido para completed
+      await supabase
+        .from('orders')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          payment_method: 'pix'
+        })
+        .eq('id', currentOrderId);
+
+      // 2. Registrar em cash_movements
+      await supabase
+        .from('cash_movements')
+        .insert({
+          type: 'income',
+          category: 'sale',
+          description: `Pedido Online ${currentOrderNumber}`,
+          amount: currentOrderTotal,
+          payment_method: 'PIX',
+          movement_date: new Date().toISOString()
+        });
+
+      // 3. Creditar pontos de fidelidade
+      if (currentCustomerId && currentEarnedPoints > 0 && restaurantSettings?.loyalty_enabled) {
+        // Buscar pontos atuais
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('loyalty_points')
+          .eq('id', currentCustomerId)
+          .single();
+
+        const newPoints = (customer?.loyalty_points || 0) + currentEarnedPoints;
+        
+        await supabase
+          .from('customers')
+          .update({ loyalty_points: newPoints })
+          .eq('id', currentCustomerId);
+
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: currentCustomerId,
+            order_id: currentOrderId,
+            points: currentEarnedPoints,
+            type: 'earn',
+            description: `Pontos ganhos no pedido ${currentOrderNumber}`
+          });
+      }
+
+      toast.success(`Pagamento confirmado! ${currentEarnedPoints > 0 ? `+${currentEarnedPoints} pontos de fidelidade!` : ''}`);
+      setQrDialogOpen(false);
+      setCurrentOrderId(null);
+      setCurrentOrderNumber(null);
+      setCurrentOrderTotal(0);
+      setCurrentCustomerId(null);
+      setCurrentEarnedPoints(0);
+      setPaymentQrCode(null);
+      setPixCopyPaste('');
+      
+      // Atualizar pontos locais
+      if (currentEarnedPoints > 0) {
+        setLoyaltyPoints(prev => prev + currentEarnedPoints);
+      }
+    } catch (error) {
+      console.error('[CUSTOMER_MENU] Erro ao confirmar pagamento:', error);
+      toast.error('Erro ao confirmar pagamento');
+    }
+  };
+
   const processPaymentGateway = async (gateway: string) => {
     setPaymentGatewayDialogOpen(false);
     setProcessingPayment(true);
@@ -703,6 +785,13 @@ export default function CustomerMenu() {
 
       // 3. Exibir QR Code
       if (paymentData?.qrCode) {
+        // Guardar dados do pedido para confirmação
+        setCurrentOrderId(order.id);
+        setCurrentOrderNumber(orderNumber);
+        setCurrentOrderTotal(total);
+        setCurrentCustomerId(customerId || null);
+        setCurrentEarnedPoints(earnedPoints);
+        
         setPaymentQrCode(paymentData.qrCode);
         setPixCopyPaste(paymentData.pixCopyPaste || '');
         setQrDialogOpen(true);
@@ -1572,32 +1661,45 @@ export default function CustomerMenu() {
                 </div>
               )}
               
+              <div className="w-full p-4 bg-primary/10 border border-primary/30 rounded-lg">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary mb-1">
+                    R$ {currentOrderTotal.toFixed(2)}
+                  </p>
+                  {currentEarnedPoints > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      +{currentEarnedPoints} pontos após confirmação
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-center gap-2 text-sm text-yellow-800">
                   <div className="animate-pulse">⏳</div>
                   <div>
                     <p className="font-semibold">Aguardando confirmação do pagamento...</p>
-                    <p className="text-xs mt-1">O pedido será confirmado automaticamente após o pagamento</p>
+                    <p className="text-xs mt-1">Após realizar o PIX, clique em confirmar</p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-2 w-full">
+              <div className="flex flex-col gap-2 w-full">
                 <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setQrDialogOpen(false)}
+                  className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
+                  onClick={handleConfirmPixPayment}
                 >
-                  Fechar
+                  ✅ Confirmar Pagamento
                 </Button>
                 <Button 
-                  className="flex-1"
+                  variant="outline" 
+                  className="w-full"
                   onClick={() => {
                     setQrDialogOpen(false);
                     toast.info('Você pode acompanhar seu pedido em "Meus Pedidos"');
                   }}
                 >
-                  Ver Meus Pedidos
+                  Fechar e Ver Pedidos
                 </Button>
               </div>
             </div>
