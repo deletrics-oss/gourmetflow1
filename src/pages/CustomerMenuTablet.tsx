@@ -4,19 +4,33 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   ShoppingCart, 
   Plus, 
   Minus,
   Send,
   X,
-  UtensilsCrossed
+  UtensilsCrossed,
+  User,
+  Phone,
+  ArrowLeft,
+  QrCode,
+  Gift,
+  CheckCircle,
+  Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomizeItemDialog } from '@/components/dialogs/CustomizeItemDialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface MenuItem {
   id: string;
@@ -40,6 +54,8 @@ interface CartItem extends MenuItem {
   customizationsText?: string;
 }
 
+type FlowStep = 'menu' | 'identification' | 'payment' | 'confirmation';
+
 export default function CustomerMenuTablet() {
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get('tableId');
@@ -56,6 +72,19 @@ export default function CustomerMenuTablet() {
   const [observations, setObservations] = useState('');
   const [loading, setLoading] = useState(true);
   const [useFullFlow, setUseFullFlow] = useState(false);
+
+  // Full flow states
+  const [step, setStep] = useState<FlowStep>('menu');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [existingCustomer, setExistingCustomer] = useState<any>(null);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
+  const [pixCopyPaste, setPixCopyPaste] = useState('');
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [currentOrderNumber, setCurrentOrderNumber] = useState<string | null>(null);
+  const [earnedPoints, setEarnedPoints] = useState(0);
 
   useEffect(() => {
     if (tableId) {
@@ -160,7 +189,219 @@ export default function CustomerMenuTablet() {
     return sum + (price * item.quantity);
   }, 0);
 
-  const handleFinishOrder = async () => {
+  // Search customer by phone
+  const searchCustomer = async () => {
+    if (!customerPhone || customerPhone.length < 10) return;
+
+    try {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+
+      if (data) {
+        setExistingCustomer(data);
+        setCustomerName(data.name);
+        setLoyaltyPoints(data.loyalty_points || 0);
+        toast.success(`Bem-vindo de volta, ${data.name}!`);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar cliente:', error);
+    }
+  };
+
+  // Handle flow navigation
+  const handleProceedToIdentification = () => {
+    if (cart.length === 0) {
+      toast.error('Carrinho vazio');
+      return;
+    }
+    setStep('identification');
+  };
+
+  const handleProceedToPayment = async () => {
+    if (!customerName || !customerPhone) {
+      toast.error('Preencha nome e telefone');
+      return;
+    }
+
+    setProcessingPayment(true);
+    
+    try {
+      // Create or update customer
+      let customerId = existingCustomer?.id;
+      
+      if (!existingCustomer) {
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .insert({
+            name: customerName,
+            phone: customerPhone,
+            loyalty_points: 0
+          })
+          .select()
+          .single();
+        customerId = newCustomer?.id;
+      }
+
+      // Calculate earned points
+      const points = restaurantSettings?.loyalty_enabled 
+        ? Math.floor(cartTotal * (restaurantSettings.loyalty_points_per_real || 1))
+        : 0;
+      setEarnedPoints(points);
+
+      // Create order
+      const orderNumber = `MESA-${table.number}-${Date.now().toString().slice(-6)}`;
+      
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderNumber,
+          table_id: tableId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_id: customerId,
+          delivery_type: 'dine_in',
+          status: 'new',
+          payment_method: 'pix',
+          subtotal: cartTotal,
+          total: cartTotal,
+          notes: observations || null,
+          loyalty_points_earned: points
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Insert order items
+      const orderItems = cart.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.finalPrice || item.promotional_price || item.price,
+        total_price: (item.finalPrice || item.promotional_price || item.price) * item.quantity,
+        notes: item.customizationsText || null
+      }));
+
+      await supabase.from('order_items').insert(orderItems);
+
+      // Update table status
+      await supabase
+        .from('tables')
+        .update({ status: 'occupied' })
+        .eq('id', tableId);
+
+      setCurrentOrderId(order.id);
+      setCurrentOrderNumber(orderNumber);
+
+      // Call PagSeguro for PIX
+      if (restaurantSettings?.pagseguro_enabled) {
+        const { data: paymentData, error } = await supabase.functions.invoke(
+          'pagseguro-payment',
+          {
+            body: {
+              amount: cartTotal,
+              orderId: order.id,
+              customerEmail: `${customerPhone}@temp.com`,
+              customerPhone: customerPhone,
+              paymentMethod: 'pix'
+            }
+          }
+        );
+
+        if (error) throw error;
+
+        if (paymentData?.qrCode) {
+          setPaymentQrCode(paymentData.qrCode);
+          setPixCopyPaste(paymentData.pixCopyPaste || '');
+          setStep('payment');
+        }
+      } else {
+        toast.error('Gateway de pagamento não configurado');
+      }
+    } catch (error) {
+      console.error('Erro ao processar:', error);
+      toast.error('Erro ao processar pagamento');
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!currentOrderId) return;
+
+    try {
+      // 1. Update order to completed
+      await supabase
+        .from('orders')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          payment_method: 'pix'
+        })
+        .eq('id', currentOrderId);
+
+      // 2. Register cash_movements
+      await supabase
+        .from('cash_movements')
+        .insert({
+          type: 'income',
+          category: 'sale',
+          description: `Pedido Tablet Mesa ${table?.number} - ${currentOrderNumber}`,
+          amount: cartTotal,
+          payment_method: 'PIX',
+          movement_date: new Date().toISOString()
+        });
+
+      // 3. Award loyalty points
+      if (existingCustomer?.id && earnedPoints > 0 && restaurantSettings?.loyalty_enabled) {
+        const newPoints = (existingCustomer.loyalty_points || 0) + earnedPoints;
+        
+        await supabase
+          .from('customers')
+          .update({ loyalty_points: newPoints })
+          .eq('id', existingCustomer.id);
+
+        await supabase
+          .from('loyalty_transactions')
+          .insert({
+            customer_id: existingCustomer.id,
+            order_id: currentOrderId,
+            points: earnedPoints,
+            type: 'earn',
+            description: `Pontos ganhos no pedido ${currentOrderNumber}`
+          });
+      }
+
+      setStep('confirmation');
+      toast.success('Pagamento confirmado!');
+    } catch (error) {
+      console.error('Erro ao confirmar pagamento:', error);
+      toast.error('Erro ao confirmar pagamento');
+    }
+  };
+
+  const handleNewOrder = () => {
+    setStep('menu');
+    setCart([]);
+    setObservations('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setExistingCustomer(null);
+    setLoyaltyPoints(0);
+    setPaymentQrCode(null);
+    setPixCopyPaste('');
+    setCurrentOrderId(null);
+    setCurrentOrderNumber(null);
+    setEarnedPoints(0);
+    loadData();
+  };
+
+  // Simple flow (no payment on tablet)
+  const handleFinishOrderSimple = async () => {
     if (cart.length === 0) {
       toast.error('Carrinho vazio');
       return;
@@ -237,6 +478,11 @@ export default function CustomerMenuTablet() {
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Código copiado!');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
@@ -260,6 +506,199 @@ export default function CustomerMenuTablet() {
     );
   }
 
+  // Full Flow - Identification Step
+  if (useFullFlow && step === 'identification') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 p-6">
+        <div className="max-w-lg mx-auto">
+          <Button
+            variant="ghost"
+            className="mb-6"
+            onClick={() => setStep('menu')}
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Voltar ao Cardápio
+          </Button>
+
+          <Card className="p-8">
+            <div className="text-center mb-8">
+              <User className="h-16 w-16 text-primary mx-auto mb-4" />
+              <h1 className="text-3xl font-bold">Identificação</h1>
+              <p className="text-muted-foreground mt-2">Informe seus dados para continuar</p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <Label className="text-lg">Telefone</Label>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    className="text-lg h-14"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="h-14"
+                    onClick={searchCustomer}
+                  >
+                    Buscar
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-lg">Nome</Label>
+                <Input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Seu nome"
+                  className="text-lg h-14 mt-2"
+                />
+              </div>
+
+              {existingCustomer && (
+                <Card className="p-4 bg-primary/10 border-primary">
+                  <div className="flex items-center gap-3">
+                    <Gift className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="font-semibold">Bem-vindo de volta!</p>
+                      <p className="text-lg text-primary font-bold">
+                        {loyaltyPoints} pontos de fidelidade
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              <div className="border-t pt-6 mt-6">
+                <div className="flex justify-between text-lg mb-4">
+                  <span>Total do Pedido:</span>
+                  <span className="font-bold text-primary">R$ {cartTotal.toFixed(2)}</span>
+                </div>
+                
+                <Button 
+                  className="w-full h-16 text-xl"
+                  onClick={handleProceedToPayment}
+                  disabled={!customerName || !customerPhone || processingPayment}
+                >
+                  {processingPayment ? 'Processando...' : 'Continuar para Pagamento'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Full Flow - Payment Step
+  if (useFullFlow && step === 'payment') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 p-6">
+        <div className="max-w-lg mx-auto">
+          <Card className="p-8">
+            <div className="text-center mb-8">
+              <QrCode className="h-16 w-16 text-primary mx-auto mb-4" />
+              <h1 className="text-3xl font-bold">Pagamento PIX</h1>
+              <p className="text-muted-foreground mt-2">Escaneie o QR Code ou copie o código</p>
+            </div>
+
+            {paymentQrCode && (
+              <div className="flex flex-col items-center gap-6">
+                <img 
+                  src={paymentQrCode} 
+                  alt="QR Code PIX" 
+                  className="w-64 h-64 border rounded-lg"
+                />
+                
+                <div className="w-full">
+                  <Label>Código Copia e Cola</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      value={pixCopyPaste}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => copyToClipboard(pixCopyPaste)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-primary">
+                    R$ {cartTotal.toFixed(2)}
+                  </p>
+                  {earnedPoints > 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      +{earnedPoints} pontos após confirmação
+                    </p>
+                  )}
+                </div>
+
+                <Button 
+                  className="w-full h-16 text-xl bg-green-600 hover:bg-green-700"
+                  onClick={handleConfirmPayment}
+                >
+                  <CheckCircle className="h-6 w-6 mr-2" />
+                  Confirmar Pagamento
+                </Button>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Full Flow - Confirmation Step
+  if (useFullFlow && step === 'confirmation') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20 p-6 flex items-center justify-center">
+        <Card className="p-12 text-center max-w-lg">
+          <CheckCircle className="h-24 w-24 text-green-600 mx-auto mb-6" />
+          <h1 className="text-4xl font-bold mb-4">Pedido Confirmado!</h1>
+          <p className="text-xl text-muted-foreground mb-2">
+            Número do pedido:
+          </p>
+          <p className="text-3xl font-bold text-primary mb-6">
+            {currentOrderNumber}
+          </p>
+          
+          {earnedPoints > 0 && (
+            <Card className="p-4 bg-primary/10 border-primary mb-6">
+              <div className="flex items-center justify-center gap-3">
+                <Gift className="h-8 w-8 text-primary" />
+                <p className="text-lg font-bold text-primary">
+                  +{earnedPoints} pontos de fidelidade!
+                </p>
+              </div>
+            </Card>
+          )}
+
+          <p className="text-muted-foreground mb-8">
+            Seu pedido foi enviado para a cozinha.
+            <br />Aguarde ser chamado!
+          </p>
+
+          <Button 
+            className="w-full h-16 text-xl"
+            onClick={handleNewOrder}
+          >
+            Fazer Novo Pedido
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Menu Step (both flows)
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5">
       {/* Header fixo */}
@@ -277,11 +716,11 @@ export default function CustomerMenuTablet() {
               size="lg"
               variant="secondary"
               className="gap-2 text-lg px-6 py-6"
-              onClick={handleFinishOrder}
+              onClick={useFullFlow ? handleProceedToIdentification : handleFinishOrderSimple}
               disabled={cart.length === 0}
             >
               <Send className="h-6 w-6" />
-              Enviar Pedido ({cart.length})
+              {useFullFlow ? 'Continuar' : 'Enviar Pedido'} ({cart.length})
             </Button>
           </div>
         </div>
@@ -435,12 +874,12 @@ export default function CustomerMenuTablet() {
                     </span>
                   </div>
                   <Button 
-                    onClick={handleFinishOrder}
+                    onClick={useFullFlow ? handleProceedToIdentification : handleFinishOrderSimple}
                     className="w-full h-16 text-xl"
                     size="lg"
                   >
                     <Send className="h-6 w-6 mr-2" />
-                    Enviar para Cozinha
+                    {useFullFlow ? 'Continuar' : 'Enviar para Cozinha'}
                   </Button>
                 </div>
               )}
