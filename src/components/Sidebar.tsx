@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon, MessageCircle, Send, ClipboardList } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon, MessageCircle, Send, ClipboardList, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -119,6 +119,10 @@ const subscriptionNavItems: NavItem[] = [{
   title: "Assinaturas",
   href: "/admin/assinaturas",
   icon: CreditCard
+}, {
+  title: "👑 Super Admin",
+  href: "/super-admin",
+  icon: Crown
 }];
 const monitorNavItems: NavItem[] = [{
   title: "Monitor Cozinha",

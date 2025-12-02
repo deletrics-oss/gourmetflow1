@@ -51,6 +51,7 @@ import Balcao from "./pages/Balcao";
 import RelatorioFidelidade from "./pages/RelatorioFidelidade";
 import NotaFiscal from "./pages/NotaFiscal";
 import AdminAssinaturas from "./pages/AdminAssinaturas";
+import SuperAdmin from "./pages/SuperAdmin";
 import GestaoFinanceira from "./pages/GestaoFinanceira";
 import Integracoes from "./pages/Integracoes";
 
@@ -141,6 +142,11 @@ const App = () => {
                       <Route path="/admin/assinaturas" element={
                         <ProtectedRoute requireAdmin>
                           <AdminAssinaturas />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/super-admin" element={
+                        <ProtectedRoute requireAdmin>
+                          <SuperAdmin />
                         </ProtectedRoute>
                       } />
                       <Route path="/planos" element={<Planos />} />
