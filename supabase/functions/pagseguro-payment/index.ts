@@ -17,9 +17,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const { amount, orderId, customerEmail } = await req.json();
+    const { amount, orderId, customerEmail, customerName } = await req.json();
 
-    console.log('[PAGSEGURO] Criando pagamento:', { amount, orderId });
+    console.log('[PAGSEGURO] Criando pagamento PIX (API v4):', { amount, orderId });
 
     // Buscar credenciais (pega o primeiro registro disponível)
     const { data: settings, error: settingsError } = await supabaseClient
@@ -28,65 +28,83 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    console.log('[PAGSEGURO] Settings:', { settings, settingsError });
+    console.log('[PAGSEGURO] Settings carregados');
 
     if (settingsError) {
       console.error('[PAGSEGURO] Erro ao buscar settings:', settingsError);
       throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
     }
 
-    if (!settings?.pagseguro_token || !settings?.pagseguro_email) {
-      console.error('[PAGSEGURO] Credenciais não configuradas:', settings);
-      throw new Error('PagSeguro não configurado. Configure email e token em Configurações → Integrações de Pagamento');
+    if (!settings?.pagseguro_token) {
+      console.error('[PAGSEGURO] Token não configurado');
+      throw new Error('PagSeguro não configurado. Configure o token em Configurações → Integrações de Pagamento');
     }
 
-    // Criar transação PIX no PagSeguro (API v2)
-    const formData = new URLSearchParams({
-      email: settings.pagseguro_email,
-      token: settings.pagseguro_token,
-      paymentMethod: 'pix',
-      currency: 'BRL',
-      itemId1: orderId || '1',
-      itemDescription1: `Pedido #${orderId}`,
-      itemAmount1: amount.toFixed(2),
-      itemQuantity1: '1',
-      senderEmail: customerEmail || 'cliente@email.com',
-      senderName: 'Cliente',
-    });
+    // Criar cobrança PIX usando API v4 do PagBank
+    const expirationDate = new Date();
+    expirationDate.setMinutes(expirationDate.getMinutes() + 30); // 30 minutos de validade
 
-    const response = await fetch('https://ws.pagseguro.uol.com.br/v2/transactions', {
+    const payload = {
+      reference_id: orderId || `ORDER-${Date.now()}`,
+      customer: {
+        name: customerName || 'Cliente',
+        email: customerEmail || 'cliente@email.com',
+      },
+      qr_codes: [{
+        amount: {
+          value: Math.round(amount * 100), // API v4 usa centavos
+        },
+        expiration_date: expirationDate.toISOString(),
+      }],
+    };
+
+    console.log('[PAGSEGURO] Payload:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch('https://api.pagseguro.com/instant-payments/cob', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings.pagseguro_token}`,
       },
-      body: formData.toString(),
+      body: JSON.stringify(payload),
     });
 
-    const xmlText = await response.text();
-    console.log('[PAGSEGURO] Resposta:', xmlText);
+    const responseText = await response.text();
+    console.log('[PAGSEGURO] Resposta status:', response.status);
+    console.log('[PAGSEGURO] Resposta:', responseText);
 
-    // Parse XML para extrair código da transação
-    const codeMatch = xmlText.match(/<code>(.*?)<\/code>/);
-    const transactionCode = codeMatch ? codeMatch[1] : null;
-
-    if (!transactionCode) {
-      throw new Error('Erro ao criar transação PagSeguro');
+    if (!response.ok) {
+      throw new Error(`PagSeguro API error (${response.status}): ${responseText}`);
     }
 
-    // Gerar link do QR Code PIX
-    const pixQrCode = `https://pagseguro.uol.com.br/checkout/pix/${transactionCode}`;
+    const data = JSON.parse(responseText);
+
+    if (!data.qr_codes || !data.qr_codes[0]) {
+      throw new Error('Resposta da API não contém QR Code');
+    }
+
+    const qrCodeData = data.qr_codes[0];
     
-    // Formato PIX copia e cola (simulado)
-    const pixCopyPaste = `00020126580014br.gov.bcb.pix0136${transactionCode}@pagseguro.com520400005303986540${amount.toFixed(2)}5802BR6014PagSeguro6009Sao Paulo62070503***`;
+    // Buscar URL da imagem do QR Code
+    let qrCodeImageUrl = '';
+    if (qrCodeData.links) {
+      const qrCodeLink = qrCodeData.links.find((link: any) => 
+        link.rel === 'QRCODE.PNG' || link.media === 'image/png'
+      );
+      if (qrCodeLink) {
+        qrCodeImageUrl = qrCodeLink.href;
+      }
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         gateway: 'pagseguro',
-        qrCode: pixQrCode,
-        pixCopyPaste: pixCopyPaste,
-        transactionId: transactionCode,
+        qrCode: qrCodeImageUrl, // URL da imagem QR Code
+        pixCopyPaste: qrCodeData.text, // Código PIX copia e cola real
+        transactionId: qrCodeData.id,
         amount: amount,
+        expiresAt: expirationDate.toISOString(),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
