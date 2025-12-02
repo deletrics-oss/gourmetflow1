@@ -141,7 +141,25 @@ export default function CustomerMenuTotem() {
 
       if (categoriesRes.data) setCategories(categoriesRes.data);
       if (itemsRes.data) setMenuItems(itemsRes.data);
-      if (settingsRes.data) setRestaurantSettings(settingsRes.data);
+      if (settingsRes.data) {
+        setRestaurantSettings(settingsRes.data);
+        
+        // Aplicar cores personalizadas
+        if (settingsRes.data.primary_color) document.documentElement.style.setProperty('--customer-primary', settingsRes.data.primary_color);
+        if (settingsRes.data.accent_color) document.documentElement.style.setProperty('--customer-accent', settingsRes.data.accent_color);
+        
+        // Aplicar fonte personalizada
+        if (settingsRes.data.menu_font && settingsRes.data.menu_font !== 'default') {
+          const fontMap: any = {
+            elegant: '"Playfair Display", serif',
+            friendly: '"Poppins", sans-serif',
+            modern: '"Montserrat", sans-serif'
+          };
+          if (fontMap[settingsRes.data.menu_font]) {
+            document.body.style.fontFamily = fontMap[settingsRes.data.menu_font];
+          }
+        }
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar o cardápio');

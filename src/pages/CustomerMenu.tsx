@@ -187,6 +187,22 @@ export default function CustomerMenu() {
           mercadopago_enabled: data.mercadopago_enabled,
           loyalty_enabled: data.loyalty_enabled
         });
+        
+        // Aplicar cores personalizadas
+        if (data.primary_color) document.documentElement.style.setProperty('--customer-primary', data.primary_color);
+        if (data.accent_color) document.documentElement.style.setProperty('--customer-accent', data.accent_color);
+        
+        // Aplicar fonte personalizada
+        if (data.menu_font && data.menu_font !== 'default') {
+          const fontMap: any = {
+            elegant: '"Playfair Display", serif',
+            friendly: '"Poppins", sans-serif',
+            modern: '"Montserrat", sans-serif'
+          };
+          if (fontMap[data.menu_font]) {
+            document.body.style.fontFamily = fontMap[data.menu_font];
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);

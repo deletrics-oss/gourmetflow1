@@ -1139,9 +1139,12 @@ export type Database = {
       }
       restaurant_settings: {
         Row: {
+          accent_color: string | null
           accept_scheduled_orders: boolean | null
           address: Json | null
           apify_api_key: string | null
+          background_color: string | null
+          background_url: string | null
           business_hours: Json | null
           cielo_enabled: boolean | null
           cielo_merchant_id: string | null
@@ -1150,6 +1153,7 @@ export type Database = {
           cnpj_cpf: string | null
           complement: string | null
           created_at: string | null
+          customer_theme: string | null
           delivery_options: Json | null
           dine_in_settings: Json | null
           facebook_access_token: string | null
@@ -1167,6 +1171,8 @@ export type Database = {
           loyalty_points_per_real: number | null
           loyalty_redemption_value: number | null
           max_delivery_radius: number | null
+          menu_font: string | null
+          menu_header_message: string | null
           mercadopago_access_token: string | null
           mercadopago_enabled: boolean | null
           mercadopago_public_key: string | null
@@ -1183,17 +1189,20 @@ export type Database = {
           pagseguro_token: string | null
           payment_methods: Json | null
           phone: string | null
+          primary_color: string | null
           rede_enabled: boolean | null
           rede_pv: string | null
           rede_token: string | null
           responsible_name: string | null
           segment: string | null
+          show_logo_on_menu: boolean | null
           state: string | null
           stone_api_key: string | null
           stone_enabled: boolean | null
           stone_merchant_id: string | null
           street: string | null
           tablet_full_flow: boolean | null
+          totem_welcome_message: string | null
           twilio_account_sid: string | null
           twilio_auth_token: string | null
           twilio_phone_number: string | null
@@ -1204,9 +1213,12 @@ export type Database = {
           zipcode: string | null
         }
         Insert: {
+          accent_color?: string | null
           accept_scheduled_orders?: boolean | null
           address?: Json | null
           apify_api_key?: string | null
+          background_color?: string | null
+          background_url?: string | null
           business_hours?: Json | null
           cielo_enabled?: boolean | null
           cielo_merchant_id?: string | null
@@ -1215,6 +1227,7 @@ export type Database = {
           cnpj_cpf?: string | null
           complement?: string | null
           created_at?: string | null
+          customer_theme?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
           facebook_access_token?: string | null
@@ -1232,6 +1245,8 @@ export type Database = {
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           max_delivery_radius?: number | null
+          menu_font?: string | null
+          menu_header_message?: string | null
           mercadopago_access_token?: string | null
           mercadopago_enabled?: boolean | null
           mercadopago_public_key?: string | null
@@ -1248,17 +1263,20 @@ export type Database = {
           pagseguro_token?: string | null
           payment_methods?: Json | null
           phone?: string | null
+          primary_color?: string | null
           rede_enabled?: boolean | null
           rede_pv?: string | null
           rede_token?: string | null
           responsible_name?: string | null
           segment?: string | null
+          show_logo_on_menu?: boolean | null
           state?: string | null
           stone_api_key?: string | null
           stone_enabled?: boolean | null
           stone_merchant_id?: string | null
           street?: string | null
           tablet_full_flow?: boolean | null
+          totem_welcome_message?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
           twilio_phone_number?: string | null
@@ -1269,9 +1287,12 @@ export type Database = {
           zipcode?: string | null
         }
         Update: {
+          accent_color?: string | null
           accept_scheduled_orders?: boolean | null
           address?: Json | null
           apify_api_key?: string | null
+          background_color?: string | null
+          background_url?: string | null
           business_hours?: Json | null
           cielo_enabled?: boolean | null
           cielo_merchant_id?: string | null
@@ -1280,6 +1301,7 @@ export type Database = {
           cnpj_cpf?: string | null
           complement?: string | null
           created_at?: string | null
+          customer_theme?: string | null
           delivery_options?: Json | null
           dine_in_settings?: Json | null
           facebook_access_token?: string | null
@@ -1297,6 +1319,8 @@ export type Database = {
           loyalty_points_per_real?: number | null
           loyalty_redemption_value?: number | null
           max_delivery_radius?: number | null
+          menu_font?: string | null
+          menu_header_message?: string | null
           mercadopago_access_token?: string | null
           mercadopago_enabled?: boolean | null
           mercadopago_public_key?: string | null
@@ -1313,17 +1337,20 @@ export type Database = {
           pagseguro_token?: string | null
           payment_methods?: Json | null
           phone?: string | null
+          primary_color?: string | null
           rede_enabled?: boolean | null
           rede_pv?: string | null
           rede_token?: string | null
           responsible_name?: string | null
           segment?: string | null
+          show_logo_on_menu?: boolean | null
           state?: string | null
           stone_api_key?: string | null
           stone_enabled?: boolean | null
           stone_merchant_id?: string | null
           street?: string | null
           tablet_full_flow?: boolean | null
+          totem_welcome_message?: string | null
           twilio_account_sid?: string | null
           twilio_auth_token?: string | null
           twilio_phone_number?: string | null

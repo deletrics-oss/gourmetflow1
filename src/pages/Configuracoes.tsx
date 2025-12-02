@@ -7,6 +7,7 @@ import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, Cred
 import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
+import { CustomerDesignEditor } from "@/components/CustomerDesignEditor";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -28,7 +29,17 @@ export default function Configuracoes() {
     city: "",
     state: "",
     zipcode: "",
-    complement: ""
+    complement: "",
+    logo_url: "",
+    background_url: "",
+    background_color: "#f8fafc",
+    primary_color: "#e53e3e",
+    accent_color: "#f59e0b",
+    totem_welcome_message: "Bem-vindo! Faça seu pedido",
+    menu_header_message: "O que você deseja?",
+    customer_theme: "modern",
+    show_logo_on_menu: true,
+    menu_font: "default"
   });
   
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
@@ -147,7 +158,17 @@ export default function Configuracoes() {
           city: data.city || "",
           state: data.state || "",
           zipcode: data.zipcode || "",
-          complement: data.complement || ""
+          complement: data.complement || "",
+          logo_url: data.logo_url || "",
+          background_url: data.background_url || "",
+          background_color: data.background_color || "#f8fafc",
+          primary_color: data.primary_color || "#e53e3e",
+          accent_color: data.accent_color || "#f59e0b",
+          totem_welcome_message: data.totem_welcome_message || "Bem-vindo! Faça seu pedido",
+          menu_header_message: data.menu_header_message || "O que você deseja?",
+          customer_theme: data.customer_theme || "modern",
+          show_logo_on_menu: data.show_logo_on_menu !== undefined ? data.show_logo_on_menu : true,
+          menu_font: data.menu_font || "default"
         });
         setLoyaltyEnabled(data.loyalty_enabled || false);
         setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
@@ -493,7 +514,7 @@ export default function Configuracoes() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="geral">
             <Info className="h-4 w-4 mr-2" />
             Geral
@@ -517,6 +538,10 @@ export default function Configuracoes() {
           <TabsTrigger value="tema">
             <Palette className="h-4 w-4 mr-2" />
             Tema
+          </TabsTrigger>
+          <TabsTrigger value="design">
+            <Palette className="h-4 w-4 mr-2" />
+            Design Clientes
           </TabsTrigger>
           <TabsTrigger value="audio">
             <Volume2 className="h-4 w-4 mr-2" />
@@ -1510,6 +1535,72 @@ export default function Configuracoes() {
               </div>
             </div>
             <ThemeSelector />
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="design">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Palette className="h-6 w-6 text-purple-500" />
+              <div>
+                <h3 className="text-lg font-semibold">Design das Telas de Cliente</h3>
+                <p className="text-sm text-muted-foreground">Personalize Totem, Menu Online e Tablet</p>
+              </div>
+            </div>
+            <CustomerDesignEditor
+              settings={{
+                logo_url: settings.logo_url,
+                background_url: settings.background_url,
+                background_color: settings.background_color,
+                primary_color: settings.primary_color,
+                accent_color: settings.accent_color,
+                totem_welcome_message: settings.totem_welcome_message,
+                menu_header_message: settings.menu_header_message,
+                customer_theme: settings.customer_theme,
+                show_logo_on_menu: settings.show_logo_on_menu,
+                menu_font: settings.menu_font
+              }}
+              onSave={async (designSettings) => {
+                try {
+                  const { error } = await supabase
+                    .from('restaurant_settings')
+                    .update({
+                      logo_url: designSettings.logo_url,
+                      background_url: designSettings.background_url,
+                      background_color: designSettings.background_color,
+                      primary_color: designSettings.primary_color,
+                      accent_color: designSettings.accent_color,
+                      totem_welcome_message: designSettings.totem_welcome_message,
+                      menu_header_message: designSettings.menu_header_message,
+                      customer_theme: designSettings.customer_theme,
+                      show_logo_on_menu: designSettings.show_logo_on_menu,
+                      menu_font: designSettings.menu_font
+                    })
+                    .eq('name', settings.name);
+
+                  if (error) throw error;
+
+                  setSettings({
+                    ...settings,
+                    logo_url: designSettings.logo_url || '',
+                    background_url: designSettings.background_url || '',
+                    background_color: designSettings.background_color || '#f8fafc',
+                    primary_color: designSettings.primary_color || '#e53e3e',
+                    accent_color: designSettings.accent_color || '#f59e0b',
+                    totem_welcome_message: designSettings.totem_welcome_message || '',
+                    menu_header_message: designSettings.menu_header_message || '',
+                    customer_theme: designSettings.customer_theme || 'modern',
+                    show_logo_on_menu: designSettings.show_logo_on_menu !== undefined ? designSettings.show_logo_on_menu : true,
+                    menu_font: designSettings.menu_font || 'default'
+                  });
+
+                  toast.success('✅ Design salvo com sucesso!');
+                } catch (error) {
+                  console.error('Erro ao salvar design:', error);
+                  toast.error('Erro ao salvar design');
+                }
+              }}
+            />
           </Card>
         </TabsContent>
 
