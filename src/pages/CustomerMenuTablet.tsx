@@ -110,6 +110,22 @@ export default function CustomerMenuTablet() {
       if (settingsRes.data) {
         setRestaurantSettings(settingsRes.data);
         setUseFullFlow(settingsRes.data.tablet_full_flow || false);
+        
+        // Aplicar cores personalizadas
+        if (settingsRes.data.primary_color) document.documentElement.style.setProperty('--customer-primary', settingsRes.data.primary_color);
+        if (settingsRes.data.accent_color) document.documentElement.style.setProperty('--customer-accent', settingsRes.data.accent_color);
+        
+        // Aplicar fonte personalizada
+        if (settingsRes.data.menu_font && settingsRes.data.menu_font !== 'default') {
+          const fontMap: any = {
+            elegant: '"Playfair Display", serif',
+            friendly: '"Poppins", sans-serif',
+            modern: '"Montserrat", sans-serif'
+          };
+          if (fontMap[settingsRes.data.menu_font]) {
+            document.body.style.fontFamily = fontMap[settingsRes.data.menu_font];
+          }
+        }
       }
       if (tableRes.data) setTable(tableRes.data);
       if (orderRes.data) setCurrentOrder(orderRes.data);
