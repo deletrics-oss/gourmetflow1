@@ -12,7 +12,7 @@ interface NavItem {
 }
 const mainNavItems: NavItem[] = [{
   title: "Dashboard",
-  href: "/",
+  href: "/dashboard",
   icon: LayoutDashboard
 }, {
   title: "Pedidos Online",
@@ -86,9 +86,13 @@ const cadastrosNavItems: NavItem[] = [{
   icon: Receipt
 }];
 const adminNavItems: NavItem[] = [{
-  title: "Usuários",
-  href: "/usuarios",
+  title: "Funcionários",
+  href: "/funcionarios",
   icon: Users
+}, {
+  title: "Usuários (Auth)",
+  href: "/usuarios",
+  icon: Shield
 }, {
   title: "Logs do Sistema",
   href: "/system-logs",

@@ -1919,6 +1919,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      invite_employee: {
+        Args: {
+          p_email: string
+          p_full_name: string
+          p_restaurant_id?: string
+          p_role?: string
+        }
+        Returns: Json
+      }
       log_action: {
         Args: {
           p_action: string

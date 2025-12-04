@@ -57,6 +57,7 @@ import AdminAssinaturas from "./pages/AdminAssinaturas";
 import SuperAdmin from "./pages/SuperAdmin";
 import GestaoFinanceira from "./pages/GestaoFinanceira";
 import Integracoes from "./pages/Integracoes";
+import Funcionarios from "./pages/Funcionarios";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +140,11 @@ const App = () => {
                       <Route path="/usuarios" element={
                         <ProtectedRoute requireAdmin>
                           <Usuarios />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/funcionarios" element={
+                        <ProtectedRoute requireAdmin>
+                          <Funcionarios />
                         </ProtectedRoute>
                       } />
                       <Route path="/permissoes" element={
