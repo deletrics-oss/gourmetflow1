@@ -43,7 +43,9 @@ import {
   Store,
   Zap,
   Package,
+  UserPlus,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -87,6 +89,14 @@ export default function SuperAdmin() {
   const [showDetails, setShowDetails] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [blockReason, setBlockReason] = useState("");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newTenant, setNewTenant] = useState({
+    email: "",
+    password: "",
+    full_name: "",
+    restaurant_name: "",
+    phone: ""
+  });
   const [stats, setStats] = useState<GlobalStats>({
     total_restaurants: 0,
     online_count: 0,
@@ -475,6 +485,70 @@ export default function SuperAdmin() {
     }
   };
 
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Criar novo usuário/inquilino - NÃO passa invited_by_restaurant, então trigger cria restaurante
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newTenant.email,
+        password: newTenant.password,
+        options: {
+          data: {
+            full_name: newTenant.full_name || newTenant.restaurant_name
+          },
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Erro ao criar usuário");
+
+      // Atualizar nome do restaurante se diferente
+      if (newTenant.restaurant_name) {
+        // Esperar um pouco para o trigger executar
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const { data: userRest } = await supabase
+          .from("user_restaurants")
+          .select("restaurant_id")
+          .eq("user_id", authData.user.id)
+          .single();
+
+        if (userRest?.restaurant_id) {
+          await supabase
+            .from("restaurants")
+            .update({ 
+              name: newTenant.restaurant_name,
+              phone: newTenant.phone 
+            })
+            .eq("id", userRest.restaurant_id);
+        }
+      }
+
+      // Definir role como admin
+      await supabase
+        .from("user_roles")
+        .upsert({
+          user_id: authData.user.id,
+          role: "admin"
+        });
+
+      toast.success("Novo estabelecimento criado com sucesso!");
+      setShowCreateDialog(false);
+      setNewTenant({
+        email: "",
+        password: "",
+        full_name: "",
+        restaurant_name: "",
+        phone: ""
+      });
+      await loadData();
+    } catch (error: any) {
+      console.error("Erro ao criar estabelecimento:", error);
+      toast.error(error.message || "Erro ao criar estabelecimento");
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -488,10 +562,16 @@ export default function SuperAdmin() {
             Gerencie estabelecimentos, monitore faturamento e identifique oportunidades
           </p>
         </div>
-        <Button onClick={loadData} variant="outline">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Criar Estabelecimento
+          </Button>
+          <Button onClick={loadData} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* Global Statistics */}
@@ -878,6 +958,85 @@ export default function SuperAdmin() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Tenant Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Estabelecimento</DialogTitle>
+            <DialogDescription>
+              Crie um novo inquilino com restaurante e trial de 30 dias
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateTenant} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="restaurant_name">Nome do Restaurante *</Label>
+              <Input
+                id="restaurant_name"
+                value={newTenant.restaurant_name}
+                onChange={(e) => setNewTenant({ ...newTenant, restaurant_name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tenant_email">Email do Dono *</Label>
+                <Input
+                  id="tenant_email"
+                  type="email"
+                  value={newTenant.email}
+                  onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenant_password">Senha Inicial *</Label>
+                <Input
+                  id="tenant_password"
+                  type="password"
+                  value={newTenant.password}
+                  onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Nome Completo</Label>
+                <Input
+                  id="full_name"
+                  value={newTenant.full_name}
+                  onChange={(e) => setNewTenant({ ...newTenant, full_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenant_phone">Telefone</Label>
+                <Input
+                  id="tenant_phone"
+                  type="tel"
+                  value={newTenant.phone}
+                  onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-200">
+              <p>✅ O novo dono terá 30 dias de trial gratuito</p>
+              <p>✅ Será criado um restaurante automaticamente</p>
+              <p>✅ Um email de boas-vindas será enviado</p>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Criar Estabelecimento
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
