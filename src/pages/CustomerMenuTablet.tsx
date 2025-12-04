@@ -97,11 +97,27 @@ export default function CustomerMenuTablet() {
 
   const loadData = async () => {
     try {
-      const [categoriesRes, itemsRes, settingsRes, tableRes, orderRes] = await Promise.all([
-        supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('menu_items').select('*').eq('is_available', true).order('sort_order'),
+      // First get table to find restaurant_id
+      const { data: tableData, error: tableError } = await supabase
+        .from('tables')
+        .select('*, restaurant_id')
+        .eq('id', tableId)
+        .single();
+
+      if (tableError || !tableData) {
+        console.error('Table not found:', tableError);
+        setLoading(false);
+        return;
+      }
+
+      setTable(tableData);
+      const restaurantId = tableData.restaurant_id;
+
+      // Now load all data filtered by restaurant_id
+      const [categoriesRes, itemsRes, settingsRes, orderRes] = await Promise.all([
+        supabase.from('categories').select('*').eq('restaurant_id', restaurantId).eq('is_active', true).order('sort_order'),
+        supabase.from('menu_items').select('*').eq('restaurant_id', restaurantId).eq('is_available', true).order('sort_order'),
         supabase.from('restaurant_settings').select('*').single(),
-        supabase.from('tables').select('*').eq('id', tableId).single(),
         supabase.from('orders').select('*').eq('table_id', tableId).in('status', ['new', 'preparing']).maybeSingle()
       ]);
 
@@ -110,24 +126,7 @@ export default function CustomerMenuTablet() {
       if (settingsRes.data) {
         setRestaurantSettings(settingsRes.data);
         setUseFullFlow(settingsRes.data.tablet_full_flow || false);
-        
-        // Aplicar cores personalizadas
-        if (settingsRes.data.primary_color) document.documentElement.style.setProperty('--customer-primary', settingsRes.data.primary_color);
-        if (settingsRes.data.accent_color) document.documentElement.style.setProperty('--customer-accent', settingsRes.data.accent_color);
-        
-        // Aplicar fonte personalizada
-        if (settingsRes.data.menu_font && settingsRes.data.menu_font !== 'default') {
-          const fontMap: any = {
-            elegant: '"Playfair Display", serif',
-            friendly: '"Poppins", sans-serif',
-            modern: '"Montserrat", sans-serif'
-          };
-          if (fontMap[settingsRes.data.menu_font]) {
-            document.body.style.fontFamily = fontMap[settingsRes.data.menu_font];
-          }
-        }
       }
-      if (tableRes.data) setTable(tableRes.data);
       if (orderRes.data) setCurrentOrder(orderRes.data);
 
       setLoading(false);
@@ -714,11 +713,20 @@ export default function CustomerMenuTablet() {
     );
   }
 
+  // Custom color styles based on restaurant settings
+  const primaryColor = restaurantSettings?.primary_color || undefined;
+  const accentColor = restaurantSettings?.accent_color || undefined;
+  const headerStyle = primaryColor ? { backgroundColor: primaryColor } : undefined;
+  const buttonStyle = accentColor ? { backgroundColor: accentColor } : undefined;
+
   // Menu Step (both flows)
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5">
       {/* Header fixo */}
-      <div className="bg-primary text-primary-foreground shadow-xl sticky top-0 z-50">
+      <div 
+        className="bg-primary text-primary-foreground shadow-xl sticky top-0 z-50"
+        style={headerStyle}
+      >
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -732,6 +740,7 @@ export default function CustomerMenuTablet() {
               size="lg"
               variant="secondary"
               className="gap-2 text-lg px-6 py-6"
+              style={buttonStyle}
               onClick={useFullFlow ? handleProceedToIdentification : handleFinishOrderSimple}
               disabled={cart.length === 0}
             >

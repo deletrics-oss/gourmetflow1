@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { ChefHat, Clock, AlertTriangle, CheckCircle, Package, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,24 @@ export default function MonitorCozinhaExterno() {
   const slideSpeed = 8000;
   const [restaurantName, setRestaurantName] = useState("Restaurante");
   const [autoPrint, setAutoPrint] = useState(false);
+  const previousOrderCountRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play audio notification for new orders
+  useEffect(() => {
+    const newOrdersCount = orders.filter(o => o.status === 'new').length;
+    
+    if (newOrdersCount > previousOrderCountRef.current && previousOrderCountRef.current > 0) {
+      // New order arrived - play audio
+      if (!audioRef.current) {
+        audioRef.current = new Audio('/audios/novopedido.mp3');
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(err => console.log('Audio play failed:', err));
+    }
+    
+    previousOrderCountRef.current = newOrdersCount;
+  }, [orders]);
 
   useEffect(() => {
     loadOrders();
@@ -108,7 +126,7 @@ export default function MonitorCozinhaExterno() {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update({ status: newStatus as any })
         .eq('id', orderId);
 
       if (error) throw error;
