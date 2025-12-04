@@ -1,9 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Utensils, LayoutDashboard, ChefHat, Truck, CreditCard, Users, BarChart3, Smartphone } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Check, Utensils, LayoutDashboard, ChefHat, Truck, CreditCard, Users, BarChart3, Smartphone, Loader2 } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Landing() {
+  const { user, loading } = useAuth();
+
+  // Redirecionar usuários logados para o dashboard
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       {/* Hero Section */}
