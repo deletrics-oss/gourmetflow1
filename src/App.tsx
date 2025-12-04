@@ -11,7 +11,10 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { FloatingAISearch } from "@/components/FloatingAISearch";
 import { SubscriptionAlert } from "@/components/SubscriptionAlert";
 import { useState, useEffect } from "react";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import TermosDeUso from "./pages/TermosDeUso";
+import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
 import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
 import Cardapio from "./pages/Cardapio";
@@ -84,7 +87,11 @@ const App = () => {
               <BrowserRouter>
                 <SubscriptionAlert />
           <Routes>
+            {/* Public Routes - Landing e Auth */}
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/termos" element={<TermosDeUso />} />
+            <Route path="/privacidade" element={<PoliticaPrivacidade />} />
             {/* Public Routes - Monitores Externos */}
         <Route path="/monitor-cozinha-externo" element={<MonitorCozinhaExterno />} />
         <Route path="/cozinha-externo" element={<CozinhaExterno />} />
@@ -105,7 +112,7 @@ const App = () => {
                   <Sidebar />
                   <main className="flex-1 overflow-y-auto">
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/pedidos" element={<Pedidos />} />
                       <Route path="/cardapio" element={<Cardapio />} />
                       <Route path="/salao" element={<Salao />} />
