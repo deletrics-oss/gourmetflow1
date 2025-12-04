@@ -158,16 +158,16 @@ export default function PDV() {
   const loadRestaurantSettings = async () => {
     try {
       const { data } = await supabase
-        .from('restaurant_settings' as any)
+        .from('restaurant_settings')
         .select('name, street, number, neighborhood, city, state, zipcode, latitude, longitude, pagseguro_enabled, mercadopago_enabled, rede_enabled, stone_enabled, nubank_enabled')
         .maybeSingle();
 
       if (data) {
-        setRestaurantName(data.name || 'Restaurante');
-        setRestaurantSettings(data);
+        setRestaurantName((data as any).name || 'Restaurante');
+        setRestaurantSettings(data as any);
         
         // Carregar zonas de entrega se houver coordenadas
-        if (data.latitude && data.longitude) {
+        if ((data as any).latitude && (data as any).longitude) {
           const { data: restaurantData } = await supabase
             .from('restaurants')
             .select('id')
@@ -199,31 +199,31 @@ export default function PDV() {
 
   const loadCategories = async () => {
     const { data } = await supabase
-      .from('categories' as any)
+      .from('categories')
       .select('*')
       .eq('is_active', true)
       .order('sort_order');
     
-    if (data) setCategories(data);
+    if (data) setCategories(data as any);
   };
 
   const loadMenuItems = async () => {
     const { data } = await supabase
-      .from('menu_items' as any)
+      .from('menu_items')
       .select('*')
       .eq('is_available', true)
       .order('sort_order');
     
-    if (data) setMenuItems(data);
+    if (data) setMenuItems(data as any);
   };
 
   const loadTables = async () => {
     const { data } = await supabase
-      .from('tables' as any)
+      .from('tables')
       .select('*')
       .order('number');
     
-    if (data) setTables(data);
+    if (data) setTables(data as any);
   };
 
   const loadPendingOrders = async () => {
@@ -253,7 +253,7 @@ export default function PDV() {
     setSearchingOrder(true);
     try {
       const { data: order } = await supabase
-        .from('orders' as any)
+        .from('orders')
         .select(`
           *,
           order_items:order_items(*),
@@ -264,8 +264,8 @@ export default function PDV() {
         .maybeSingle();
 
       if (order) {
-        handleSelectPendingOrder(order);
-        sonnerToast.success(`Pedido ${order.order_number} encontrado e carregado!`);
+        handleSelectPendingOrder(order as any);
+        sonnerToast.success(`Pedido ${(order as any).order_number} encontrado e carregado!`);
         setSearchOrderNumber("");
       } else {
         sonnerToast.error(`Pedido não encontrado`);
@@ -718,13 +718,13 @@ export default function PDV() {
       }
 
       const { data: orderData, error: orderError } = await supabase
-        .from('orders' as any)
+        .from('orders')
         .insert([{
           order_number: orderNumber,
-          delivery_type: finalDeliveryType,
+          delivery_type: finalDeliveryType as any,
           table_id: deliveryType === "dine_in" ? selectedTable : null,
-          status: initialStatus,
-          payment_method: paymentMethod,
+          status: initialStatus as any,
+          payment_method: paymentMethod as any,
           subtotal: subtotal,
           service_fee: serviceFee,
           delivery_fee: deliveryFee,
@@ -740,10 +740,11 @@ export default function PDV() {
         .single();
 
       if (orderError) throw orderError;
+      const order = orderData as any;
 
       // Adicionar itens do pedido com variações
       const orderItems = cart.map(item => ({
-        order_id: orderData.id,
+        order_id: order.id,
         menu_item_id: item.id,
         name: item.name,
         quantity: item.quantity,
@@ -770,7 +771,7 @@ export default function PDV() {
           {
             body: {
               amount: total,
-              orderId: orderData.id,
+              orderId: order.id,
               customerEmail: customerPhone ? `${customerPhone}@temp.com` : 'cliente@temp.com',
               customerPhone: customerPhone,
               paymentMethod: paymentMethod === 'pix' ? 'pix' : 'credit_card'
@@ -814,16 +815,16 @@ export default function PDV() {
         await supabase
           .from('orders')
           .update({ 
-            status: 'completed',
+            status: 'completed' as any,
             completed_at: new Date().toISOString()
           })
-          .eq('id', orderData.id);
+          .eq('id', order.id);
         
         // ✅ FASE 2: Log de pedido processado
         await logActionWithContext(
           'order_processed',
           'orders',
-          orderData.id,
+          order.id,
           {
             order_number: orderNumber,
             delivery_type: finalDeliveryType,

@@ -173,7 +173,7 @@ export default function Configuracoes() {
         setLoyaltyEnabled(data.loyalty_enabled || false);
         setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
         setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
-        setNfceEnabled(data.nfce_enabled || false);
+        setNfceEnabled((data as any).nfce_enabled || false);
         
         // Coordenadas
         if (data.latitude && data.longitude) {
