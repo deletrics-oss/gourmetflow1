@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   userRole: string | null;
+  restaurantRole: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -14,6 +15,8 @@ interface AuthContextType {
   isAdmin: boolean;
   isManager: boolean;
   isKitchen: boolean;
+  isSuperAdmin: boolean;
+  isOwner: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [restaurantRole, setRestaurantRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchUserRoles = async (userId: string) => {
+    // Fetch user_roles (para super admin)
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+    
+    setUserRole(roleData?.role ?? null);
+
+    // Fetch user_restaurants (para dono/funcionário)
+    const { data: restaurantData } = await supabase
+      .from('user_restaurants')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+    
+    setRestaurantRole(restaurantData?.role ?? null);
+  };
 
   useEffect(() => {
     // Set up auth state listener
@@ -32,18 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user role
-          setTimeout(async () => {
-            const { data: roleData } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', session.user.id)
-              .single();
-            
-            setUserRole(roleData?.role ?? null);
-          }, 0);
+          setTimeout(() => fetchUserRoles(session.user.id), 0);
         } else {
           setUserRole(null);
+          setRestaurantRole(null);
         }
       }
     );
@@ -55,13 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (session?.user) {
         setTimeout(async () => {
-          const { data: roleData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .single();
-          
-          setUserRole(roleData?.role ?? null);
+          await fetchUserRoles(session.user.id);
           setLoading(false);
         }, 0);
       } else {
@@ -121,17 +132,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // isSuperAdmin: user_roles.role === 'admin' (só o joel ou super admins globais)
+  const isSuperAdmin = userRole === 'admin';
+  
+  // isOwner: user_restaurants.role === 'owner' (donos de restaurantes)
+  const isOwner = restaurantRole === 'owner';
+  
+  // isAdmin: Super Admin OU Dono (ambos têm acesso administrativo)
+  const isAdmin = isSuperAdmin || isOwner;
+  
+  // isManager: gerentes ou acima
+  const isManager = isAdmin || userRole === 'manager' || restaurantRole === 'admin' || restaurantRole === 'manager';
+  
+  // isKitchen: cozinha
+  const isKitchen = userRole === 'kitchen';
+
   const value = {
     user,
     session,
     userRole,
+    restaurantRole,
     loading,
     signIn,
     signUp,
     signOut,
-    isAdmin: userRole === 'admin',
-    isManager: userRole === 'manager' || userRole === 'admin',
-    isKitchen: userRole === 'kitchen',
+    isAdmin,
+    isManager,
+    isKitchen,
+    isSuperAdmin,
+    isOwner,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

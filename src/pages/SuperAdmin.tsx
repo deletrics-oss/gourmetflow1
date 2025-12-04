@@ -44,10 +44,13 @@ import {
   Zap,
   Package,
   UserPlus,
+  ShieldAlert,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/hooks/useAuth";
+import { Navigate } from "react-router-dom";
 
 interface RestaurantData {
   id: string;
@@ -78,6 +81,7 @@ interface GlobalStats {
 }
 
 export default function SuperAdmin() {
+  const { isSuperAdmin, loading: authLoading } = useAuth();
   const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [filteredRestaurants, setFilteredRestaurants] = useState<RestaurantData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,12 +113,34 @@ export default function SuperAdmin() {
   });
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (isSuperAdmin) {
+      loadData();
+    }
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     filterRestaurants();
   }, [searchTerm, planFilter, statusFilter, onlineFilter, restaurants]);
+
+  // Proteger página - apenas Super Admin pode acessar
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <ShieldAlert className="h-16 w-16 text-destructive" />
+        <h1 className="text-2xl font-bold">Acesso Negado</h1>
+        <p className="text-muted-foreground">Esta página é exclusiva para Super Administradores.</p>
+        <Button onClick={() => window.history.back()}>Voltar</Button>
+      </div>
+    );
+  }
 
   const loadData = async () => {
     try {

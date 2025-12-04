@@ -141,6 +141,8 @@ export function Sidebar() {
   const {
     isAdmin,
     isManager,
+    isSuperAdmin,
+    isOwner,
     signOut,
     user
   } = useAuth();
@@ -271,8 +273,8 @@ export function Sidebar() {
           })}
           </div>}
 
-        {isAdmin && <div className="mt-6 space-y-1 px-3">
-            <p className="px-3 text-xs font-semibold text-muted-foreground">ASSINATURAS</p>
+        {isSuperAdmin && <div className="mt-6 space-y-1 px-3">
+            <p className="px-3 text-xs font-semibold text-muted-foreground">SUPER ADMIN</p>
             {subscriptionNavItems.map(item => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
@@ -301,7 +303,7 @@ export function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.email}</p>
             <p className="text-xs text-muted-foreground truncate">
-              {isAdmin ? 'Administrador' : isManager ? 'Gerente' : 'Funcionário'}
+              {isSuperAdmin ? '👑 Super Admin' : isOwner ? 'Dono' : isManager ? 'Gerente' : 'Funcionário'}
             </p>
           </div>
         </div>
