@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Utensils } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Utensils, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -22,10 +23,11 @@ export default function Login() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   // Redirect if already logged in
   if (user) {
-    navigate('/');
+    navigate('/dashboard');
     return null;
   }
 
@@ -33,11 +35,9 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Tenta login com Supabase Auth
       await signIn(loginEmail, loginPassword);
-      // Aguarda um pouco para garantir que o auth state foi atualizado
       setTimeout(() => {
-        navigate('/');
+        navigate('/dashboard');
       }, 500);
     } catch (error) {
       console.error('Login error:', error);
@@ -49,10 +49,16 @@ export default function Login() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!acceptTerms) {
+      toast.error('Você precisa aceitar os Termos de Uso e Política de Privacidade');
+      return;
+    }
+    
     setLoading(true);
     try {
       await signUp(signupEmail, signupPassword, signupName);
-      navigate('/');
+      navigate('/dashboard');
     } catch (error) {
       console.error('Signup error:', error);
     } finally {
@@ -62,6 +68,15 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 via-background to-primary/10 p-4">
+      <div className="absolute top-4 left-4">
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Link>
+        </Button>
+      </div>
+      
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-center gap-3">
@@ -147,9 +162,29 @@ export default function Login() {
                     minLength={6}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Criando conta...' : 'Criar Conta'}
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="terms"
+                    checked={acceptTerms}
+                    onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                  />
+                  <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
+                    Li e aceito os{' '}
+                    <Link to="/termos" className="text-primary hover:underline" target="_blank">
+                      Termos de Uso
+                    </Link>{' '}
+                    e a{' '}
+                    <Link to="/privacidade" className="text-primary hover:underline" target="_blank">
+                      Política de Privacidade
+                    </Link>
+                  </label>
+                </div>
+                <Button type="submit" className="w-full" disabled={loading || !acceptTerms}>
+                  {loading ? 'Criando conta...' : 'Criar Conta (30 dias grátis)'}
                 </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  ✨ Trial gratuito de 30 dias • Sem cartão de crédito
+                </p>
               </form>
             </TabsContent>
           </Tabs>
