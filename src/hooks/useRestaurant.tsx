@@ -59,5 +59,11 @@ export const useRestaurant = () => {
     }
   };
 
-  return { restaurant, loading, reload: loadRestaurant };
+  // Retornar restaurantId diretamente para facilitar uso nas páginas
+  return { 
+    restaurant, 
+    restaurantId: restaurant?.id || null,
+    loading, 
+    reload: loadRestaurant 
+  };
 };

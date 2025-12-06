@@ -1194,6 +1194,7 @@ export type Database = {
           rede_pv: string | null
           rede_token: string | null
           responsible_name: string | null
+          restaurant_id: string | null
           segment: string | null
           show_logo_on_menu: boolean | null
           state: string | null
@@ -1268,6 +1269,7 @@ export type Database = {
           rede_pv?: string | null
           rede_token?: string | null
           responsible_name?: string | null
+          restaurant_id?: string | null
           segment?: string | null
           show_logo_on_menu?: boolean | null
           state?: string | null
@@ -1342,6 +1344,7 @@ export type Database = {
           rede_pv?: string | null
           rede_token?: string | null
           responsible_name?: string | null
+          restaurant_id?: string | null
           segment?: string | null
           show_logo_on_menu?: boolean | null
           state?: string | null
@@ -1360,7 +1363,15 @@ export type Database = {
           whatsapp_webhook_url?: string | null
           zipcode?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       restaurants: {
         Row: {

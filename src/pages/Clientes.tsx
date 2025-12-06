@@ -12,8 +12,10 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useCEP } from "@/hooks/useCEP";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Clientes() {
+  const { restaurantId } = useRestaurant();
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerHistory, setCustomerHistory] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -34,7 +36,9 @@ export default function Clientes() {
   });
 
   useEffect(() => {
-    loadCustomers();
+    if (restaurantId) {
+      loadCustomers();
+    }
     
     // Realtime subscription para novos clientes
     const channel = supabase
@@ -44,20 +48,23 @@ export default function Clientes() {
         schema: 'public',
         table: 'customers'
       }, () => {
-        loadCustomers();
+        if (restaurantId) loadCustomers();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [restaurantId]);
 
   const loadCustomers = async () => {
+    if (!restaurantId) return;
+    
     try {
       const { data, error } = await supabase
         .from('customers' as any)
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -97,7 +104,7 @@ export default function Clientes() {
       } else {
         const { error } = await supabase
           .from('customers' as any)
-          .insert([formData]);
+          .insert([{ ...formData, restaurant_id: restaurantId }]);
 
         if (error) throw error;
         toast.success('Cliente cadastrado!');

@@ -15,9 +15,11 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { useCEP } from "@/hooks/useCEP";
 import { useAuth } from "@/hooks/useAuth";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Configuracoes() {
   const { isOwner, isAdmin } = useAuth();
+  const { restaurantId } = useRestaurant();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
     name: "",
@@ -96,9 +98,11 @@ export default function Configuracoes() {
   const { buscarCEP, loading: cepLoading } = useCEP();
 
   useEffect(() => {
-    loadSettings();
-    loadGatewayStatus();
-  }, []);
+    if (restaurantId) {
+      loadSettings();
+      loadGatewayStatus();
+    }
+  }, [restaurantId]);
 
   const loadGatewayStatus = () => {
     try {
@@ -133,11 +137,14 @@ export default function Configuracoes() {
   };
 
   const loadSettings = async () => {
+    if (!restaurantId) return;
+    
     try {
-      console.log('[CONFIGURACOES] Carregando configurações do banco...');
+      console.log('[CONFIGURACOES] Carregando configurações do banco para restaurant_id:', restaurantId);
       const { data, error } = await supabase
         .from('restaurant_settings')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -292,20 +299,21 @@ export default function Configuracoes() {
   };
 
   const handleSaveSettings = async () => {
+    if (!restaurantId) {
+      toast.error('Restaurante não encontrado');
+      return;
+    }
+    
     setLoading(true);
     try {
       console.log('[CONFIGURACOES] ============ INICIANDO SALVAMENTO ============');
-      console.log('[CONFIGURACOES] Estados atuais:', {
-        pagseguroEnabled: pagSeguroEnabled,
-        pagseguroEmail: pagSeguroEmail,
-        pagseguroTokenLength: pagSeguroToken?.length || 0,
-        mercadoPagoEnabled: mercadoPagoEnabled
-      });
+      console.log('[CONFIGURACOES] Restaurant ID:', restaurantId);
       
       // Buscar ID do restaurante settings
       const { data: existing, error: fetchError } = await supabase
         .from('restaurant_settings')
         .select('id')
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
@@ -315,6 +323,7 @@ export default function Configuracoes() {
 
       // Construir objeto de dados
       const dataToSave = {
+        restaurant_id: restaurantId,
         name: settings.name || null,
         phone: settings.phone || null,
         instagram: settings.instagram || null,

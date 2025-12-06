@@ -9,6 +9,7 @@ import { ManageTablesDialog } from "@/components/dialogs/ManageTablesDialog";
 import { QRCodeGenerator } from "@/components/QRCodeGenerator";
 import { TableDetailsDialog } from "@/components/dialogs/TableDetailsDialog";
 import { logActionWithContext } from "@/lib/logging";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface TableWithStats {
   id: string;
@@ -22,6 +23,7 @@ interface TableWithStats {
 }
 
 export default function Salao() {
+  const { restaurantId } = useRestaurant();
   const [tables, setTables] = useState<TableWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
@@ -29,7 +31,9 @@ export default function Salao() {
   const [selectedTable, setSelectedTable] = useState<any>(null);
 
   useEffect(() => {
-    loadTables();
+    if (restaurantId) {
+      loadTables();
+    }
     
     // Realtime subscription for table changes
     const channel = supabase
@@ -42,7 +46,7 @@ export default function Salao() {
           table: 'tables'
         },
         () => {
-          loadTables();
+          if (restaurantId) loadTables();
         }
       )
       .subscribe();
@@ -50,14 +54,17 @@ export default function Salao() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [restaurantId]);
 
   const loadTables = async () => {
+    if (!restaurantId) return;
+    
     try {
       // Get tables with aggregated order data
       const { data: tablesData, error: tablesError } = await supabase
         .from('tables')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('number');
 
       if (tablesError) throw tablesError;
@@ -66,6 +73,7 @@ export default function Salao() {
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('table_id, number_of_guests, total, created_at')
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
         .not('table_id', 'is', null);
 

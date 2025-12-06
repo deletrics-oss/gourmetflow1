@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Relatorios() {
+  const { restaurantId } = useRestaurant();
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
   const [orders, setOrders] = useState<any[]>([]);
   const [cashMovements, setCashMovements] = useState<any[]>([]);
@@ -15,8 +17,10 @@ export default function Relatorios() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [period]);
+    if (restaurantId) {
+      loadData();
+    }
+  }, [period, restaurantId]);
 
   const getDateRange = () => {
     const now = new Date();
@@ -31,6 +35,8 @@ export default function Relatorios() {
   };
 
   const loadData = async () => {
+    if (!restaurantId) return;
+    
     setLoading(true);
     try {
       const { start, end } = getDateRange();
@@ -39,6 +45,7 @@ export default function Relatorios() {
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders' as any)
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .eq('status', 'completed')
@@ -51,6 +58,7 @@ export default function Relatorios() {
       const { data: cashData, error: cashError } = await supabase
         .from('cash_movements' as any)
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .order('created_at', { ascending: false });

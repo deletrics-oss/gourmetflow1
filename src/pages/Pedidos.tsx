@@ -11,8 +11,10 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { logActionWithContext } from "@/lib/logging";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Pedidos() {
+  const { restaurantId } = useRestaurant();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [motoboys, setMotoboys] = useState<any[]>([]);
@@ -23,27 +25,32 @@ export default function Pedidos() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
-    loadOrders();
-    loadMotoboys();
+    if (restaurantId) {
+      loadOrders();
+      loadMotoboys();
+    }
     
     // Realtime subscription
     const channel = supabase
       .channel('orders-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadOrders();
+        if (restaurantId) loadOrders();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [restaurantId]);
 
   const loadMotoboys = async () => {
+    if (!restaurantId) return;
+    
     try {
       const { data, error } = await supabase
         .from('motoboys')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .eq('is_active', true)
         .order('name');
 
@@ -97,6 +104,8 @@ export default function Pedidos() {
   };
 
   const loadOrders = async () => {
+    if (!restaurantId) return;
+    
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -105,6 +114,7 @@ export default function Pedidos() {
           order_items(*),
           tables(number)
         `)
+        .eq('restaurant_id', restaurantId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
