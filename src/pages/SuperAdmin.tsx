@@ -101,6 +101,12 @@ export default function SuperAdmin() {
     restaurant_name: "",
     phone: ""
   });
+  
+  // Novos estados para poderes de promoção
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false);
+  const [showChangePlanDialog, setShowChangePlanDialog] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>("");
+  
   const [stats, setStats] = useState<GlobalStats>({
     total_restaurants: 0,
     online_count: 0,
@@ -508,6 +514,85 @@ export default function SuperAdmin() {
     } catch (error) {
       console.error("Error toggling block:", error);
       toast.error("Erro ao atualizar bloqueio");
+    }
+  };
+
+  // Promover a Super Admin
+  const handlePromoteToSuperAdmin = async () => {
+    if (!selectedRestaurant) return;
+
+    try {
+      // Buscar user_id do restaurante
+      const { data: userRestaurant } = await supabase
+        .from("user_restaurants")
+        .select("user_id")
+        .eq("restaurant_id", selectedRestaurant.id)
+        .eq("is_active", true)
+        .single();
+
+      if (!userRestaurant) {
+        toast.error("Usuário não encontrado");
+        return;
+      }
+
+      // Inserir role admin (Super Admin)
+      const { error } = await supabase
+        .from("user_roles")
+        .upsert({
+          user_id: userRestaurant.user_id,
+          role: "admin"
+        }, { onConflict: "user_id,role" });
+
+      if (error) throw error;
+
+      toast.success("Usuário promovido a Super Admin!");
+      setShowPromoteDialog(false);
+      setShowDetails(false);
+      await loadData();
+    } catch (error) {
+      console.error("Error promoting to super admin:", error);
+      toast.error("Erro ao promover usuário");
+    }
+  };
+
+  // Alterar plano de assinatura
+  const handleChangePlan = async () => {
+    if (!selectedRestaurant || !selectedPlan) return;
+
+    try {
+      // Buscar user_id do restaurante
+      const { data: userRestaurant } = await supabase
+        .from("user_restaurants")
+        .select("user_id")
+        .eq("restaurant_id", selectedRestaurant.id)
+        .eq("is_active", true)
+        .single();
+
+      if (!userRestaurant) {
+        toast.error("Usuário não encontrado");
+        return;
+      }
+
+      // Atualizar plano na subscription
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({ 
+          plan_type: selectedPlan,
+          status: "active",
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userRestaurant.user_id);
+
+      if (error) throw error;
+
+      toast.success(`Plano alterado para ${getPlanName(selectedPlan)}!`);
+      setShowChangePlanDialog(false);
+      setSelectedPlan("");
+      setShowDetails(false);
+      await loadData();
+    } catch (error) {
+      console.error("Error changing plan:", error);
+      toast.error("Erro ao alterar plano");
     }
   };
 
@@ -926,7 +1011,26 @@ export default function SuperAdmin() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedPlan(selectedRestaurant.plan_type || "essencial");
+                    setShowChangePlanDialog(true);
+                  }}
+                  className="flex-1"
+                >
+                  <ArrowUpCircle className="w-4 h-4 mr-2" />
+                  Alterar Plano
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPromoteDialog(true)}
+                  className="flex-1"
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Promover
+                </Button>
                 {selectedRestaurant.manually_blocked ? (
                   <Button
                     variant="outline"
@@ -949,6 +1053,76 @@ export default function SuperAdmin() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Promote to Super Admin Dialog */}
+      <Dialog open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Promover a Super Admin</DialogTitle>
+            <DialogDescription>
+              Esta ação dará poderes de Super Admin ao dono deste estabelecimento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-yellow-50 dark:bg-yellow-950/30 p-4 rounded-lg">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                ⚠️ <strong>Atenção:</strong> Super Admins têm acesso total ao painel de gestão de todos os estabelecimentos.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowPromoteDialog(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={handlePromoteToSuperAdmin} className="flex-1">
+                <Crown className="w-4 h-4 mr-2" />
+                Confirmar Promoção
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Plan Dialog */}
+      <Dialog open={showChangePlanDialog} onOpenChange={setShowChangePlanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Plano de Assinatura</DialogTitle>
+            <DialogDescription>
+              Selecione o novo plano para este estabelecimento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Plano Atual</Label>
+              <p className="text-sm text-muted-foreground">
+                {getPlanName(selectedRestaurant?.plan_type || null)}
+              </p>
+            </div>
+            <div>
+              <Label>Novo Plano</Label>
+              <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="essencial">Essencial - R$149/mês</SelectItem>
+                  <SelectItem value="essencial_mesas">Essencial + Mesas - R$249/mês</SelectItem>
+                  <SelectItem value="customizado">Customizado - R$399/mês</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowChangePlanDialog(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={handleChangePlan} className="flex-1" disabled={!selectedPlan}>
+                <ArrowUpCircle className="w-4 h-4 mr-2" />
+                Confirmar Alteração
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -4,16 +4,22 @@ import { ShoppingBag, ChefHat, TrendingUp, Package, Clock, MessageSquare, Settin
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useRestaurant } from "@/hooks/useRestaurant";
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { restaurantId } = useRestaurant();
   const [stats, setStats] = useState({
     newOrders: 0,
     preparing: 0,
     totalToday: 0,
     revenue: 0
   });
+  
   useEffect(() => {
-    loadStats();
+    if (restaurantId) {
+      loadStats();
+    }
 
     // Realtime subscription
     const channel = supabase.channel('dashboard-orders').on('postgres_changes', {
@@ -21,22 +27,28 @@ export default function Dashboard() {
       schema: 'public',
       table: 'orders'
     }, () => {
-      loadStats();
+      if (restaurantId) loadStats();
     }).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [restaurantId]);
+  
   const loadStats = async () => {
+    if (!restaurantId) return;
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const {
-      data: orders
-    } = await supabase.from('orders').select('*').gte('created_at', today.toISOString());
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', today.toISOString());
+      
     if (orders) {
       const newOrders = orders.filter(o => o.status === 'new').length;
       const preparing = orders.filter(o => o.status === 'preparing' || o.status === 'confirmed').length;
-      const revenue = orders.filter(o => o.status === 'ready').reduce((sum, o) => sum + (o.total || 0), 0);
+      const revenue = orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total || 0), 0);
       setStats({
         newOrders,
         preparing,

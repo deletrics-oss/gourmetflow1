@@ -12,18 +12,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { logActionWithContext } from '@/lib/logging';
+import { useRestaurant } from '@/hooks/useRestaurant';
 
 export default function DisparoMassa() {
+  const { restaurantId } = useRestaurant();
   const [message, setMessage] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'has_orders' | 'has_loyalty'>('all');
 
   const { data: customers = [] } = useQuery({
-    queryKey: ['customers-dispatch', filterType],
+    queryKey: ['customers-dispatch', filterType, restaurantId],
     queryFn: async () => {
+      if (!restaurantId) return [];
+      
       let query = supabase
         .from('customers')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('name');
 
       if (filterType === 'has_loyalty') {
@@ -33,7 +38,8 @@ export default function DisparoMassa() {
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
-    }
+    },
+    enabled: !!restaurantId
   });
 
   const toggleCustomer = (customerId: string) => {
