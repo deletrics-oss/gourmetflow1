@@ -7,30 +7,24 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Save, Loader2, Facebook, MessageCircle } from "lucide-react";
+import { Save, Loader2, Facebook, MessageCircle, CheckCircle2 } from "lucide-react";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Integracoes() {
+  const { restaurantId, loading: restaurantLoading } = useRestaurant();
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [settings, setSettings] = useState({
-    // iFood
     ifood_enabled: false,
     ifood_token: "",
-    
-    // 99Food
     ninefood_enabled: false,
     ninefood_token: "",
-    
-    // Keeta (antigo iFood Delivery)
     keeta_enabled: false,
     keeta_token: "",
-    
-    // WhatsApp (Evolution API)
     whatsapp_enabled: false,
     whatsapp_api_key: "",
     whatsapp_phone: "",
     whatsapp_webhook_url: "",
-    
-    // Facebook/Instagram
     facebook_enabled: false,
     facebook_business_id: "",
     facebook_access_token: "",
@@ -38,14 +32,17 @@ export default function Integracoes() {
   });
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (restaurantId) {
+      loadSettings();
+    }
+  }, [restaurantId]);
 
   const loadSettings = async () => {
     try {
       const { data, error } = await supabase
         .from('restaurant_settings')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
@@ -75,11 +72,18 @@ export default function Integracoes() {
   };
 
   const handleSave = async () => {
+    if (!restaurantId) {
+      toast.error("Restaurante não identificado");
+      return;
+    }
+
     setLoading(true);
+    setSaved(false);
     try {
       const { data: existing } = await supabase
         .from('restaurant_settings')
         .select('id')
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       const dataToSave = {
@@ -103,11 +107,13 @@ export default function Integracoes() {
       } else {
         const { error } = await supabase
           .from('restaurant_settings')
-          .insert([{ ...dataToSave, name: 'Restaurante' }]);
+          .insert([{ ...dataToSave, name: 'Restaurante', restaurant_id: restaurantId }]);
         if (error) throw error;
       }
 
+      setSaved(true);
       toast.success("Configurações salvas com sucesso!");
+      setTimeout(() => setSaved(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar:', error);
       toast.error("Erro ao salvar configurações");
@@ -115,6 +121,14 @@ export default function Integracoes() {
       setLoading(false);
     }
   };
+
+  if (restaurantLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -130,6 +144,11 @@ export default function Integracoes() {
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Salvando...
+            </>
+          ) : saved ? (
+            <>
+              <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+              Salvo!
             </>
           ) : (
             <>
