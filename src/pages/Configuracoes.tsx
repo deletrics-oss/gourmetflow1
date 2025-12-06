@@ -3,18 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard, Loader2, CheckCircle, AlertCircle, Users } from "lucide-react";
 import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
 import { CustomerDesignEditor } from "@/components/CustomerDesignEditor";
+import { EmployeesTab } from "@/components/EmployeesTab";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { useCEP } from "@/hooks/useCEP";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Configuracoes() {
+  const { isOwner, isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
     name: "",
@@ -514,43 +517,49 @@ export default function Configuracoes() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className="grid w-full grid-cols-9">
-          <TabsTrigger value="geral">
-            <Info className="h-4 w-4 mr-2" />
-            Geral
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="geral" className="flex-shrink-0">
+            <Info className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Geral</span>
           </TabsTrigger>
-          <TabsTrigger value="localizacao">
-            <MapPin className="h-4 w-4 mr-2" />
-            Localização
+          <TabsTrigger value="localizacao" className="flex-shrink-0">
+            <MapPin className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Localização</span>
           </TabsTrigger>
-          <TabsTrigger value="fidelidade">
-            <Gift className="h-4 w-4 mr-2" />
-            Fidelidade
+          <TabsTrigger value="fidelidade" className="flex-shrink-0">
+            <Gift className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Fidelidade</span>
           </TabsTrigger>
-          <TabsTrigger value="entrega">
-            <Truck className="h-4 w-4 mr-2" />
-            Entrega
+          <TabsTrigger value="entrega" className="flex-shrink-0">
+            <Truck className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Entrega</span>
           </TabsTrigger>
-          <TabsTrigger value="pagamentos">
-            <CreditCard className="h-4 w-4 mr-2" />
-            Pagamentos
+          <TabsTrigger value="pagamentos" className="flex-shrink-0">
+            <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Pagamentos</span>
           </TabsTrigger>
-          <TabsTrigger value="tema">
-            <Palette className="h-4 w-4 mr-2" />
-            Tema
+          <TabsTrigger value="tema" className="flex-shrink-0">
+            <Palette className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Tema</span>
           </TabsTrigger>
-          <TabsTrigger value="design">
-            <Palette className="h-4 w-4 mr-2" />
-            Design Clientes
+          <TabsTrigger value="design" className="flex-shrink-0">
+            <Palette className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Design</span>
           </TabsTrigger>
-          <TabsTrigger value="audio">
-            <Volume2 className="h-4 w-4 mr-2" />
-            Áudio
+          <TabsTrigger value="audio" className="flex-shrink-0">
+            <Volume2 className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Áudio</span>
           </TabsTrigger>
-          <TabsTrigger value="nfce">
-            <DollarSign className="h-4 w-4 mr-2" />
-            NFC-e
+          <TabsTrigger value="nfce" className="flex-shrink-0">
+            <DollarSign className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">NFC-e</span>
           </TabsTrigger>
+          {(isOwner || isAdmin) && (
+            <TabsTrigger value="funcionarios" className="flex-shrink-0">
+              <Users className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Funcionários</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="geral">
@@ -1700,6 +1709,15 @@ export default function Configuracoes() {
             </div>
           </Card>
         </TabsContent>
+
+        {/* Aba Funcionários - visível apenas para Owner/Admin */}
+        {(isOwner || isAdmin) && (
+          <TabsContent value="funcionarios">
+            <Card className="p-6">
+              <EmployeesTab />
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

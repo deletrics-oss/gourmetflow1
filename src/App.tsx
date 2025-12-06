@@ -4,12 +4,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileHeader } from "@/components/MobileHeader";
+import { MobileSidebar } from "@/components/MobileSidebar";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppProvider } from "@/contexts/AppContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { FloatingAISearch } from "@/components/FloatingAISearch";
 import { SubscriptionAlert } from "@/components/SubscriptionAlert";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, useEffect } from "react";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -61,6 +64,32 @@ import Funcionarios from "./pages/Funcionarios";
 
 const queryClient = new QueryClient();
 
+// Layout com Sidebar responsivo
+function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen w-full flex-col md:flex-row">
+      {/* Desktop Sidebar */}
+      <Sidebar />
+
+      {/* Mobile Header + Sidebar */}
+      {isMobile && (
+        <>
+          <MobileHeader onMenuClick={() => setMobileMenuOpen(true)} />
+          <MobileSidebar open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
+        </>
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
+    </div>
+  );
+}
+
 const App = () => {
   const [showSearch, setShowSearch] = useState(false);
 
@@ -109,10 +138,8 @@ const App = () => {
             
             <Route path="/*" element={
               <ProtectedRoute>
-                <div className="flex h-screen">
-                  <Sidebar />
-                  <main className="flex-1 overflow-y-auto">
-                    <Routes>
+                <ProtectedLayout>
+                  <Routes>
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/pedidos" element={<Pedidos />} />
                       <Route path="/cardapio" element={<Cardapio />} />
@@ -191,8 +218,7 @@ const App = () => {
                       } />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
-                  </main>
-                </div>
+                </ProtectedLayout>
               </ProtectedRoute>
             } />
             
