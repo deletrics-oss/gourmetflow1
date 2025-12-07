@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   
   // Login form
@@ -25,10 +25,20 @@ export default function Login() {
   const [signupName, setSignupName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  // Redirect if already logged in
-  if (user) {
-    navigate('/dashboard');
-    return null;
+  // Redirect if already logged in - using useEffect to prevent loop
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
+
+  // Show loading while checking auth or redirecting
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 via-background to-primary/10">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   const handleLogin = async (e: React.FormEvent) => {

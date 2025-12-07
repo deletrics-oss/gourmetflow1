@@ -62,16 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Set up auth state listener
+    // Set up auth state listener - NO async callback to prevent deadlock
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!isMounted) return;
         
         setSession(session);
         setUser(session?.user ?? null);
         
+        // Use setTimeout(0) to defer async call and prevent deadlock
         if (session?.user) {
-          await fetchUserRoles(session.user.id);
+          setTimeout(() => {
+            if (isMounted) {
+              fetchUserRoles(session.user.id);
+            }
+          }, 0);
         } else {
           setUserRole(null);
           setRestaurantRole(null);
