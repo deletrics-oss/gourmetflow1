@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { Loader2, LayoutDashboard, Smartphone, MessageCircle, Workflow, Send } from "lucide-react";
 import { DevicesManager } from "@/components/whatsapp/DevicesManager";
