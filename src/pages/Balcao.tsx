@@ -92,7 +92,7 @@ export default function Balcao() {
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const { toast } = useToast();
   const { sendMessage } = useWhatsApp();
-  const { restaurant, restaurantId } = useRestaurant();
+  const { restaurant } = useRestaurant();
   const { calculateFromAddress, loading: deliveryLoading } = useDeliveryFee();
 
   // Busca automática de cliente por telefone (com debounce)
@@ -192,34 +192,28 @@ export default function Balcao() {
   }, [customerAddress.street, customerAddress.number, customerAddress.city, deliveryType]);
 
   useEffect(() => {
-    if (restaurantId) {
-      loadCategories();
-      loadMenuItems();
-      loadRestaurantSettings();
-      loadMotoboys();
-    }
-  }, [restaurantId]);
+    loadCategories();
+    loadMenuItems();
+    loadRestaurantSettings();
+    loadMotoboys();
+  }, []);
 
   const loadCategories = async () => {
-    if (!restaurantId) return;
-    const { data } = await supabase.from("categories").select("*").eq("restaurant_id", restaurantId).eq("is_active", true).order("sort_order");
+    const { data } = await supabase.from("categories").select("*").eq("is_active", true).order("sort_order");
     if (data) setCategories(data);
   };
 
   const loadMenuItems = async () => {
-    if (!restaurantId) return;
     const { data } = await supabase
       .from("menu_items")
       .select("*")
-      .eq("restaurant_id", restaurantId)
       .eq("is_available", true)
       .order("sort_order");
     if (data) setMenuItems(data);
   };
 
   const loadRestaurantSettings = async () => {
-    if (!restaurantId) return;
-    const { data } = await supabase.from("restaurant_settings").select("*").eq("restaurant_id", restaurantId).maybeSingle();
+    const { data } = await supabase.from("restaurant_settings").select("*").single();
     if (data) {
       setRestaurantName(data.name || "Restaurante");
       setLoyaltyEnabled(data.loyalty_enabled || false);
@@ -229,11 +223,9 @@ export default function Balcao() {
   };
 
   const loadMotoboys = async () => {
-    if (!restaurantId) return;
     const { data } = await supabase
       .from("motoboys")
       .select("*")
-      .eq("restaurant_id", restaurantId)
       .eq("is_active", true)
       .order("name");
     if (data) setMotoboys(data);

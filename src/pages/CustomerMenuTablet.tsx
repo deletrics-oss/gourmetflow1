@@ -117,7 +117,7 @@ export default function CustomerMenuTablet() {
       const [categoriesRes, itemsRes, settingsRes, orderRes] = await Promise.all([
         supabase.from('categories').select('*').eq('restaurant_id', restaurantId).eq('is_active', true).order('sort_order'),
         supabase.from('menu_items').select('*').eq('restaurant_id', restaurantId).eq('is_available', true).order('sort_order'),
-        supabase.from('restaurant_settings').select('*').eq('restaurant_id', restaurantId).maybeSingle(),
+        supabase.from('restaurant_settings').select('*').eq('restaurant_id', restaurantId).single(),
         supabase.from('orders').select('*').eq('table_id', tableId).in('status', ['new', 'preparing']).maybeSingle()
       ]);
 
