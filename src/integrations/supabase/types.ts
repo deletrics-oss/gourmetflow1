@@ -1835,239 +1835,41 @@ export type Database = {
         }
         Relationships: []
       }
-      whatsapp_conversations: {
-        Row: {
-          contact_name: string | null
-          contact_phone: string
-          created_at: string | null
-          device_id: string | null
-          id: string
-          is_paused: boolean | null
-          last_message_at: string | null
-          restaurant_id: string | null
-          unread_count: number | null
-        }
-        Insert: {
-          contact_name?: string | null
-          contact_phone: string
-          created_at?: string | null
-          device_id?: string | null
-          id?: string
-          is_paused?: boolean | null
-          last_message_at?: string | null
-          restaurant_id?: string | null
-          unread_count?: number | null
-        }
-        Update: {
-          contact_name?: string | null
-          contact_phone?: string
-          created_at?: string | null
-          device_id?: string | null
-          id?: string
-          is_paused?: boolean | null
-          last_message_at?: string | null
-          restaurant_id?: string | null
-          unread_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_conversations_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_devices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_conversations_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_devices: {
-        Row: {
-          active_logic_id: string | null
-          connection_status: string | null
-          created_at: string | null
-          id: string
-          last_connected_at: string | null
-          name: string
-          phone_number: string | null
-          qr_code: string | null
-          restaurant_id: string | null
-          should_transcribe: boolean | null
-          updated_at: string | null
-        }
-        Insert: {
-          active_logic_id?: string | null
-          connection_status?: string | null
-          created_at?: string | null
-          id?: string
-          last_connected_at?: string | null
-          name?: string
-          phone_number?: string | null
-          qr_code?: string | null
-          restaurant_id?: string | null
-          should_transcribe?: boolean | null
-          updated_at?: string | null
-        }
-        Update: {
-          active_logic_id?: string | null
-          connection_status?: string | null
-          created_at?: string | null
-          id?: string
-          last_connected_at?: string | null
-          name?: string
-          phone_number?: string | null
-          qr_code?: string | null
-          restaurant_id?: string | null
-          should_transcribe?: boolean | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_devices_active_logic_fkey"
-            columns: ["active_logic_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_logic_configs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_devices_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_logic_configs: {
-        Row: {
-          ai_prompt: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          is_active: boolean | null
-          logic_json: Json | null
-          logic_type: string | null
-          name: string
-          restaurant_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          ai_prompt?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          logic_json?: Json | null
-          logic_type?: string | null
-          name: string
-          restaurant_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          ai_prompt?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          logic_json?: Json | null
-          logic_type?: string | null
-          name?: string
-          restaurant_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_logic_configs_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       whatsapp_messages: {
         Row: {
           ai_response: string | null
-          conversation_id: string | null
           created_at: string | null
-          device_id: string | null
-          direction: string | null
           id: string
-          is_from_bot: boolean | null
-          media_type: string | null
-          media_url: string | null
           message_content: string
           message_type: string
           phone_number: string
           processado: boolean | null
           received_at: string | null
           remetente: string
-          restaurant_id: string | null
         }
         Insert: {
           ai_response?: string | null
-          conversation_id?: string | null
           created_at?: string | null
-          device_id?: string | null
-          direction?: string | null
           id?: string
-          is_from_bot?: boolean | null
-          media_type?: string | null
-          media_url?: string | null
           message_content: string
           message_type?: string
           phone_number: string
           processado?: boolean | null
           received_at?: string | null
           remetente: string
-          restaurant_id?: string | null
         }
         Update: {
           ai_response?: string | null
-          conversation_id?: string | null
           created_at?: string | null
-          device_id?: string | null
-          direction?: string | null
           id?: string
-          is_from_bot?: boolean | null
-          media_type?: string | null
-          media_url?: string | null
           message_content?: string
           message_type?: string
           phone_number?: string
           processado?: boolean | null
           received_at?: string | null
           remetente?: string
-          restaurant_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_devices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

@@ -61,7 +61,6 @@ import SuperAdmin from "./pages/SuperAdmin";
 import GestaoFinanceira from "./pages/GestaoFinanceira";
 import Integracoes from "./pages/Integracoes";
 import Funcionarios from "./pages/Funcionarios";
-import WhatsAppManager from "./pages/WhatsAppManager";
 
 const queryClient = new QueryClient();
 
@@ -215,11 +214,6 @@ const App = () => {
                       <Route path="/integracoes" element={
                         <ProtectedRoute requireAdmin>
                           <Integracoes />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/whatsapp-manager" element={
-                        <ProtectedRoute requireAdmin>
-                          <WhatsAppManager />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />
