@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,10 +25,20 @@ export default function Login() {
   const [signupName, setSignupName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in - usando useEffect para evitar loop
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
+  // Mostra loading enquanto redireciona
   if (user) {
-    navigate('/dashboard');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   const handleLogin = async (e: React.FormEvent) => {
