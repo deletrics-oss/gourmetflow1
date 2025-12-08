@@ -4,7 +4,7 @@ project_id = "yzvcpfcmfutczrlporjp"
 verify_jwt = true
 
 [functions.cielo-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-checkout]
 verify_jwt = true
@@ -13,34 +13,34 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.mercadopago-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.nubank-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.pagseguro-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.pagseguro-webhook]
 verify_jwt = false
 
 [functions.rede-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.stone-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-create-device]
 verify_jwt = true
 
 [functions.whatsapp-notify-order]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-save-message]
 verify_jwt = false
 
 [functions.whatsapp-send]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-send-mass]
 verify_jwt = true
