@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon, MessageCircle, Send, ClipboardList, Crown } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, UtensilsCrossed, Utensils, Receipt, ChefHat, BarChart3, Settings, Tag, DollarSign, Monitor, TrendingUp, CreditCard, Package, Users, LogOut, LucideIcon, Truck, Shield, Search, Wallet, Bike, Bot, Award, FileText, CreditCard as CardIcon, MessageCircle, Send, ClipboardList, Crown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +45,7 @@ const adminNavItems: NavItem[] = [
   { title: "Logs do Sistema", href: "/system-logs", icon: ClipboardList },
   { title: "Integrações", href: "/integracoes", icon: Bot },
   { title: "WhatsApp Manager", href: "/whatsapp-manager", icon: MessageCircle },
+  { title: "Designer de Cardápio", href: "/designer-cardapio", icon: Sparkles },
   { title: "Zap Bot (Legado)", href: "/zapbot", icon: Bot },
   { title: "Disparo em Massa", href: "/disparo-massa", icon: Send },
   { title: "Relatório Fidelidade", href: "/fidelidade", icon: Award },

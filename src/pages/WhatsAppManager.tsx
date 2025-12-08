@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { useRestaurant } from "@/hooks/useRestaurant";
-import { Loader2, LayoutDashboard, Smartphone, MessageCircle, Workflow, Send } from "lucide-react";
+import { Loader2, Smartphone, MessageCircle, Workflow, Send, AlertCircle, ExternalLink, Server, QrCode } from "lucide-react";
 import { DevicesManager } from "@/components/whatsapp/DevicesManager";
 import { ChatInterface } from "@/components/whatsapp/ChatInterface";
 import { LogicEditor } from "@/components/whatsapp/LogicEditor";
 import { BroadcastPanel } from "@/components/whatsapp/BroadcastPanel";
+import { Button } from "@/components/ui/button";
 
 export default function WhatsAppManager() {
   const { restaurantId, loading: restaurantLoading } = useRestaurant();
@@ -76,6 +78,67 @@ export default function WhatsAppManager() {
           </p>
         </div>
       </div>
+
+      {/* Banner Explicativo - Servidor Externo */}
+      <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+        <Server className="h-5 w-5 text-amber-600" />
+        <AlertTitle className="text-amber-800 dark:text-amber-200">
+          Servidor Externo Necessário
+        </AlertTitle>
+        <AlertDescription className="text-amber-700 dark:text-amber-300 space-y-3">
+          <p>
+            Para conectar ao WhatsApp, você precisa de um <strong>servidor externo</strong> rodando 
+            a biblioteca <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">whatsapp-web.js</code>.
+          </p>
+          <div className="bg-white dark:bg-amber-900/50 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+            <p className="font-semibold mb-2">📋 Como configurar:</p>
+            <ol className="list-decimal list-inside space-y-1 text-sm">
+              <li>Clone o repositório do servidor WhatsApp (Node.js)</li>
+              <li>Deploy em VPS (DigitalOcean, Railway, Heroku)</li>
+              <li>Configure a URL do webhook nas configurações do restaurante</li>
+              <li>Escaneie o QR Code que aparecerá aqui</li>
+            </ol>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <Button variant="outline" size="sm" className="gap-2" asChild>
+              <a href="https://github.com/nicollfrancxx/zap-pedido-server" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Ver Documentação
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" asChild>
+              <a href="https://wwebjs.dev/" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                whatsapp-web.js Docs
+              </a>
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+
+      {/* QR Code Placeholder Visual */}
+      {stats.totalDevices === 0 && (
+        <Card className="p-8">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-48 h-48 border-2 border-dashed border-muted-foreground/30 rounded-lg flex items-center justify-center bg-muted/20">
+              <div className="text-center">
+                <QrCode className="h-16 w-16 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">QR Code aparecerá aqui</p>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Nenhum dispositivo conectado</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure o servidor externo e adicione um dispositivo para ver o QR Code
+              </p>
+            </div>
+            <Button onClick={() => {}} className="gap-2 bg-green-600 hover:bg-green-700">
+              <Smartphone className="h-4 w-4" />
+              Adicionar Dispositivo
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
