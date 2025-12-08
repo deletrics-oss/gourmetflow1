@@ -10,7 +10,7 @@ interface QRCodeGeneratorProps {
 
 export function QRCodeGenerator({ tableNumber, tableId }: QRCodeGeneratorProps) {
   const [open, setOpen] = useState(false);
-  const menuUrl = `${window.location.origin}/CustomerMenu?table=${tableId}`;
+  const menuUrl = `${window.location.origin}/menu-tablet?tableId=${tableId}`;
 
   const generateQRCode = () => {
     // Using a QR code API service
