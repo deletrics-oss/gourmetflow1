@@ -62,6 +62,7 @@ import GestaoFinanceira from "./pages/GestaoFinanceira";
 import Integracoes from "./pages/Integracoes";
 import Funcionarios from "./pages/Funcionarios";
 import WhatsAppManager from "./pages/WhatsAppManager";
+import DesignerCardapio from "./pages/DesignerCardapio";
 
 const queryClient = new QueryClient();
 
@@ -220,6 +221,11 @@ const App = () => {
                       <Route path="/whatsapp-manager" element={
                         <ProtectedRoute requireAdmin>
                           <WhatsAppManager />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/designer-cardapio" element={
+                        <ProtectedRoute>
+                          <DesignerCardapio />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />

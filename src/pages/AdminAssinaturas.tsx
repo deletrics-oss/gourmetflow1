@@ -19,6 +19,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
@@ -31,30 +38,32 @@ import {
   TrendingUp,
   Users,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Trash2,
+  Edit,
+  Calendar,
+  CheckCircle,
+  UserX
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-interface Subscription {
+interface UserWithSubscription {
   id: string;
-  user_id: string;
-  restaurant_name: string | null;
-  restaurant_phone: string | null;
-  restaurant_email: string | null;
-  plan_type: string;
-  status: string;
-  detailed_status: string;
-  trial_days_left: number | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  trial_end: string | null;
-  manually_blocked: boolean;
-  blocked_reason: string | null;
+  email: string;
   created_at: string;
-  updated_at: string;
+  full_name: string | null;
+  phone: string | null;
+  subscription: {
+    id: string;
+    plan_type: string;
+    status: string;
+    trial_end: string | null;
+    current_period_end: string | null;
+    manually_blocked: boolean;
+    blocked_reason: string | null;
+  } | null;
 }
 
 interface PaymentHistory {
@@ -67,90 +76,147 @@ interface PaymentHistory {
 }
 
 export default function AdminAssinaturas() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [filteredSubs, setFilteredSubs] = useState<Subscription[]>([]);
+  const [users, setUsers] = useState<UserWithSubscription[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserWithSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSub, setSelectedSub] = useState<Subscription | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserWithSubscription | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showChangePlanDialog, setShowChangePlanDialog] = useState(false);
+  const [showExtendTrialDialog, setShowExtendTrialDialog] = useState(false);
   const [blockReason, setBlockReason] = useState("");
+  const [newPlanType, setNewPlanType] = useState("essencial");
+  const [extendDays, setExtendDays] = useState(30);
   const [payments, setPayments] = useState<PaymentHistory[]>([]);
   const [stats, setStats] = useState({
     total: 0,
+    withSubscription: 0,
     active: 0,
     trial: 0,
-    expired: 0,
+    noSubscription: 0,
+    blocked: 0,
     revenue: 0,
   });
 
   useEffect(() => {
-    loadSubscriptions();
+    loadAllUsers();
   }, []);
 
   useEffect(() => {
-    filterSubscriptions();
-  }, [searchTerm, subscriptions]);
+    filterUsers();
+  }, [searchTerm, users]);
 
-  const loadSubscriptions = async () => {
+  const loadAllUsers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.rpc('get_admin_subscriptions');
+      
+      // Buscar todos os perfis (que representam todos os usuários)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone, created_at');
 
-      if (error) {
-        console.error('Error loading subscriptions:', error);
-        toast.error('Erro ao carregar assinaturas');
-        setLoading(false);
-        return;
+      if (profilesError) throw profilesError;
+
+      // Buscar todas as assinaturas
+      const { data: subscriptions, error: subsError } = await supabase
+        .from('subscriptions')
+        .select('*');
+
+      if (subsError) throw subsError;
+
+      // Buscar emails dos usuários via RPC (se existir) ou usar profiles
+      const { data: rpcData } = await supabase.rpc('get_admin_subscriptions');
+
+      // Mapear usuários com suas assinaturas
+      const usersMap = new Map<string, UserWithSubscription>();
+
+      // Primeiro, adicionar usuários do RPC que já tem assinatura
+      if (rpcData) {
+        rpcData.forEach((sub: any) => {
+          usersMap.set(sub.user_id, {
+            id: sub.user_id,
+            email: sub.restaurant_email || 'Sem email',
+            created_at: sub.created_at,
+            full_name: sub.restaurant_name,
+            phone: sub.restaurant_phone,
+            subscription: {
+              id: sub.id,
+              plan_type: sub.plan_type,
+              status: sub.status,
+              trial_end: sub.trial_end,
+              current_period_end: sub.current_period_end,
+              manually_blocked: sub.manually_blocked,
+              blocked_reason: sub.blocked_reason,
+            },
+          });
+        });
       }
 
-      setSubscriptions(data || []);
-      calculateStats(data || []);
+      // Adicionar perfis que não estão no RPC (usuários sem assinatura)
+      if (profiles) {
+        profiles.forEach((profile: any) => {
+          if (!usersMap.has(profile.user_id)) {
+            usersMap.set(profile.user_id, {
+              id: profile.user_id,
+              email: 'Sem email cadastrado',
+              created_at: profile.created_at,
+              full_name: profile.full_name,
+              phone: profile.phone,
+              subscription: null,
+            });
+          }
+        });
+      }
+
+      const usersList = Array.from(usersMap.values());
+      setUsers(usersList);
+      calculateStats(usersList);
     } catch (error) {
-      console.error('Error loading subscriptions:', error);
-      toast.error('Erro ao carregar assinaturas');
+      console.error('Error loading users:', error);
+      toast.error('Erro ao carregar usuários');
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateStats = (subs: Subscription[]) => {
-    const total = subs.length;
-    const active = subs.filter(s => s.status === 'active').length;
-    const trial = subs.filter(s => s.status === 'trial').length;
-    const expired = subs.filter(s => 
-      s.detailed_status === 'expired_trial' || s.status === 'canceled'
-    ).length;
+  const calculateStats = (usersList: UserWithSubscription[]) => {
+    const total = usersList.length;
+    const withSubscription = usersList.filter(u => u.subscription).length;
+    const active = usersList.filter(u => u.subscription?.status === 'active').length;
+    const trial = usersList.filter(u => u.subscription?.status === 'trial').length;
+    const noSubscription = usersList.filter(u => !u.subscription).length;
+    const blocked = usersList.filter(u => u.subscription?.manually_blocked).length;
 
     const planPrices: Record<string, number> = {
-      free: 0,
-      basic: 149,
-      premium: 249,
-      enterprise: 399,
+      essencial: 149,
+      essencial_mesas: 249,
+      customizado: 399,
     };
 
-    const revenue = subs
-      .filter(s => s.status === 'active')
-      .reduce((sum, s) => sum + (planPrices[s.plan_type] || 0), 0);
+    const revenue = usersList
+      .filter(u => u.subscription?.status === 'active')
+      .reduce((sum, u) => sum + (planPrices[u.subscription?.plan_type || ''] || 0), 0);
 
-    setStats({ total, active, trial, expired, revenue });
+    setStats({ total, withSubscription, active, trial, noSubscription, blocked, revenue });
   };
 
-  const filterSubscriptions = () => {
+  const filterUsers = () => {
     if (!searchTerm) {
-      setFilteredSubs(subscriptions);
+      setFilteredUsers(users);
       return;
     }
 
     const term = searchTerm.toLowerCase();
-    const filtered = subscriptions.filter(
-      (sub) =>
-        sub.restaurant_name?.toLowerCase().includes(term) ||
-        sub.restaurant_email?.toLowerCase().includes(term) ||
-        sub.restaurant_phone?.includes(term) ||
-        sub.plan_type.toLowerCase().includes(term)
+    const filtered = users.filter(
+      (user) =>
+        user.full_name?.toLowerCase().includes(term) ||
+        user.email?.toLowerCase().includes(term) ||
+        user.phone?.includes(term) ||
+        user.subscription?.plan_type.toLowerCase().includes(term)
     );
-    setFilteredSubs(filtered);
+    setFilteredUsers(filtered);
   };
 
   const loadPaymentHistory = async (subscriptionId: string) => {
@@ -163,57 +229,187 @@ export default function AdminAssinaturas() {
       setPayments(data || []);
     } catch (error) {
       console.error('Error loading payments:', error);
-      toast.error('Erro ao carregar histórico de pagamentos');
     }
   };
 
-  const handleViewDetails = async (sub: Subscription) => {
-    setSelectedSub(sub);
+  const handleViewDetails = async (user: UserWithSubscription) => {
+    setSelectedUser(user);
     setShowDetails(true);
-    await loadPaymentHistory(sub.id);
+    if (user.subscription) {
+      await loadPaymentHistory(user.subscription.id);
+    } else {
+      setPayments([]);
+    }
+  };
+
+  const handleCreateSubscription = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const { error } = await supabase.from('subscriptions').insert({
+        user_id: selectedUser.id,
+        plan_type: newPlanType,
+        status: 'trial',
+        trial_end: addDays(new Date(), 30).toISOString(),
+      });
+
+      if (error) throw error;
+
+      toast.success('Assinatura criada com sucesso!');
+      setShowCreateDialog(false);
+      await loadAllUsers();
+    } catch (error) {
+      console.error('Error creating subscription:', error);
+      toast.error('Erro ao criar assinatura');
+    }
+  };
+
+  const handleDeleteSubscription = async () => {
+    if (!selectedUser?.subscription) return;
+
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', selectedUser.subscription.id);
+
+      if (error) throw error;
+
+      toast.success('Assinatura excluída com sucesso!');
+      setShowDetails(false);
+      await loadAllUsers();
+    } catch (error) {
+      console.error('Error deleting subscription:', error);
+      toast.error('Erro ao excluir assinatura');
+    }
+  };
+
+  const handleChangePlan = async () => {
+    if (!selectedUser?.subscription) return;
+
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ plan_type: newPlanType, updated_at: new Date().toISOString() })
+        .eq('id', selectedUser.subscription.id);
+
+      if (error) throw error;
+
+      toast.success('Plano alterado com sucesso!');
+      setShowChangePlanDialog(false);
+      await loadAllUsers();
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      toast.error('Erro ao alterar plano');
+    }
+  };
+
+  const handleExtendTrial = async () => {
+    if (!selectedUser?.subscription) return;
+
+    try {
+      const currentEnd = selectedUser.subscription.trial_end 
+        ? new Date(selectedUser.subscription.trial_end) 
+        : new Date();
+      
+      const newTrialEnd = addDays(currentEnd, extendDays).toISOString();
+
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ 
+          trial_end: newTrialEnd, 
+          status: 'trial',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', selectedUser.subscription.id);
+
+      if (error) throw error;
+
+      toast.success(`Trial estendido por ${extendDays} dias!`);
+      setShowExtendTrialDialog(false);
+      await loadAllUsers();
+    } catch (error) {
+      console.error('Error extending trial:', error);
+      toast.error('Erro ao estender trial');
+    }
+  };
+
+  const handleActivateSubscription = async () => {
+    if (!selectedUser?.subscription) return;
+
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ 
+          status: 'active',
+          current_period_start: new Date().toISOString(),
+          current_period_end: addDays(new Date(), 30).toISOString(),
+          manually_blocked: false,
+          blocked_reason: null,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', selectedUser.subscription.id);
+
+      if (error) throw error;
+
+      toast.success('Assinatura ativada manualmente!');
+      await loadAllUsers();
+      setShowDetails(false);
+    } catch (error) {
+      console.error('Error activating subscription:', error);
+      toast.error('Erro ao ativar assinatura');
+    }
   };
 
   const handleToggleBlock = async (block: boolean) => {
-    if (!selectedSub) return;
+    if (!selectedUser?.subscription) return;
 
     try {
       const { error } = await supabase.rpc('toggle_subscription_block', {
-        p_subscription_id: selectedSub.id,
+        p_subscription_id: selectedUser.subscription.id,
         p_blocked: block,
         p_reason: block ? blockReason : null,
       });
 
       if (error) throw error;
 
-      toast.success(block ? 'Assinatura bloqueada com sucesso' : 'Assinatura desbloqueada com sucesso');
+      toast.success(block ? 'Assinatura bloqueada' : 'Assinatura desbloqueada');
       setShowBlockDialog(false);
       setBlockReason("");
-      await loadSubscriptions();
+      await loadAllUsers();
       setShowDetails(false);
     } catch (error) {
       console.error('Error toggling block:', error);
-      toast.error('Erro ao atualizar status de bloqueio');
+      toast.error('Erro ao atualizar bloqueio');
     }
   };
 
-  const getStatusBadge = (sub: Subscription) => {
-    switch (sub.detailed_status) {
-      case 'active_paid':
+  const getStatusBadge = (user: UserWithSubscription) => {
+    if (!user.subscription) {
+      return <Badge variant="outline" className="bg-gray-100">Sem Assinatura</Badge>;
+    }
+    if (user.subscription.manually_blocked) {
+      return <Badge variant="destructive">Bloqueado</Badge>;
+    }
+    switch (user.subscription.status) {
+      case 'active':
         return <Badge className="bg-green-500">Ativo</Badge>;
-      case 'active_trial':
-        return <Badge className="bg-blue-500">Trial ({sub.trial_days_left}d)</Badge>;
-      case 'expired_trial':
-        return <Badge variant="destructive">Trial Expirado</Badge>;
-      case 'payment_overdue':
+      case 'trial':
+        const daysLeft = user.subscription.trial_end 
+          ? Math.max(0, Math.ceil((new Date(user.subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : 0;
+        return <Badge className="bg-blue-500">Trial ({daysLeft}d)</Badge>;
+      case 'past_due':
         return <Badge className="bg-orange-500">Pagamento Atrasado</Badge>;
-      case 'blocked_manual':
-        return <Badge variant="destructive">Bloqueado</Badge>;
+      case 'canceled':
+        return <Badge variant="destructive">Cancelado</Badge>;
       default:
-        return <Badge variant="outline">{sub.status}</Badge>;
+        return <Badge variant="outline">{user.subscription.status}</Badge>;
     }
   };
 
-  const getPlanName = (type: string) => {
+  const getPlanName = (type?: string) => {
+    if (!type) return "—";
     const names: Record<string, string> = {
       essencial: "Essencial",
       essencial_mesas: "Essencial + Mesas",
@@ -224,30 +420,26 @@ export default function AdminAssinaturas() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold mb-2">Gerenciamento de Assinaturas</h1>
         <p className="text-muted-foreground">
-          Controle completo de todos os restaurantes e suas assinaturas
+          Controle completo de TODOS os usuários e suas assinaturas
         </p>
       </div>
 
-      {/* ✅ FASE 6: Banner Explicativo do Sistema */}
+      {/* Banner Explicativo */}
       <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
         <CardHeader className="pb-3">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
               <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">
-                Como Funciona o Sistema de Assinaturas
+                Sistema de Assinaturas
               </h4>
-              <ul className="text-sm space-y-1.5 list-disc list-inside text-blue-800 dark:text-blue-200">
-                <li><strong>Trial Automático:</strong> Novos usuários recebem 30 dias grátis automaticamente</li>
-                <li><strong>Planos:</strong> Essencial, Essencial + Mesas, Customizado</li>
-                <li><strong>Stripe:</strong> Processa pagamentos recorrentes mensais via Stripe</li>
-                <li><strong>Status:</strong> trial (teste), active (pago), past_due (atrasado), canceled (cancelado), blocked (bloqueado)</li>
-                <li><strong>Bloqueio Manual:</strong> Admin pode bloquear usuário suspeito diretamente nesta tela</li>
-                <li><strong>Renovação:</strong> Assinaturas são renovadas automaticamente pelo Stripe mensalmente</li>
+              <ul className="text-sm space-y-1 list-disc list-inside text-blue-800 dark:text-blue-200">
+                <li><strong>Trial Automático:</strong> 30 dias grátis ao cadastrar</li>
+                <li><strong>Ações Disponíveis:</strong> Criar, excluir, alterar plano, estender trial, ativar manualmente, bloquear</li>
+                <li><strong>Planos:</strong> Essencial (R$149), Essencial+Mesas (R$249), Customizado (R$399)</li>
               </ul>
             </div>
           </div>
@@ -255,10 +447,10 @@ export default function AdminAssinaturas() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
+            <CardTitle className="text-xs font-medium">Total Usuários</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -268,8 +460,18 @@ export default function AdminAssinaturas() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
-            <CreditCard className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-xs font-medium">Com Assinatura</CardTitle>
+            <CreditCard className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.withSubscription}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium">Ativos</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{stats.active}</div>
@@ -278,7 +480,7 @@ export default function AdminAssinaturas() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Em Trial</CardTitle>
+            <CardTitle className="text-xs font-medium">Em Trial</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -288,33 +490,43 @@ export default function AdminAssinaturas() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expirados</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <CardTitle className="text-xs font-medium">Sem Assinatura</CardTitle>
+            <UserX className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.expired}</div>
+            <div className="text-2xl font-bold text-gray-500">{stats.noSubscription}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+            <CardTitle className="text-xs font-medium">Bloqueados</CardTitle>
+            <Lock className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.blocked}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium">Receita Mensal</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-xl font-bold text-green-600">
               R$ {stats.revenue.toLocaleString('pt-BR')}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Assinaturas</CardTitle>
+          <CardTitle>Lista de Usuários ({users.length})</CardTitle>
           <CardDescription>
-            Busque e gerencie todas as assinaturas do sistema
+            Todos os usuários cadastrados no sistema
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -328,7 +540,7 @@ export default function AdminAssinaturas() {
                 className="pl-10"
               />
             </div>
-            <Button onClick={loadSubscriptions} variant="outline">
+            <Button onClick={loadAllUsers} variant="outline">
               Atualizar
             </Button>
           </div>
@@ -337,8 +549,9 @@ export default function AdminAssinaturas() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Restaurante</TableHead>
-                  <TableHead>Contato</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Telefone</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Criado em</TableHead>
@@ -348,42 +561,54 @@ export default function AdminAssinaturas() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       Carregando...
                     </TableCell>
                   </TableRow>
-                ) : filteredSubs.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      Nenhuma assinatura encontrada
+                    <TableCell colSpan={7} className="text-center py-8">
+                      Nenhum usuário encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredSubs.map((sub) => (
-                    <TableRow key={sub.id}>
+                  filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
                       <TableCell className="font-medium">
-                        {sub.restaurant_name || "Sem nome"}
+                        {user.full_name || "Sem nome"}
                       </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>{sub.restaurant_email}</div>
-                          <div className="text-muted-foreground">{sub.restaurant_phone}</div>
-                        </div>
+                      <TableCell className="text-sm">{user.email}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {user.phone || "—"}
                       </TableCell>
-                      <TableCell>{getPlanName(sub.plan_type)}</TableCell>
-                      <TableCell>{getStatusBadge(sub)}</TableCell>
+                      <TableCell>{getPlanName(user.subscription?.plan_type)}</TableCell>
+                      <TableCell>{getStatusBadge(user)}</TableCell>
                       <TableCell>
-                        {format(new Date(sub.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        {format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(sub)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Detalhes
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDetails(user)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {!user.subscription && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowCreateDialog(true);
+                              }}
+                              className="text-green-600"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -398,123 +623,214 @@ export default function AdminAssinaturas() {
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes da Assinatura</DialogTitle>
+            <DialogTitle>Detalhes do Usuário</DialogTitle>
             <DialogDescription>
-              Informações completas e histórico de pagamentos
+              Informações e ações disponíveis
             </DialogDescription>
           </DialogHeader>
 
-          {selectedSub && (
+          {selectedUser && (
             <div className="space-y-6">
-              {/* Info Básica */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-semibold mb-2">Informações do Restaurante</h4>
+                  <h4 className="font-semibold mb-2">Informações do Usuário</h4>
                   <div className="space-y-1 text-sm">
-                    <p><strong>Nome:</strong> {selectedSub.restaurant_name || "N/A"}</p>
-                    <p><strong>Email:</strong> {selectedSub.restaurant_email}</p>
-                    <p><strong>Telefone:</strong> {selectedSub.restaurant_phone || "N/A"}</p>
+                    <p><strong>Nome:</strong> {selectedUser.full_name || "N/A"}</p>
+                    <p><strong>Email:</strong> {selectedUser.email}</p>
+                    <p><strong>Telefone:</strong> {selectedUser.phone || "N/A"}</p>
+                    <p><strong>Cadastrado:</strong> {format(new Date(selectedUser.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold mb-2">Informações da Assinatura</h4>
-                  <div className="space-y-1 text-sm">
-                    <p><strong>Plano:</strong> {getPlanName(selectedSub.plan_type)}</p>
-                    <p><strong>Status:</strong> {getStatusBadge(selectedSub)}</p>
-                    {selectedSub.current_period_end && (
-                      <p>
-                        <strong>Renova em:</strong>{" "}
-                        {format(new Date(selectedSub.current_period_end), 'dd/MM/yyyy', { locale: ptBR })}
-                      </p>
-                    )}
-                    {selectedSub.trial_end && selectedSub.status === 'trial' && (
-                      <p>
-                        <strong>Trial termina em:</strong>{" "}
-                        {format(new Date(selectedSub.trial_end), 'dd/MM/yyyy', { locale: ptBR })}
-                      </p>
-                    )}
-                  </div>
+                  <h4 className="font-semibold mb-2">Assinatura</h4>
+                  {selectedUser.subscription ? (
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Plano:</strong> {getPlanName(selectedUser.subscription.plan_type)}</p>
+                      <p><strong>Status:</strong> {getStatusBadge(selectedUser)}</p>
+                      {selectedUser.subscription.trial_end && (
+                        <p><strong>Trial até:</strong> {format(new Date(selectedUser.subscription.trial_end), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                      )}
+                      {selectedUser.subscription.current_period_end && (
+                        <p><strong>Renova em:</strong> {format(new Date(selectedUser.subscription.current_period_end), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Sem assinatura</p>
+                  )}
                 </div>
-              </div>
-
-              {/* Bloqueio Manual */}
-              {selectedSub.manually_blocked && (
-                <div className="p-4 border border-red-200 bg-red-50 dark:bg-red-950 rounded-lg">
-                  <h4 className="font-semibold text-red-800 dark:text-red-200 mb-1">
-                    Assinatura Bloqueada Manualmente
-                  </h4>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    {selectedSub.blocked_reason || "Sem motivo especificado"}
-                  </p>
-                </div>
-              )}
-
-              {/* Histórico de Pagamentos */}
-              <div>
-                <h4 className="font-semibold mb-3">Histórico de Pagamentos</h4>
-                {payments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum pagamento registrado</p>
-                ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Valor</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>ID Stripe</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {payments.map((payment) => (
-                          <TableRow key={payment.id}>
-                            <TableCell>
-                              {format(new Date(payment.payment_date), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                            </TableCell>
-                            <TableCell>
-                              {payment.currency.toUpperCase()} {(payment.amount / 100).toFixed(2)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={payment.status === 'succeeded' ? 'default' : 'destructive'}>
-                                {payment.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {payment.stripe_payment_id || "N/A"}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
               </div>
 
               {/* Ações */}
-              <div className="flex gap-2">
-                {selectedSub.manually_blocked ? (
-                  <Button
-                    onClick={() => handleToggleBlock(false)}
-                    variant="default"
-                    className="flex-1"
-                  >
-                    <Unlock className="h-4 w-4 mr-2" />
-                    Desbloquear Assinatura
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => setShowBlockDialog(true)}
-                    variant="destructive"
-                    className="flex-1"
-                  >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Bloquear Assinatura
-                  </Button>
-                )}
+              <div>
+                <h4 className="font-semibold mb-3">Ações</h4>
+                <div className="flex flex-wrap gap-2">
+                  {!selectedUser.subscription ? (
+                    <Button onClick={() => setShowCreateDialog(true)} className="bg-green-600 hover:bg-green-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Assinatura
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={() => {
+                        setNewPlanType(selectedUser.subscription?.plan_type || 'essencial');
+                        setShowChangePlanDialog(true);
+                      }}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Alterar Plano
+                      </Button>
+                      <Button variant="outline" onClick={() => setShowExtendTrialDialog(true)}>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Estender Trial
+                      </Button>
+                      <Button variant="outline" onClick={handleActivateSubscription} className="text-green-600">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Ativar Manualmente
+                      </Button>
+                      {selectedUser.subscription.manually_blocked ? (
+                        <Button variant="outline" onClick={() => handleToggleBlock(false)}>
+                          <Unlock className="h-4 w-4 mr-2" />
+                          Desbloquear
+                        </Button>
+                      ) : (
+                        <Button variant="outline" onClick={() => setShowBlockDialog(true)} className="text-red-600">
+                          <Lock className="h-4 w-4 mr-2" />
+                          Bloquear
+                        </Button>
+                      )}
+                      <Button variant="destructive" onClick={handleDeleteSubscription}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir Assinatura
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
+
+              {/* Histórico de Pagamentos */}
+              {selectedUser.subscription && (
+                <div>
+                  <h4 className="font-semibold mb-3">Histórico de Pagamentos</h4>
+                  {payments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum pagamento registrado</p>
+                  ) : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payments.map((payment) => (
+                            <TableRow key={payment.id}>
+                              <TableCell>
+                                {format(new Date(payment.payment_date), 'dd/MM/yyyy', { locale: ptBR })}
+                              </TableCell>
+                              <TableCell>
+                                R$ {(payment.amount / 100).toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={payment.status === 'succeeded' ? 'default' : 'outline'}>
+                                  {payment.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Subscription Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Assinatura</DialogTitle>
+            <DialogDescription>
+              Criar nova assinatura para {selectedUser?.full_name || selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium">Plano</label>
+              <Select value={newPlanType} onValueChange={setNewPlanType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="essencial">Essencial - R$149/mês</SelectItem>
+                  <SelectItem value="essencial_mesas">Essencial + Mesas - R$249/mês</SelectItem>
+                  <SelectItem value="customizado">Customizado - R$399/mês</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              A assinatura será criada com 30 dias de trial.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancelar</Button>
+            <Button onClick={handleCreateSubscription}>Criar Assinatura</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Plan Dialog */}
+      <Dialog open={showChangePlanDialog} onOpenChange={setShowChangePlanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Plano</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select value={newPlanType} onValueChange={setNewPlanType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="essencial">Essencial - R$149/mês</SelectItem>
+                <SelectItem value="essencial_mesas">Essencial + Mesas - R$249/mês</SelectItem>
+                <SelectItem value="customizado">Customizado - R$399/mês</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangePlanDialog(false)}>Cancelar</Button>
+            <Button onClick={handleChangePlan}>Alterar Plano</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Extend Trial Dialog */}
+      <Dialog open={showExtendTrialDialog} onOpenChange={setShowExtendTrialDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Estender Trial</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium">Dias adicionais</label>
+              <Input 
+                type="number" 
+                value={extendDays} 
+                onChange={(e) => setExtendDays(parseInt(e.target.value) || 30)}
+                min={1}
+                max={365}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExtendTrialDialog(false)}>Cancelar</Button>
+            <Button onClick={handleExtendTrial}>Estender {extendDays} dias</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -523,34 +839,17 @@ export default function AdminAssinaturas() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bloquear Assinatura</DialogTitle>
-            <DialogDescription>
-              Informe o motivo do bloqueio desta assinatura
-            </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Motivo do Bloqueio</label>
-              <Textarea
-                placeholder="Ex: Pagamento em atraso, violação de termos, etc."
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-                rows={3}
-              />
-            </div>
+          <div className="space-y-4 py-4">
+            <Textarea
+              placeholder="Motivo do bloqueio..."
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+            />
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBlockDialog(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleToggleBlock(true)}
-              disabled={!blockReason.trim()}
-            >
-              Confirmar Bloqueio
-            </Button>
+            <Button variant="outline" onClick={() => setShowBlockDialog(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => handleToggleBlock(true)}>Bloquear</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
