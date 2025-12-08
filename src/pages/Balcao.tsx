@@ -20,6 +20,7 @@ import { useRestaurant } from "@/hooks/useRestaurant";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { logActionWithContext } from "@/lib/logging";
+import { validateCustomerData, sanitizeInput } from "@/lib/validation";
 
 interface CartItem {
   id: string;
@@ -360,6 +361,26 @@ export default function Balcao() {
 
     if (!customerName || !customerPhone) {
       toast({ title: "Erro", description: "Preencha nome e telefone do cliente", variant: "destructive" });
+      return;
+    }
+
+    // Security: Validate and sanitize customer inputs
+    const sanitizedName = sanitizeInput(customerName);
+    const sanitizedPhone = sanitizeInput(customerPhone);
+    const sanitizedCpf = sanitizeInput(customerCpf);
+
+    const validation = validateCustomerData({
+      name: sanitizedName,
+      phone: sanitizedPhone,
+      cpf: sanitizedCpf || undefined
+    });
+
+    if (!validation.valid) {
+      toast({ 
+        title: "Dados inválidos", 
+        description: validation.errors.join(', '), 
+        variant: "destructive" 
+      });
       return;
     }
 
