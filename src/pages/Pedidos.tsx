@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText } from "lucide-react";
+import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText, XCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { logActionWithContext } from "@/lib/logging";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
+import { CancelOrderDialog } from "@/components/dialogs/CancelOrderDialog";
 import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Pedidos() {
@@ -23,6 +24,8 @@ export default function Pedidos() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<any>(null);
 
   useEffect(() => {
     if (restaurantId) {
@@ -368,6 +371,33 @@ export default function Pedidos() {
     return labels[method] || method;
   };
 
+  // Badge de origem do pedido
+  const getOrderOriginBadge = (order: any) => {
+    const orderNum = order.order_number || '';
+    
+    if (orderNum.startsWith('TOTEM-')) {
+      return <Badge className="bg-purple-500 text-white">🖥️ TOTEM</Badge>;
+    }
+    if (orderNum.startsWith('MESA-') || orderNum.startsWith('M-') || order.table_id) {
+      return <Badge className="bg-blue-500 text-white">🏠 MESA</Badge>;
+    }
+    if (orderNum.startsWith('PED-') || orderNum.startsWith('ONL-')) {
+      return <Badge className="bg-green-500 text-white">📱 ONLINE</Badge>;
+    }
+    if (orderNum.startsWith('BAL-')) {
+      return <Badge className="bg-gray-500 text-white">🏪 BALCÃO</Badge>;
+    }
+    if (orderNum.startsWith('PDV')) {
+      return <Badge className="bg-orange-500 text-white">💳 PDV</Badge>;
+    }
+    return <Badge variant="outline">📦 PEDIDO</Badge>;
+  };
+
+  const handleCancelOrder = (order: any) => {
+    setOrderToCancel(order);
+    setCancelDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -471,7 +501,10 @@ export default function Pedidos() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-2xl font-bold">#{order.order_number}</h3>
-                      {order.tables && <Badge variant="outline" className="mt-2">Mesa {order.tables.number}</Badge>}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
+                        {getOrderOriginBadge(order)}
+                      </div>
                     </div>
                     <Badge className="bg-status-new text-status-new-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -565,9 +598,19 @@ export default function Pedidos() {
                     </div>
                   </div>
 
-                  <Button className="w-full" onClick={() => updateOrderStatus(order.id, "preparing")}>
-                    Iniciar Preparo
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" onClick={() => updateOrderStatus(order.id, "preparing")}>
+                      Iniciar Preparo
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="icon"
+                      onClick={() => handleCancelOrder(order)}
+                      title="Cancelar pedido"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -588,7 +631,10 @@ export default function Pedidos() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-2xl font-bold">#{order.order_number}</h3>
-                      {order.tables && <Badge variant="outline" className="mt-2">Mesa {order.tables.number}</Badge>}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
+                        {getOrderOriginBadge(order)}
+                      </div>
                     </div>
                     <Badge className="bg-status-preparing text-status-preparing-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -640,7 +686,10 @@ export default function Pedidos() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-2xl font-bold">#{order.order_number}</h3>
-                      {order.tables && <Badge variant="outline" className="mt-2">Mesa {order.tables.number}</Badge>}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
+                        {getOrderOriginBadge(order)}
+                      </div>
                     </div>
                     <Badge className="bg-status-ready text-status-ready-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -794,6 +843,13 @@ export default function Pedidos() {
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
         restaurantName="Napoli"
+      />
+
+      <CancelOrderDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        order={orderToCancel}
+        onSuccess={loadOrders}
       />
     </div>
   );
