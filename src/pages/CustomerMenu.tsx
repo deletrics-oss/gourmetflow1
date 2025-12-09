@@ -160,9 +160,35 @@ export default function CustomerMenu() {
 
   const loadData = async () => {
     try {
+      // Get restaurant_id from URL or settings
+      const urlParams = new URLSearchParams(window.location.search);
+      const restaurantIdFromUrl = urlParams.get('restaurantId');
+      
+      let restaurantId = restaurantIdFromUrl;
+      
+      // If no restaurant_id in URL, try to get from restaurant_settings
+      if (!restaurantId) {
+        const { data: settings } = await supabase
+          .from('restaurant_settings')
+          .select('restaurant_id')
+          .limit(1)
+          .maybeSingle();
+        
+        restaurantId = settings?.restaurant_id;
+      }
+      
+      // Build queries with restaurant_id filter if available
+      let categoriesQuery = supabase.from('categories').select('*').eq('is_active', true).order('sort_order');
+      let itemsQuery = supabase.from('menu_items').select('*').eq('is_available', true).order('sort_order');
+      
+      if (restaurantId) {
+        categoriesQuery = categoriesQuery.eq('restaurant_id', restaurantId);
+        itemsQuery = itemsQuery.eq('restaurant_id', restaurantId);
+      }
+      
       const [categoriesRes, itemsRes] = await Promise.all([
-        supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('menu_items').select('*').eq('is_available', true).order('sort_order')
+        categoriesQuery,
+        itemsQuery
       ]);
 
       if (categoriesRes.data) setCategories(categoriesRes.data);

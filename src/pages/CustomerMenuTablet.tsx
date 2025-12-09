@@ -12,7 +12,6 @@ import {
   Plus, 
   Minus,
   Send,
-  X,
   User,
   Phone,
   ArrowLeft,
@@ -29,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CustomizeItemDialog } from '@/components/dialogs/CustomizeItemDialog';
+import { TableNotFound } from '@/components/TableNotFound';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -536,13 +536,13 @@ export default function CustomerMenuTablet() {
 
   if (!tableId || !table) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/5 to-destructive/10">
-        <Card className="p-12 text-center max-w-md shadow-2xl">
-          <X className="h-20 w-20 text-destructive mx-auto mb-6" />
-          <h1 className="text-3xl font-bold mb-3">Mesa não encontrada</h1>
-          <p className="text-lg text-muted-foreground">Por favor, escaneie o QR Code novamente</p>
-        </Card>
-      </div>
+      <TableNotFound 
+        restaurantPhone={restaurantSettings?.phone}
+        onRetry={() => {
+          setLoading(true);
+          loadData();
+        }}
+      />
     );
   }
 
