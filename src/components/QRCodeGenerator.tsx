@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { QrCode, Download } from "lucide-react";
+import { QrCode, Download, Copy, ExternalLink, Info } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface QRCodeGeneratorProps {
   tableNumber: number;
@@ -24,6 +26,16 @@ export function QRCodeGenerator({ tableNumber, tableId }: QRCodeGeneratorProps) 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast.success('QR Code baixado!');
+  };
+
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(menuUrl);
+    toast.success('URL copiada!');
+  };
+
+  const handleOpenPreview = () => {
+    window.open(menuUrl, '_blank');
   };
 
   return (
@@ -36,25 +48,65 @@ export function QRCodeGenerator({ tableNumber, tableId }: QRCodeGeneratorProps) 
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>QR Code - Mesa {tableNumber}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5" />
+            QR Code - Mesa {tableNumber}
+          </DialogTitle>
+          <DialogDescription>
+            Imprima e coloque na mesa para pedidos via tablet
+          </DialogDescription>
         </DialogHeader>
+        
         <div className="space-y-4">
-          <div className="flex justify-center p-6 bg-white rounded-lg">
+          {/* QR Code Image */}
+          <div className="flex justify-center p-6 bg-white rounded-lg border">
             <img
               src={generateQRCode()}
               alt={`QR Code Mesa ${tableNumber}`}
-              className="w-64 h-64"
+              className="w-48 h-48"
             />
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Clientes podem escanear este QR Code para acessar o cardápio e fazer pedidos direto do celular
-            </p>
-            <Button onClick={handleDownload} className="gap-2 w-full">
+          
+          {/* Instructions Alert */}
+          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Como usar:</strong>
+              <ol className="list-decimal list-inside mt-1 space-y-1">
+                <li>Baixe e imprima o QR Code</li>
+                <li>Cole na mesa ou em um suporte</li>
+                <li>Clientes escaneiam com o celular</li>
+                <li>O cardápio abre automaticamente vinculado a esta mesa</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+          
+          {/* URL Display */}
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground mb-1">URL gerada:</p>
+            <code className="text-xs break-all">{menuUrl}</code>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={handleDownload} className="gap-2">
               <Download className="h-4 w-4" />
-              Baixar QR Code
+              Baixar PNG
+            </Button>
+            <Button variant="outline" onClick={handleCopyUrl} className="gap-2">
+              <Copy className="h-4 w-4" />
+              Copiar URL
             </Button>
           </div>
+          
+          <Button 
+            variant="secondary" 
+            onClick={handleOpenPreview} 
+            className="w-full gap-2"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Testar Cardápio (Nova Aba)
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
