@@ -77,7 +77,8 @@ export function CancelOrderDialog({ open, onOpenChange, order, onSuccess }: Canc
             description: `Estorno: Pedido ${order.order_number} cancelado - ${CANCELLATION_REASONS.find(r => r.value === reason)?.label}`,
             amount: order.total,
             payment_method: order.payment_method || 'cash',
-            movement_date: new Date().toISOString().split('T')[0]
+            movement_date: new Date().toISOString().split('T')[0],
+            restaurant_id: order.restaurant_id
           });
       }
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText, XCircle } from "lucide-react";
+import { DollarSign, ShoppingBag, TrendingUp, Clock, Package, ChefHat, Truck, CheckCircle2, Phone, User, MapPin, FileText, XCircle, Ban } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +13,8 @@ import { logActionWithContext } from "@/lib/logging";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 import { CancelOrderDialog } from "@/components/dialogs/CancelOrderDialog";
 import { useRestaurant } from "@/hooks/useRestaurant";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export default function Pedidos() {
   const { restaurantId } = useRestaurant();
@@ -21,6 +23,7 @@ export default function Pedidos() {
   const [motoboys, setMotoboys] = useState<any[]>([]);
   const [selectedMotoboy, setSelectedMotoboy] = useState<Record<string, string>>({});
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [deliveryTypeFilter, setDeliveryTypeFilter] = useState<'all' | 'delivery' | 'pickup' | 'dine_in'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -324,6 +327,10 @@ export default function Pedidos() {
       const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       filtered = filtered.filter((o) => new Date(o.created_at) >= monthAgo);
     }
+
+    if (deliveryTypeFilter !== 'all') {
+      filtered = filtered.filter((o) => o.delivery_type === deliveryTypeFilter);
+    }
     
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -339,6 +346,44 @@ export default function Pedidos() {
     );
   };
 
+  const getFilteredCancelledOrders = () => {
+    let filtered = orders.filter((o) => o.status === "cancelled");
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (dateFilter === 'today') {
+      filtered = filtered.filter((o) => new Date(o.created_at) >= today);
+    } else if (dateFilter === 'week') {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter((o) => new Date(o.created_at) >= weekAgo);
+    } else if (dateFilter === 'month') {
+      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter((o) => new Date(o.created_at) >= monthAgo);
+    }
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((o) =>
+        o.order_number.toLowerCase().includes(query) ||
+        o.customer_name?.toLowerCase().includes(query) ||
+        o.customer_cpf?.includes(query)
+      );
+    }
+    
+    return filtered.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  };
+
+  const getTimeElapsed = (createdAt: string) => {
+    try {
+      return formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: ptBR });
+    } catch {
+      return '';
+    }
+  };
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -350,6 +395,7 @@ export default function Pedidos() {
   const preparingOrders = orders.filter((o) => o.status === "preparing");
   const readyOrders = orders.filter((o) => o.status === "ready");
   const completedOrders = getFilteredCompletedOrders();
+  const cancelledOrders = getFilteredCancelledOrders();
 
   const getDeliveryTypeLabel = (type: string) => {
     const labels: any = {
@@ -464,26 +510,31 @@ export default function Pedidos() {
       </div>
 
       <Tabs defaultValue="novos" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="novos" className="data-[state=active]:bg-status-new data-[state=active]:text-status-new-foreground">
             <Package className="h-4 w-4 mr-2" />
-            Novos
+            <span className="hidden sm:inline">Novos</span>
             <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{newOrders.length}</span>
           </TabsTrigger>
           <TabsTrigger value="preparo" className="data-[state=active]:bg-status-preparing data-[state=active]:text-status-preparing-foreground">
             <ChefHat className="h-4 w-4 mr-2" />
-            Em Preparo
+            <span className="hidden sm:inline">Preparo</span>
             <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{preparingOrders.length}</span>
           </TabsTrigger>
           <TabsTrigger value="pronto" className="data-[state=active]:bg-status-ready data-[state=active]:text-status-ready-foreground">
             <Truck className="h-4 w-4 mr-2" />
-            Saiu / Pronto
+            <span className="hidden sm:inline">Pronto</span>
             <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{readyOrders.length}</span>
           </TabsTrigger>
           <TabsTrigger value="concluidos" className="data-[state=active]:bg-status-completed data-[state=active]:text-status-completed-foreground">
             <CheckCircle2 className="h-4 w-4 mr-2" />
-            Concluídos
+            <span className="hidden sm:inline">Concluídos</span>
             <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{completedOrders.length}</span>
+          </TabsTrigger>
+          <TabsTrigger value="cancelados" className="data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">
+            <Ban className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Cancelados</span>
+            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{cancelledOrders.length}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -505,6 +556,10 @@ export default function Pedidos() {
                         {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
                         {getOrderOriginBadge(order)}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {getTimeElapsed(order.created_at)}
+                      </p>
                     </div>
                     <Badge className="bg-status-new text-status-new-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -635,6 +690,10 @@ export default function Pedidos() {
                         {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
                         {getOrderOriginBadge(order)}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {getTimeElapsed(order.created_at)}
+                      </p>
                     </div>
                     <Badge className="bg-status-preparing text-status-preparing-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -690,6 +749,10 @@ export default function Pedidos() {
                         {order.tables && <Badge variant="outline">Mesa {order.tables.number}</Badge>}
                         {getOrderOriginBadge(order)}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {getTimeElapsed(order.created_at)}
+                      </p>
                     </div>
                     <Badge className="bg-status-ready text-status-ready-foreground">
                       {getDeliveryTypeLabel(order.delivery_type)}
@@ -749,15 +812,15 @@ export default function Pedidos() {
 
         <TabsContent value="concluidos" className="mt-6">
           {/* Filtros */}
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-wrap gap-4 mb-6">
             <Input
               placeholder="Buscar por número, cliente ou CPF..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
+              className="flex-1 min-w-[200px]"
             />
             <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -765,6 +828,17 @@ export default function Pedidos() {
                 <SelectItem value="week">Últimos 7 dias</SelectItem>
                 <SelectItem value="month">Últimos 30 dias</SelectItem>
                 <SelectItem value="all">Todos os pedidos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={deliveryTypeFilter} onValueChange={(v: any) => setDeliveryTypeFilter(v)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Tipo de entrega" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="delivery">🚚 Entrega</SelectItem>
+                <SelectItem value="pickup">🏃 Retirada</SelectItem>
+                <SelectItem value="dine_in">🍽️ Consumo Local</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -830,6 +904,101 @@ export default function Pedidos() {
                     <p className="text-xs text-muted-foreground">
                       {new Date(order.created_at).toLocaleString('pt-BR')}
                     </p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Aba de Cancelados */}
+        <TabsContent value="cancelados" className="mt-6">
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-4 mb-6">
+            <Input
+              placeholder="Buscar por número, cliente ou CPF..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 min-w-[200px]"
+            />
+            <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Últimos 7 dias</SelectItem>
+                <SelectItem value="month">Últimos 30 dias</SelectItem>
+                <SelectItem value="all">Todos os pedidos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cards de Estatísticas de Cancelamentos */}
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
+            <Card className="p-4 border-destructive/20">
+              <p className="text-sm text-muted-foreground">Pedidos Cancelados</p>
+              <p className="text-2xl font-bold text-destructive">{cancelledOrders.length}</p>
+            </Card>
+            <Card className="p-4 border-destructive/20">
+              <p className="text-sm text-muted-foreground">Valor Total Perdido</p>
+              <p className="text-2xl font-bold text-destructive">
+                R$ {cancelledOrders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2)}
+              </p>
+            </Card>
+            <Card className="p-4 border-destructive/20">
+              <p className="text-sm text-muted-foreground">Taxa de Cancelamento</p>
+              <p className="text-2xl font-bold text-destructive">
+                {orders.length > 0 
+                  ? ((cancelledOrders.length / orders.length) * 100).toFixed(1) 
+                  : 0}%
+              </p>
+            </Card>
+          </div>
+
+          {cancelledOrders.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Ban className="h-16 w-16 text-muted-foreground/20 mb-4 mx-auto" />
+              <p className="text-xl font-medium text-muted-foreground mb-2">Nenhum pedido cancelado</p>
+              <p className="text-sm text-muted-foreground">Isso é ótimo! Menos cancelamentos = mais eficiência</p>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {cancelledOrders.map((order) => (
+                <Card 
+                  key={order.id} 
+                  className="p-4 border-destructive/30 bg-destructive/5 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setDetailsDialogOpen(true);
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-bold">#{order.order_number}</h3>
+                    <Badge variant="destructive">Cancelado</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Total:</span>{" "}
+                      <span className="line-through">R$ {order.total?.toFixed(2)}</span>
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Tipo:</span> {getDeliveryTypeLabel(order.delivery_type)}
+                    </p>
+                    {order.customer_name && (
+                      <p className="text-xs text-muted-foreground">
+                        👤 {order.customer_name}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {getTimeElapsed(order.created_at)}
+                    </p>
+                    {order.notes && order.notes.includes('[CANCELADO]') && (
+                      <p className="text-xs text-destructive mt-2 p-2 bg-destructive/10 rounded">
+                        {order.notes.split('[CANCELADO]')[1]?.trim().substring(0, 50)}...
+                      </p>
+                    )}
                   </div>
                 </Card>
               ))}
