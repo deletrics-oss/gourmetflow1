@@ -275,7 +275,8 @@ export default function CustomerMenuTotem() {
           payment_method: 'pix',
           subtotal: cartTotal,
           total: cartTotal,
-          notes: observations || null
+          notes: observations || null,
+          restaurant_id: restaurantSettings?.restaurant_id
         })
         .select()
         .single();

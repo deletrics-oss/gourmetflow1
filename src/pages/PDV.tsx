@@ -717,6 +717,16 @@ export default function PDV() {
         }
       }
 
+      // Buscar restaurant_id do usuário
+      const { data: userRestaurant } = await supabase
+        .from('user_restaurants')
+        .select('restaurant_id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      const restaurantId = userRestaurant?.restaurant_id;
+
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
@@ -735,6 +745,7 @@ export default function PDV() {
           customer_phone: customerPhone || null,
           customer_cpf: customerCpf || null,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
+          restaurant_id: restaurantId
         }])
         .select()
         .single();

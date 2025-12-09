@@ -440,6 +440,16 @@ export default function Balcao() {
         }
       }
 
+      // Buscar restaurant_id do usuário
+      const { data: userRestaurant } = await supabase
+        .from('user_restaurants')
+        .select('restaurant_id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      const restaurantId = userRestaurant?.restaurant_id || restaurant?.id;
+
       // Status: pedidos de balcão com pagamento agora vão como 'new' para aparecerem em pendentes
       const { data: order, error: orderError } = await supabase
         .from("orders")
@@ -456,7 +466,8 @@ export default function Balcao() {
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
           status: "new",
           subtotal: subtotal,
-          total: total
+          total: total,
+          restaurant_id: restaurantId
         })
         .select()
         .single();
