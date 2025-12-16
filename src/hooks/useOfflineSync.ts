@@ -113,15 +113,23 @@ export function useOfflineSync(): UseOfflineSyncReturn {
           continue;
         }
 
+        const customerData = {
+          name: customer.name,
+          phone: customer.phone,
+          cpf: customer.cpf || null,
+          address: customer.address || null,
+          restaurant_id: customer.restaurant_id,
+        };
+        
         const { data, error } = await supabase
           .from('customers')
-          .insert({
+          .insert([{
             name: customer.name,
             phone: customer.phone,
-            cpf: customer.cpf,
-            address: customer.address,
+            cpf: customer.cpf || null,
+            address: customer.address as any,
             restaurant_id: customer.restaurant_id,
-          })
+          }])
           .select('id')
           .single();
 
@@ -148,22 +156,22 @@ export function useOfflineSync(): UseOfflineSyncReturn {
       try {
         const { data: newOrder, error: orderError } = await supabase
           .from('orders')
-          .insert({
+          .insert([{
             order_number: order.order_number,
-            customer_name: order.customer_name,
-            customer_phone: order.customer_phone,
-            customer_cpf: order.customer_cpf,
+            customer_name: order.customer_name || null,
+            customer_phone: order.customer_phone || null,
+            customer_cpf: order.customer_cpf || null,
             subtotal: order.subtotal,
             total: order.total,
-            delivery_fee: order.delivery_fee,
-            discount: order.discount,
+            delivery_fee: order.delivery_fee || null,
+            discount: order.discount || null,
             delivery_type: order.delivery_type,
-            payment_method: order.payment_method as any,
-            delivery_address: order.delivery_address,
-            notes: order.notes,
-            status: order.status as any,
+            payment_method: (order.payment_method || 'pending') as any,
+            delivery_address: order.delivery_address as any,
+            notes: order.notes || null,
+            status: (order.status || 'new') as any,
             restaurant_id: order.restaurant_id,
-          })
+          }])
           .select('id')
           .single();
 
