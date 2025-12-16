@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ManageVariationsDialog } from "./ManageVariationsDialog";
 import { UploadImageDialog } from "./UploadImageDialog";
-import { Settings, ImagePlus } from "lucide-react";
+import { Settings, ImagePlus, Scale } from "lucide-react";
 
 interface EditMenuItemDialogProps {
   open: boolean;
@@ -36,7 +37,9 @@ export function EditMenuItemDialog({
     promotional_price: null as number | null,
     category_id: "",
     image_url: "",
-    is_available: true
+    is_available: true,
+    sale_type: "unit" as "unit" | "weight",
+    price_per_kg: null as number | null
   });
 
   useEffect(() => {
@@ -48,15 +51,27 @@ export function EditMenuItemDialog({
         promotional_price: item.promotional_price || null,
         category_id: item.category_id || "",
         image_url: item.image_url || "",
-        is_available: item.is_available ?? true
+        is_available: item.is_available ?? true,
+        sale_type: item.sale_type || "unit",
+        price_per_kg: item.price_per_kg || null
       });
     }
   }, [item, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.price || !formData.category_id) {
+    if (!formData.name || !formData.category_id) {
       toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    if (formData.sale_type === "unit" && !formData.price) {
+      toast.error("Informe o preço do item");
+      return;
+    }
+
+    if (formData.sale_type === "weight" && !formData.price_per_kg) {
+      toast.error("Informe o preço por KG");
       return;
     }
 
@@ -64,7 +79,11 @@ export function EditMenuItemDialog({
     try {
       const { error } = await supabase
         .from('menu_items')
-        .update(formData)
+        .update({
+          ...formData,
+          price: formData.sale_type === "unit" ? formData.price : 0,
+          price_per_kg: formData.sale_type === "weight" ? formData.price_per_kg : null
+        })
         .eq('id', item.id);
 
       if (error) throw error;
@@ -108,32 +127,71 @@ export function EditMenuItemDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="price">Preço (R$) *</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                required
-              />
+          {/* Venda por Peso */}
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-primary" />
+              <div>
+                <Label className="font-semibold">Venda por Peso</Label>
+                <p className="text-xs text-muted-foreground">Ative para produtos vendidos por KG</p>
+              </div>
             </div>
+            <Switch
+              checked={formData.sale_type === "weight"}
+              onCheckedChange={(checked) => setFormData({ 
+                ...formData, 
+                sale_type: checked ? "weight" : "unit" 
+              })}
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="promotional_price">Preço Promocional (R$)</Label>
-              <Input
-                id="promotional_price"
-                type="number"
-                step="0.01"
-                value={formData.promotional_price || ""}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  promotional_price: e.target.value ? parseFloat(e.target.value) : null 
-                })}
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-4">
+            {formData.sale_type === "unit" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Preço (R$) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="promotional_price">Preço Promocional (R$)</Label>
+                  <Input
+                    id="promotional_price"
+                    type="number"
+                    step="0.01"
+                    value={formData.promotional_price || ""}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      promotional_price: e.target.value ? parseFloat(e.target.value) : null 
+                    })}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="price_per_kg">Preço por KG (R$) *</Label>
+                <Input
+                  id="price_per_kg"
+                  type="number"
+                  step="0.01"
+                  value={formData.price_per_kg || ""}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    price_per_kg: e.target.value ? parseFloat(e.target.value) : null 
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  O valor final será calculado pelo peso na balança
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
