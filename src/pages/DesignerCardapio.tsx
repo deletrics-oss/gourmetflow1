@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/lib/supabase-client";
 import { useRestaurant } from "@/hooks/useRestaurant";
@@ -22,7 +22,9 @@ import {
   Magnet,
   LayoutGrid,
   Sparkles,
-  Palette
+  Palette,
+  Upload,
+  X
 } from "lucide-react";
 
 interface MenuItem {
@@ -55,6 +57,17 @@ const visualStyles = [
   { id: 'vibrant', label: 'Vibrante', description: 'Cores fortes e chamativas' },
 ];
 
+const businessTypes = [
+  { id: 'pizzaria', label: '🍕 Pizzaria' },
+  { id: 'hamburgueria', label: '🍔 Hamburgueria' },
+  { id: 'japones', label: '🍣 Japonês' },
+  { id: 'cafeteria', label: '☕ Cafeteria' },
+  { id: 'saudavel', label: '🥗 Saudável' },
+  { id: 'churrascaria', label: '🍖 Churrascaria' },
+  { id: 'italiana', label: '🍝 Italiana' },
+  { id: 'confeitaria', label: '🍰 Confeitaria' },
+];
+
 export default function DesignerCardapio() {
   const { restaurantId, loading: restaurantLoading } = useRestaurant();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -68,6 +81,13 @@ export default function DesignerCardapio() {
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [restaurantSettings, setRestaurantSettings] = useState<any>(null);
+  
+  // Novos estados para personalização avançada
+  const [businessType, setBusinessType] = useState('pizzaria');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referencePreview, setReferencePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (restaurantId) {
@@ -144,6 +164,37 @@ export default function DesignerCardapio() {
     setSelectedItems(new Set());
   };
 
+  const handleReferenceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem válida');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Imagem muito grande. Máximo 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setReferenceImage(base64);
+      setReferencePreview(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearReferenceImage = () => {
+    setReferenceImage(null);
+    setReferencePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const generateArt = async () => {
     if (selectedItems.size === 0) {
       toast.error('Selecione pelo menos um item do cardápio');
@@ -165,6 +216,9 @@ export default function DesignerCardapio() {
           accentColor,
           restaurantName: restaurantSettings?.name || 'Restaurante',
           logoUrl: restaurantSettings?.logo_url,
+          businessType,
+          customPrompt,
+          referenceImageBase64: referenceImage,
         },
       });
 
@@ -310,6 +364,89 @@ export default function DesignerCardapio() {
                     />
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Personalização Avançada - NOVO */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">✨ Personalização Avançada</CardTitle>
+              <CardDescription>Configure o tipo de negócio e instruções específicas</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Tipo de Negócio */}
+              <div>
+                <Label className="mb-2 block">Tipo de Negócio</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {businessTypes.map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => setBusinessType(type.id)}
+                      className={`p-2 rounded-lg border-2 transition-all text-center text-sm ${
+                        businessType === type.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-muted hover:border-primary/50'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Instruções Personalizadas */}
+              <div>
+                <Label htmlFor="customPrompt">Instruções Personalizadas (opcional)</Label>
+                <Textarea
+                  id="customPrompt"
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="Ex: Inclua decoração de Natal, destaque o prato principal, use fotos realistas de comida brasileira..."
+                  className="mt-1 min-h-[80px]"
+                />
+              </div>
+
+              {/* Upload de Imagem de Referência */}
+              <div>
+                <Label>Imagem de Referência (opcional)</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Envie uma imagem para a IA clonar o estilo visual
+                </p>
+                
+                {referencePreview ? (
+                  <div className="relative inline-block">
+                    <img
+                      src={referencePreview}
+                      alt="Referência"
+                      className="w-32 h-32 object-cover rounded-lg border"
+                    />
+                    <button
+                      onClick={clearReferenceImage}
+                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/80"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  >
+                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Clique para enviar imagem
+                    </p>
+                  </div>
+                )}
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleReferenceImageUpload}
+                  className="hidden"
+                />
               </div>
             </CardContent>
           </Card>
