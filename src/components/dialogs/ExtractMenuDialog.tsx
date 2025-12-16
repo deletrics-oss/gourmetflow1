@@ -5,10 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Upload, FileText, Link, Image, X } from "lucide-react";
+import { Loader2, Upload, FileText, Link, Image, X, Sparkles } from "lucide-react";
 
 interface ExtractMenuDialogProps {
   open: boolean;
@@ -30,6 +32,8 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("text");
+  const [generateImages, setGenerateImages] = useState(false);
+  const [imageProgress, setImageProgress] = useState({ current: 0, total: 0, itemName: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
@@ -108,6 +112,59 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     }
   };
 
+  // Generate AI image and upload to storage
+  const generateAndUploadImage = async (itemName: string, category: string, description?: string): Promise<string | null> => {
+    try {
+      // Call edge function to generate image
+      const { data, error } = await supabase.functions.invoke('generate-product-image', {
+        body: { name: itemName, category, description }
+      });
+
+      if (error || data?.error) {
+        console.error('Error generating image:', error || data?.error);
+        return null;
+      }
+
+      const imageBase64 = data.imageBase64;
+      if (!imageBase64) return null;
+
+      // Convert base64 to blob
+      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      // Upload to Supabase Storage
+      const fileName = `${restaurantId}/${Date.now()}-${itemName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.png`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('menu-images')
+        .upload(fileName, blob, {
+          contentType: 'image/png',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('menu-images')
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (err) {
+      console.error('Error in generateAndUploadImage:', err);
+      return null;
+    }
+  };
+
   // Save items directly to Supabase database
   const saveItemsToDatabase = async (items: ExtractedItem[]) => {
     if (!restaurantId) {
@@ -130,7 +187,10 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
       }
     }
 
-    for (const item of items) {
+    const totalItems = items.length;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const categoryName = item.category || "Geral";
       const categoryKey = categoryName.toLowerCase();
       
@@ -154,6 +214,13 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
         categoryCache[categoryKey] = newCat.id;
       }
 
+      // Generate AI image if option is enabled
+      let imageUrl: string | null = null;
+      if (generateImages) {
+        setImageProgress({ current: i + 1, total: totalItems, itemName: item.name });
+        imageUrl = await generateAndUploadImage(item.name, categoryName, item.description);
+      }
+
       // Insert menu item
       if (item.name && item.price >= 0) {
         const { error: itemError } = await supabase
@@ -164,7 +231,8 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
             description: item.description || null,
             category_id: categoryCache[categoryKey],
             restaurant_id: restaurantId,
-            is_available: true
+            is_available: true,
+            image_url: imageUrl
           });
 
         if (itemError) {
@@ -189,6 +257,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     }
 
     setLoading(true);
+    setImageProgress({ current: 0, total: 0, itemName: "" });
     try {
       const items = parseMenuText(text);
 
@@ -205,7 +274,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
 
       toast({
         title: "Sucesso!",
-        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio${generateImages ? " com imagens IA" : ""}`,
       });
 
       setText("");
@@ -220,6 +289,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
       });
     } finally {
       setLoading(false);
+      setImageProgress({ current: 0, total: 0, itemName: "" });
     }
   };
 
@@ -234,6 +304,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     }
 
     setLoading(true);
+    setImageProgress({ current: 0, total: 0, itemName: "" });
     try {
       const { data, error } = await supabase.functions.invoke('extract-menu-from-image', {
         body: { imageBase64: imagePreview }
@@ -259,7 +330,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
 
       toast({
         title: "Sucesso!",
-        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio${generateImages ? " com imagens IA" : ""}`,
       });
 
       clearImage();
@@ -274,6 +345,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
       });
     } finally {
       setLoading(false);
+      setImageProgress({ current: 0, total: 0, itemName: "" });
     }
   };
 
@@ -288,6 +360,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     }
 
     setLoading(true);
+    setImageProgress({ current: 0, total: 0, itemName: "" });
     try {
       const { data, error } = await supabase.functions.invoke('extract-menu-from-image', {
         body: { imageUrl: imageUrl.trim() }
@@ -313,7 +386,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
 
       toast({
         title: "Sucesso!",
-        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio${generateImages ? " com imagens IA" : ""}`,
       });
 
       setImageUrl("");
@@ -328,6 +401,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
       });
     } finally {
       setLoading(false);
+      setImageProgress({ current: 0, total: 0, itemName: "" });
     }
   };
 
@@ -391,7 +465,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Exemplo:&#10;&#10;PIZZAS:&#10;Marguerita - R$ 35,00&#10;Calabresa - R$ 38,00&#10;&#10;BEBIDAS:&#10;Coca-Cola - R$ 6,00&#10;Suco Natural - R$ 8,00"
-                className="min-h-[250px] font-mono text-sm"
+                className="min-h-[200px] font-mono text-sm"
               />
             </div>
             <p className="text-sm text-muted-foreground">
@@ -408,7 +482,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
                   <img 
                     src={imagePreview} 
                     alt="Preview do cardápio" 
-                    className="w-full max-h-[300px] object-contain rounded-lg border"
+                    className="w-full max-h-[250px] object-contain rounded-lg border"
                   />
                   <Button
                     variant="destructive"
@@ -465,7 +539,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
                 <img 
                   src={imageUrl} 
                   alt="Preview da URL" 
-                  className="w-full max-h-[200px] object-contain"
+                  className="w-full max-h-[150px] object-contain"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
@@ -479,13 +553,48 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
           </TabsContent>
         </Tabs>
 
+        {/* AI Image Generation Option */}
+        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <div>
+              <Label htmlFor="generate-images" className="text-sm font-medium cursor-pointer">
+                Gerar fotos com IA para cada item
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                A IA criará imagens profissionais automaticamente (~5-10s por item)
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="generate-images"
+            checked={generateImages}
+            onCheckedChange={setGenerateImages}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Progress indicator when generating images */}
+        {loading && generateImages && imageProgress.total > 0 && (
+          <div className="space-y-2 p-4 bg-primary/5 rounded-lg">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Gerando imagens com IA...</span>
+              <span className="font-medium">{imageProgress.current} de {imageProgress.total}</span>
+            </div>
+            <Progress value={(imageProgress.current / imageProgress.total) * 100} />
+            <p className="text-xs text-muted-foreground truncate">
+              Criando: {imageProgress.itemName}
+            </p>
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
           <Button onClick={handleExtract} disabled={loading || !canExtract()}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Extrair e Cadastrar
+            {generateImages ? "Extrair com Fotos IA" : "Extrair e Cadastrar"}
           </Button>
         </DialogFooter>
       </DialogContent>
