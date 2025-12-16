@@ -310,14 +310,17 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
         body: { imageBase64: imagePreview }
       });
 
-      if (error) {
-        // Check if error contains the custom message from 402 response
-        const errorMessage = error.message || error.context?.message || 'Erro ao processar imagem';
-        throw new Error(errorMessage);
-      }
-      
+      // Handle errors - check data.error first since edge function returns error in body
       if (data?.error) {
         throw new Error(data.error);
+      }
+      
+      if (error) {
+        // Try to extract error message from various possible locations
+        const errorMessage = (error as any)?.message || 
+                            (error as any)?.context?.body?.error ||
+                            'Erro ao processar imagem';
+        throw new Error(errorMessage);
       }
 
       const items = data.items as ExtractedItem[];
@@ -370,13 +373,16 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
         body: { imageUrl: imageUrl.trim() }
       });
 
-      if (error) {
-        const errorMessage = error.message || error.context?.message || 'Erro ao processar URL';
-        throw new Error(errorMessage);
-      }
-      
+      // Handle errors - check data.error first since edge function returns error in body
       if (data?.error) {
         throw new Error(data.error);
+      }
+      
+      if (error) {
+        const errorMessage = (error as any)?.message || 
+                            (error as any)?.context?.body?.error ||
+                            'Erro ao processar URL';
+        throw new Error(errorMessage);
       }
 
       const items = data.items as ExtractedItem[];
