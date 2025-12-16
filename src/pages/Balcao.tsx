@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Maximize, Bike, CheckCircle, Loader2, AlertTriangle, Gift } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Maximize, Bike, CheckCircle, Loader2, AlertTriangle, Gift, Scale } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { toast as sonnerToast } from "sonner";
 import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
+import { WeightInputDialog } from "@/components/dialogs/WeightInputDialog";
 import { useWhatsApp } from "@/hooks/useWhatsApp";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
@@ -30,6 +31,7 @@ interface CartItem {
   customizations?: any[];
   finalPrice?: number;
   customizationsText?: string;
+  weight?: number;
 }
 
 interface MenuItem {
@@ -41,6 +43,8 @@ interface MenuItem {
   image_url: string | null;
   category_id: string | null;
   is_available: boolean;
+  sale_type?: string;
+  price_per_kg?: number;
 }
 
 interface Category {
@@ -91,6 +95,12 @@ export default function Balcao() {
   });
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  // Weight dialog state
+  const [weightDialogOpen, setWeightDialogOpen] = useState(false);
+  const [weightItem, setWeightItem] = useState<MenuItem | null>(null);
+  // NFC-e settings
+  const [nfceEnabled, setNfceEnabled] = useState(false);
+  const [nfceSettings, setNfceSettings] = useState<any>(null);
   const { toast } = useToast();
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
@@ -221,6 +231,17 @@ export default function Balcao() {
       setLoyaltyPointsPerReal(data.loyalty_points_per_real || 1);
       setLoyaltyRedemptionValue(data.loyalty_redemption_value || 0.01);
     }
+
+    // Load NFC-e settings
+    const { data: nfceData } = await supabase
+      .from("nfce_settings")
+      .select("*")
+      .maybeSingle();
+    
+    if (nfceData && nfceData.is_active) {
+      setNfceEnabled(true);
+      setNfceSettings(nfceData);
+    }
   };
 
   const loadMotoboys = async () => {
@@ -233,6 +254,13 @@ export default function Balcao() {
   };
 
   const handleAddToCart = async (item: MenuItem) => {
+    // Check if item is sold by weight
+    if (item.sale_type === 'weight' && item.price_per_kg) {
+      setWeightItem(item);
+      setWeightDialogOpen(true);
+      return;
+    }
+
     const { data: variations } = await supabase
       .from("item_variations")
       .select("*")
@@ -245,6 +273,22 @@ export default function Balcao() {
     } else {
       addToCart(item);
     }
+  };
+
+  const handleWeightConfirm = (weight: number, totalPrice: number) => {
+    if (!weightItem) return;
+    
+    setCart([...cart, {
+      id: weightItem.id,
+      name: weightItem.name,
+      price: totalPrice,
+      quantity: 1,
+      finalPrice: totalPrice,
+      customizationsText: `${weight.toFixed(3)} kg`,
+      weight: weight
+    }]);
+    
+    setWeightItem(null);
   };
 
   const addToCart = (item: MenuItem, customizations?: any[]) => {
@@ -554,6 +598,46 @@ export default function Balcao() {
         }
       );
 
+      // ✅ Emissão automática de NFC-e se ativado
+      let nfceData = null;
+      if (nfceEnabled && nfceSettings) {
+        try {
+          const { data: nfceResult, error: nfceError } = await supabase.functions.invoke('emit-nfce', {
+            body: {
+              orderId: order.id,
+              restaurantId: restaurantId,
+              items: cart.map(item => ({
+                nome: item.name,
+                quantidade: item.quantity,
+                valor_unitario: item.finalPrice || item.price,
+                ncm: '21069090', // Código genérico para alimentos
+                cfop: '5102'
+              })),
+              total: total,
+              formaPagamento: paymentMethod === 'pix' ? '17' : paymentMethod === 'credit_card' ? '03' : paymentMethod === 'debit_card' ? '04' : '01',
+              cpfCliente: customerCpf || null,
+              nomeCliente: customerName || null
+            }
+          });
+
+          if (nfceError) {
+            console.error('Erro ao emitir NFC-e:', nfceError);
+            sonnerToast.warning('Nota fiscal não emitida: ' + (nfceError.message || 'Erro desconhecido'));
+          } else if (nfceResult?.success) {
+            nfceData = {
+              numero: nfceResult.numero,
+              serie: nfceResult.serie,
+              chave_acesso: nfceResult.chave_acesso,
+              qrcode_url: nfceResult.qrcode_url,
+              protocol: nfceResult.protocol
+            };
+            sonnerToast.success(`✅ NFC-e ${nfceResult.numero} emitida!`);
+          }
+        } catch (nfceErr) {
+          console.error('Erro na emissão NFC-e:', nfceErr);
+        }
+      }
+
       if (printOnClose) {
         try {
           const orderForPrint = {
@@ -562,6 +646,7 @@ export default function Balcao() {
             delivery_type: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
+            customer_cpf: customerCpf,
             subtotal: subtotal,
             total: total,
             payment_method: paymentMethod,
@@ -571,7 +656,8 @@ export default function Balcao() {
               unit_price: item.finalPrice || item.price,
               total_price: (item.finalPrice || item.price) * item.quantity,
               notes: item.customizationsText
-            }))
+            })),
+            nfce_data: nfceData
           };
           generatePrintReceipt(orderForPrint, restaurantName, undefined, 'customer');
         } catch (printError) {
@@ -1045,6 +1131,14 @@ export default function Balcao() {
           addToCart(item, customizations);
           setCustomizeDialogOpen(false);
         }}
+      />
+
+      <WeightInputDialog
+        open={weightDialogOpen}
+        onOpenChange={setWeightDialogOpen}
+        productName={weightItem?.name || ''}
+        pricePerKg={weightItem?.price_per_kg || 0}
+        onConfirm={handleWeightConfirm}
       />
     </div>
   );

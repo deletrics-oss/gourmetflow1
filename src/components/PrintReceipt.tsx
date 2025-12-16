@@ -8,6 +8,14 @@ interface OrderItem {
   notes?: string;
 }
 
+interface NFCeData {
+  numero: string;
+  serie: string;
+  chave_acesso: string;
+  qrcode_url?: string;
+  protocol?: string;
+}
+
 interface Order {
   order_number: string;
   created_at: string;
@@ -26,6 +34,7 @@ interface Order {
   order_items: OrderItem[];
   operator_name?: string;
   sequential_number?: number;
+  nfce_data?: NFCeData;
 }
 
 interface PrintReceiptProps {
@@ -304,6 +313,42 @@ const generateCustomerReceipt = (order: Order, restaurantName: string, tableNumb
         ${order.sequential_number ? `
           <div class="sequential">
             Compra Nº ${order.sequential_number.toString().padStart(6, '0')}
+          </div>
+        ` : ''}
+
+        ${order.nfce_data ? `
+          <div class="section" style="margin-top: 12px; padding-top: 12px; border-top: 2px dashed #000;">
+            <div style="text-align: center; font-weight: bold; margin-bottom: 8px;">
+              ━━━━━ DOCUMENTO FISCAL ━━━━━
+            </div>
+            <div class="row">
+              <span>NFC-e Nº:</span>
+              <strong>${order.nfce_data.numero}</strong>
+            </div>
+            <div class="row">
+              <span>Série:</span>
+              <span>${order.nfce_data.serie}</span>
+            </div>
+            ${order.nfce_data.protocol ? `
+              <div class="row">
+                <span>Protocolo:</span>
+                <span style="font-size: 9px;">${order.nfce_data.protocol}</span>
+              </div>
+            ` : ''}
+            <div style="margin: 8px 0; text-align: center;">
+              <div style="font-size: 9px; margin-bottom: 4px;">Chave de Acesso:</div>
+              <div style="font-family: monospace; font-size: 8px; word-break: break-all; background: #f5f5f5; padding: 4px; border-radius: 2px;">
+                ${order.nfce_data.chave_acesso}
+              </div>
+            </div>
+            ${order.nfce_data.qrcode_url ? `
+              <div style="text-align: center; margin: 8px 0;">
+                <img src="${order.nfce_data.qrcode_url}" alt="QR Code SEFAZ" style="width: 120px; height: 120px;" />
+              </div>
+            ` : ''}
+            <div style="text-align: center; font-size: 8px; margin-top: 4px;">
+              Consulte em: www.nfce.fazenda.sp.gov.br
+            </div>
           </div>
         ` : ''}
 

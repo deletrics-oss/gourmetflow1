@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin, Star, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin, Star, AlertTriangle, Scale } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { toast as sonnerToast } from "sonner";
 import { OrderDetailsDialog } from "@/components/dialogs/OrderDetailsDialog";
 import { CustomizeItemDialog } from "@/components/dialogs/CustomizeItemDialog";
+import { WeightInputDialog } from "@/components/dialogs/WeightInputDialog";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ interface CartItem {
   customizations?: any[];
   finalPrice?: number;
   customizationsText?: string;
+  weight?: number;
 }
 
 interface MenuItem {
@@ -38,6 +40,8 @@ interface MenuItem {
   image_url: string | null;
   category_id: string | null;
   is_available: boolean;
+  sale_type?: string;
+  price_per_kg?: number;
 }
 
 interface Category {
@@ -91,6 +95,12 @@ export default function PDV() {
   const [pixCopyPaste, setPixCopyPaste] = useState('');
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState(0);
   const [isCustomerSuspicious, setIsCustomerSuspicious] = useState(false);
+  // Weight dialog state
+  const [weightDialogOpen, setWeightDialogOpen] = useState(false);
+  const [weightItem, setWeightItem] = useState<MenuItem | null>(null);
+  // NFC-e settings
+  const [nfceEnabled, setNfceEnabled] = useState(false);
+  const [nfceSettings, setNfceSettings] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -177,6 +187,17 @@ export default function PDV() {
             loadDeliveryZones(restaurantData.id);
           }
         }
+      }
+
+      // Load NFC-e settings
+      const { data: nfceData } = await supabase
+        .from("nfce_settings")
+        .select("*")
+        .maybeSingle();
+      
+      if (nfceData && nfceData.is_active) {
+        setNfceEnabled(true);
+        setNfceSettings(nfceData);
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
@@ -501,6 +522,13 @@ export default function PDV() {
       : menuItems.filter((item) => item.category_id === selectedCategory);
 
   const handleAddToCart = async (item: MenuItem) => {
+    // Check if item is sold by weight
+    if (item.sale_type === 'weight' && item.price_per_kg) {
+      setWeightItem(item);
+      setWeightDialogOpen(true);
+      return;
+    }
+
     // Check if item has variations
     const { data: variations } = await supabase
       .from('item_variations')
@@ -516,6 +544,22 @@ export default function PDV() {
       // Add directly to cart
       addToCart(item);
     }
+  };
+
+  const handleWeightConfirm = (weight: number, totalPrice: number) => {
+    if (!weightItem) return;
+    
+    setCart(prev => [...prev, {
+      id: weightItem.id,
+      name: weightItem.name,
+      price: totalPrice,
+      quantity: 1,
+      finalPrice: totalPrice,
+      customizationsText: `${weight.toFixed(3)} kg`,
+      weight: weight
+    }]);
+    
+    setWeightItem(null);
   };
 
   const addToCart = (item: MenuItem, customizations: any[] = []) => {
@@ -2029,6 +2073,14 @@ export default function PDV() {
           )}
         </DialogContent>
       </Dialog>
+
+      <WeightInputDialog
+        open={weightDialogOpen}
+        onOpenChange={setWeightDialogOpen}
+        productName={weightItem?.name || ''}
+        pricePerKg={weightItem?.price_per_kg || 0}
+        onConfirm={handleWeightConfirm}
+      />
     </div>
   );
 }
