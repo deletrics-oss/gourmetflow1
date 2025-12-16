@@ -5,14 +5,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Upload, FileText, Link, Image, X } from "lucide-react";
 
 interface ExtractMenuDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 interface ExtractedItem {
@@ -22,7 +23,7 @@ interface ExtractedItem {
   category: string;
 }
 
-export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps) {
+export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenuDialogProps) {
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -31,12 +32,12 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
   const [activeTab, setActiveTab] = useState("text");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { addMenuItem, addCategory, categories } = useApp();
   const { toast } = useToast();
+  const { restaurantId } = useRestaurant();
 
   const parseMenuText = (input: string) => {
     const lines = input.split("\n").filter((line) => line.trim());
-    const items: Array<{ name: string; price: number; category: string; description?: string }> = [];
+    const items: ExtractedItem[] = [];
     let currentCategory = "Geral";
 
     for (const line of lines) {
@@ -47,10 +48,6 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
         (trimmed.endsWith(":") && !trimmed.includes("R$"))
       ) {
         currentCategory = trimmed.replace(":", "").trim();
-        const categoryExists = categories.some(c => c.name.toLowerCase() === currentCategory.toLowerCase());
-        if (!categoryExists) {
-          addCategory({ name: currentCategory });
-        }
         continue;
       }
 
@@ -111,30 +108,73 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
     }
   };
 
-  const processExtractedItems = (items: ExtractedItem[]) => {
+  // Save items directly to Supabase database
+  const saveItemsToDatabase = async (items: ExtractedItem[]) => {
+    if (!restaurantId) {
+      throw new Error('Restaurant ID não encontrado');
+    }
+
     let addedCount = 0;
-    
-    for (const item of items) {
-      // Add category if doesn't exist
-      const categoryExists = categories.some(c => 
-        c.name.toLowerCase() === item.category.toLowerCase()
-      );
-      if (!categoryExists && item.category) {
-        addCategory({ name: item.category });
-      }
-      
-      // Add menu item
-      if (item.name && item.price >= 0) {
-        addMenuItem({
-          name: item.name,
-          price: item.price,
-          category: item.category || "Geral",
-          description: item.description,
-        });
-        addedCount++;
+    const categoryCache: Record<string, string> = {};
+
+    // First, load existing categories
+    const { data: existingCategories } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('restaurant_id', restaurantId);
+
+    // Build category cache from existing
+    if (existingCategories) {
+      for (const cat of existingCategories) {
+        categoryCache[cat.name.toLowerCase()] = cat.id;
       }
     }
-    
+
+    for (const item of items) {
+      const categoryName = item.category || "Geral";
+      const categoryKey = categoryName.toLowerCase();
+      
+      // Create category if doesn't exist
+      if (!categoryCache[categoryKey]) {
+        const { data: newCat, error: catError } = await supabase
+          .from('categories')
+          .insert({
+            name: categoryName,
+            restaurant_id: restaurantId,
+            is_active: true
+          })
+          .select('id')
+          .single();
+
+        if (catError) {
+          console.error('Error creating category:', catError);
+          continue;
+        }
+        
+        categoryCache[categoryKey] = newCat.id;
+      }
+
+      // Insert menu item
+      if (item.name && item.price >= 0) {
+        const { error: itemError } = await supabase
+          .from('menu_items')
+          .insert({
+            name: item.name,
+            price: item.price,
+            description: item.description || null,
+            category_id: categoryCache[categoryKey],
+            restaurant_id: restaurantId,
+            is_available: true
+          });
+
+        if (itemError) {
+          console.error('Error creating menu item:', itemError);
+        } else {
+          addedCount++;
+        }
+      }
+    }
+
     return addedCount;
   };
 
@@ -150,7 +190,6 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
       const items = parseMenuText(text);
 
       if (items.length === 0) {
@@ -162,16 +201,18 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
         return;
       }
 
-      items.forEach((item) => addMenuItem(item));
+      const addedCount = await saveItemsToDatabase(items);
 
       toast({
         title: "Sucesso!",
-        description: `${items.length} ${items.length === 1 ? "item extraído" : "itens extraídos"} do cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
       });
 
       setText("");
       onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
+      console.error('Error:', error);
       toast({
         title: "Erro",
         description: "Erro ao processar o cardápio",
@@ -214,15 +255,16 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
         return;
       }
 
-      const addedCount = processExtractedItems(items);
+      const addedCount = await saveItemsToDatabase(items);
 
       toast({
         title: "Sucesso!",
-        description: `${addedCount} ${addedCount === 1 ? "item extraído" : "itens extraídos"} do cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
       });
 
       clearImage();
       onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
       console.error('Error extracting from image:', error);
       toast({
@@ -267,15 +309,16 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
         return;
       }
 
-      const addedCount = processExtractedItems(items);
+      const addedCount = await saveItemsToDatabase(items);
 
       toast({
         title: "Sucesso!",
-        description: `${addedCount} ${addedCount === 1 ? "item extraído" : "itens extraídos"} do cardápio`,
+        description: `${addedCount} ${addedCount === 1 ? "item cadastrado" : "itens cadastrados"} no cardápio`,
       });
 
       setImageUrl("");
       onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
       console.error('Error extracting from URL:', error);
       toast({
@@ -442,7 +485,7 @@ export function ExtractMenuDialog({ open, onOpenChange }: ExtractMenuDialogProps
           </Button>
           <Button onClick={handleExtract} disabled={loading || !canExtract()}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Extrair Itens
+            Extrair e Cadastrar
           </Button>
         </DialogFooter>
       </DialogContent>
