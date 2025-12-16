@@ -21,6 +21,9 @@ verify_jwt = true
 [functions.generate-menu-design]
 verify_jwt = true
 
+[functions.generate-product-image]
+verify_jwt = true
+
 [functions.mercadopago-payment]
 verify_jwt = true
 
