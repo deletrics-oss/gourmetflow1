@@ -100,6 +100,13 @@ NÃO inclua nenhum texto antes ou depois do JSON.`;
         });
       }
       
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: 'Créditos de IA esgotados. Por favor, adicione créditos em Configurações → Workspace → Usage para continuar.' }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
       throw new Error(`Erro na API: ${response.status}`);
     }
 
