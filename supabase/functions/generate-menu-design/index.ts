@@ -79,11 +79,58 @@ async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
 }
 
 async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenceImageBase64?: string): Promise<string | null> {
+  // Use imagen-3.0-generate-002 for image generation
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+  
+  let fullPrompt = prompt;
+  if (referenceImageBase64) {
+    fullPrompt = `Use this reference image style: ${prompt}`;
+  }
+  
+  const requestBody = {
+    instances: [{ prompt: fullPrompt }],
+    parameters: {
+      sampleCount: 1,
+      aspectRatio: "1:1",
+      personGeneration: "dont_allow"
+    }
+  };
+
+  console.log('Calling Imagen API for menu design...');
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Imagen API error:', response.status, errorText);
+    
+    // Fallback to gemini-2.0-flash-exp with image generation
+    console.log('Trying fallback with gemini-2.0-flash-exp...');
+    return await callGeminiFlashImageGen(apiKey, prompt, referenceImageBase64);
+  }
+  
+  const data = await response.json();
+  console.log('Imagen response keys:', Object.keys(data));
+  
+  // Extract image from Imagen response
+  const predictions = data.predictions || [];
+  if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+    return `data:image/png;base64,${predictions[0].bytesBase64Encoded}`;
+  }
+  
+  console.error('No image in Imagen response, trying fallback...');
+  return await callGeminiFlashImageGen(apiKey, prompt, referenceImageBase64);
+}
+
+async function callGeminiFlashImageGen(apiKey: string, prompt: string, referenceImageBase64?: string): Promise<string | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
   
-  const parts: any[] = [{ text: prompt }];
+  const parts: any[] = [{ text: `Generate an image: ${prompt}` }];
   
-  // Add reference image if provided
   if (referenceImageBase64) {
     const base64Match = referenceImageBase64.match(/^data:([^;]+);base64,(.+)$/);
     if (base64Match) {
@@ -102,25 +149,27 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenc
     body: JSON.stringify({
       contents: [{ parts }],
       generationConfig: {
-        responseModalities: ["Text", "Image"]
+        responseModalities: ["IMAGE", "TEXT"]
       }
     }),
   });
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini direct image API error:', response.status, errorText);
-    throw new Error(`Gemini API error: ${response.status}`);
+    console.error('Gemini Flash API error:', response.status, errorText);
+    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
   }
   
   const data = await response.json();
+  console.log('Gemini Flash response structure:', JSON.stringify(data, null, 2).substring(0, 500));
   
   // Extract image from response
   const responseParts = data.candidates?.[0]?.content?.parts || [];
   for (const part of responseParts) {
-    if (part.inline_data?.data) {
-      const mimeType = part.inline_data.mime_type || 'image/png';
-      return `data:${mimeType};base64,${part.inline_data.data}`;
+    if (part.inlineData?.data || part.inline_data?.data) {
+      const imageData = part.inlineData?.data || part.inline_data?.data;
+      const mimeType = part.inlineData?.mimeType || part.inline_data?.mime_type || 'image/png';
+      return `data:${mimeType};base64,${imageData}`;
     }
   }
   
