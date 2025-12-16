@@ -547,8 +547,10 @@ export type Database = {
           name: string
           preparation_time: number | null
           price: number
+          price_per_kg: number | null
           promotional_price: number | null
           restaurant_id: string | null
+          sale_type: string | null
           sort_order: number | null
           updated_at: string | null
         }
@@ -564,8 +566,10 @@ export type Database = {
           name: string
           preparation_time?: number | null
           price: number
+          price_per_kg?: number | null
           promotional_price?: number | null
           restaurant_id?: string | null
+          sale_type?: string | null
           sort_order?: number | null
           updated_at?: string | null
         }
@@ -581,8 +585,10 @@ export type Database = {
           name?: string
           preparation_time?: number | null
           price?: number
+          price_per_kg?: number | null
           promotional_price?: number | null
           restaurant_id?: string | null
+          sale_type?: string | null
           sort_order?: number | null
           updated_at?: string | null
         }

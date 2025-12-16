@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ManageVariationsDialog } from "./ManageVariationsDialog";
 import { UploadImageDialog } from "./UploadImageDialog";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Scale } from "lucide-react";
 
 interface AddMenuItemDialogProps {
   open: boolean;
@@ -24,6 +25,8 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   const [category, setCategory] = useState("");
   const [image, setImage] = useState("");
   const [preparationTime, setPreparationTime] = useState("20");
+  const [saleType, setSaleType] = useState<"unit" | "weight">("unit");
+  const [pricePerKg, setPricePerKg] = useState("");
   const [availableHours, setAvailableHours] = useState({
     start: "00:00",
     end: "23:59",
@@ -58,8 +61,18 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !price || !category) {
+    if (!name.trim() || !category) {
       toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    if (saleType === "unit" && !price) {
+      toast.error("Informe o preço do item");
+      return;
+    }
+
+    if (saleType === "weight" && !pricePerKg) {
+      toast.error("Informe o preço por KG");
       return;
     }
 
@@ -70,13 +83,15 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
         .insert({
           name: name.trim(),
           description: description.trim() || null,
-          price: parseFloat(price),
+          price: saleType === "unit" ? parseFloat(price) : 0,
           promotional_price: promotionalPrice ? parseFloat(promotionalPrice) : null,
           category_id: category,
           image_url: image.trim() || null,
           is_available: true,
           preparation_time: parseInt(preparationTime),
-          available_hours: availableHours
+          available_hours: availableHours,
+          sale_type: saleType,
+          price_per_kg: saleType === "weight" ? parseFloat(pricePerKg) : null
         })
         .select()
         .single();
@@ -96,6 +111,8 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
       setCategory("");
       setImage("");
       setPreparationTime("20");
+      setSaleType("unit");
+      setPricePerKg("");
       setAvailableHours({
         start: "00:00",
         end: "23:59",
@@ -156,29 +173,63 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
               placeholder="Descrição do item"
             />
           </div>
+          {/* Venda por Peso */}
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-primary" />
+              <div>
+                <Label className="font-semibold">Venda por Peso</Label>
+                <p className="text-xs text-muted-foreground">Ative para produtos vendidos por KG</p>
+              </div>
+            </div>
+            <Switch
+              checked={saleType === "weight"}
+              onCheckedChange={(checked) => setSaleType(checked ? "weight" : "unit")}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="price">Preço *</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="promo-price">Preço Promocional</Label>
-              <Input
-                id="promo-price"
-                type="number"
-                step="0.01"
-                value={promotionalPrice}
-                onChange={(e) => setPromotionalPrice(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
+            {saleType === "unit" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Preço *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="promo-price">Preço Promocional</Label>
+                  <Input
+                    id="promo-price"
+                    type="number"
+                    step="0.01"
+                    value={promotionalPrice}
+                    onChange={(e) => setPromotionalPrice(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="price-per-kg">Preço por KG *</Label>
+                <Input
+                  id="price-per-kg"
+                  type="number"
+                  step="0.01"
+                  value={pricePerKg}
+                  onChange={(e) => setPricePerKg(e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O valor final será calculado pelo peso na balança
+                </p>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="item-image">Imagem do Item</Label>
