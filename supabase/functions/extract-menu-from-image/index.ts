@@ -28,7 +28,10 @@ async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
   }
 }
 
+// Direct Gemini API for menu extraction (text analysis with vision)
 async function callGeminiDirect(apiKey: string, systemPrompt: string, imageContent: any) {
+  console.log('Calling Gemini API directly for menu extraction...');
+  
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   const parts: any[] = [{ text: systemPrompt + '\n\nExtraia todos os itens deste cardápio com seus preços e categorias.' }];
@@ -78,7 +81,10 @@ async function callGeminiDirect(apiKey: string, systemPrompt: string, imageConte
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
+// Lovable AI Gateway for menu extraction (fallback)
 async function callLovableAI(apiKey: string, systemPrompt: string, imageContent: any) {
+  console.log('Calling Lovable AI Gateway for menu extraction...');
+  
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -106,10 +112,10 @@ async function callLovableAI(apiKey: string, systemPrompt: string, imageContent:
     console.error('Lovable AI error:', response.status, errorText);
     
     if (response.status === 429) {
-      throw { status: 429, message: 'Rate limit excedido. Tente novamente em alguns segundos.' };
+      throw { status: 429, message: 'Limite de requisições excedido. Tente novamente mais tarde.' };
     }
     if (response.status === 402) {
-      throw { status: 402, message: 'Créditos de IA esgotados. Por favor, adicione créditos em Configurações → Workspace → Usage para continuar.' };
+      throw { status: 402, message: 'Créditos de IA esgotados. Configure sua API Key do Gemini em Configurações → IA.' };
     }
     
     throw new Error(`Erro na API: ${response.status}`);
@@ -183,20 +189,36 @@ Retorne APENAS um JSON válido no formato:
 NÃO inclua nenhum texto antes ou depois do JSON.`;
 
     let content: string;
+    let usedMethod = '';
     
+    // Strategy: Try Gemini direct first if available, then Lovable AI
     if (geminiApiKey) {
-      console.log('Using restaurant Gemini API key for menu extraction');
-      content = await callGeminiDirect(geminiApiKey, systemPrompt, imageContent);
+      try {
+        console.log('Using restaurant Gemini API key for menu extraction');
+        content = await callGeminiDirect(geminiApiKey, systemPrompt, imageContent);
+        usedMethod = 'Gemini Direct';
+      } catch (error: any) {
+        console.log('Gemini direct failed, trying Lovable AI fallback:', error.message);
+        if (LOVABLE_API_KEY) {
+          content = await callLovableAI(LOVABLE_API_KEY, systemPrompt, imageContent);
+          usedMethod = 'Lovable AI';
+        } else {
+          throw error;
+        }
+      }
+    } else if (LOVABLE_API_KEY) {
+      console.log('Using Lovable AI for menu extraction (no restaurant Gemini key)');
+      content = await callLovableAI(LOVABLE_API_KEY, systemPrompt, imageContent);
+      usedMethod = 'Lovable AI';
     } else {
-      console.log('Using Lovable AI for menu extraction');
-      content = await callLovableAI(LOVABLE_API_KEY!, systemPrompt, imageContent);
+      throw new Error('Nenhuma chave de API disponível');
     }
     
     if (!content) {
       throw new Error('Resposta vazia da IA');
     }
 
-    console.log('AI Response:', content);
+    console.log('AI Response received using:', usedMethod);
 
     // Parse JSON from response
     let parsedItems;
@@ -212,7 +234,7 @@ NÃO inclua nenhum texto antes ou depois do JSON.`;
       throw new Error('Não foi possível interpretar a resposta da IA');
     }
 
-    return new Response(JSON.stringify(parsedItems), {
+    return new Response(JSON.stringify({ ...parsedItems, method: usedMethod }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
