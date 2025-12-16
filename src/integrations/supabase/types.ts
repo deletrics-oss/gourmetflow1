@@ -1165,6 +1165,7 @@ export type Database = {
           facebook_access_token: string | null
           facebook_business_id: string | null
           facebook_phone_number_id: string | null
+          gemini_api_key: string | null
           id: string
           ifood_token: string | null
           instagram: string | null
@@ -1240,6 +1241,7 @@ export type Database = {
           facebook_access_token?: string | null
           facebook_business_id?: string | null
           facebook_phone_number_id?: string | null
+          gemini_api_key?: string | null
           id?: string
           ifood_token?: string | null
           instagram?: string | null
@@ -1315,6 +1317,7 @@ export type Database = {
           facebook_access_token?: string | null
           facebook_business_id?: string | null
           facebook_phone_number_id?: string | null
+          gemini_api_key?: string | null
           id?: string
           ifood_token?: string | null
           instagram?: string | null

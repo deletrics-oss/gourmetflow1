@@ -219,6 +219,7 @@ export default function DesignerCardapio() {
           businessType,
           customPrompt,
           referenceImageBase64: referenceImage,
+          restaurantId,
         },
       });
 

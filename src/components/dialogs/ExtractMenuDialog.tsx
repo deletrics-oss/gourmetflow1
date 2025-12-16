@@ -117,7 +117,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     try {
       // Call edge function to generate image
       const { data, error } = await supabase.functions.invoke('generate-product-image', {
-        body: { name: itemName, category, description }
+        body: { name: itemName, category, description, restaurantId }
       });
 
       if (error || data?.error) {
@@ -307,7 +307,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     setImageProgress({ current: 0, total: 0, itemName: "" });
     try {
       const { data, error } = await supabase.functions.invoke('extract-menu-from-image', {
-        body: { imageBase64: imagePreview }
+        body: { imageBase64: imagePreview, restaurantId }
       });
 
       // Handle errors - check data.error first since edge function returns error in body
@@ -370,7 +370,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
     setImageProgress({ current: 0, total: 0, itemName: "" });
     try {
       const { data, error } = await supabase.functions.invoke('extract-menu-from-image', {
-        body: { imageUrl: imageUrl.trim() }
+        body: { imageUrl: imageUrl.trim(), restaurantId }
       });
 
       // Handle errors - check data.error first since edge function returns error in body
