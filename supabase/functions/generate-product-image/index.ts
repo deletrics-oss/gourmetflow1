@@ -25,15 +25,14 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    // Build optimized prompt for food photography
-    const categoryText = category ? ` da categoria ${category}` : '';
-    const descText = description ? `. ${description}` : '';
+    // Build optimized prompt for food photography - must explicitly request image generation
+    const categoryText = category ? ` (${category})` : '';
+    const descText = description ? ` - ${description}` : '';
     
-    const prompt = `Professional food photography of "${name}"${categoryText}${descText}. 
-Style: High-end restaurant menu photo, soft natural lighting, shallow depth of field, 
-clean neutral background (white or light gray), appetizing presentation, 
-shot from 45-degree angle, vibrant colors, sharp focus on the dish. 
-Square format, 1:1 aspect ratio. Ultra high resolution.`;
+    const prompt = `Generate a photorealistic image of the food item "${name}"${categoryText}${descText}. 
+Create a professional food photography shot with: soft natural lighting, shallow depth of field, 
+clean white or light gray background, appetizing presentation, 45-degree angle, vibrant colors, 
+sharp focus on the dish. Square format, high resolution. DO NOT include any text in the image.`;
 
     console.log('Generating image for:', name);
 
@@ -71,14 +70,30 @@ Square format, 1:1 aspect ratio. Ultra high resolution.`;
 
     const data = await response.json();
     
-    // Extract base64 image from response
-    const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    // Extract base64 image from response - check multiple possible locations
+    let imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    // Fallback: check if image is in different structure
+    if (!imageData) {
+      imageData = data.choices?.[0]?.message?.images?.[0]?.url;
+    }
+    if (!imageData) {
+      imageData = data.images?.[0]?.image_url?.url;
+    }
+    if (!imageData) {
+      imageData = data.images?.[0]?.url;
+    }
     
     if (!imageData) {
       console.error('No image in response:', JSON.stringify(data));
+      // Return a placeholder response instead of error so the item still saves
       return new Response(
-        JSON.stringify({ error: 'Falha ao gerar imagem', details: 'Resposta sem imagem' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          error: 'Imagem não gerada pelo modelo',
+          productName: name
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
