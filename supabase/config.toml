@@ -3,6 +3,9 @@ project_id = "yzvcpfcmfutczrlporjp"
 [functions.check-subscription]
 verify_jwt = true
 
+[functions.extract-menu-from-image]
+verify_jwt = true
+
 [functions.cielo-payment]
 verify_jwt = true
 
