@@ -86,14 +86,12 @@ export async function getDB(): Promise<IDBPDatabase> {
       // Offline orders store
       if (!db.objectStoreNames.contains('offline_orders')) {
         const orderStore = db.createObjectStore('offline_orders', { keyPath: 'id' });
-        orderStore.createIndex('by-synced', 'synced');
         orderStore.createIndex('by-restaurant', 'restaurant_id');
       }
 
       // Offline customers store
       if (!db.objectStoreNames.contains('offline_customers')) {
         const customerStore = db.createObjectStore('offline_customers', { keyPath: 'id' });
-        customerStore.createIndex('by-synced', 'synced');
         customerStore.createIndex('by-phone', 'phone');
       }
 
@@ -147,7 +145,8 @@ export async function saveOfflineOrder(order: Omit<OfflineOrder, 'id' | 'synced'
 
 export async function getUnsyncedOrders(): Promise<OfflineOrder[]> {
   const db = await getDB();
-  return db.getAllFromIndex('offline_orders', 'by-synced', false);
+  const allOrders: OfflineOrder[] = await db.getAll('offline_orders');
+  return allOrders.filter(o => !o.synced);
 }
 
 export async function markOrderSynced(id: string, supabaseId?: string): Promise<void> {
@@ -205,7 +204,8 @@ export async function saveOfflineCustomer(customer: Omit<OfflineCustomer, 'id' |
 
 export async function getUnsyncedCustomers(): Promise<OfflineCustomer[]> {
   const db = await getDB();
-  return db.getAllFromIndex('offline_customers', 'by-synced', false);
+  const allCustomers: OfflineCustomer[] = await db.getAll('offline_customers');
+  return allCustomers.filter(c => !c.synced);
 }
 
 export async function markCustomerSynced(id: string): Promise<void> {
@@ -292,13 +292,13 @@ export async function getOfflineStats(): Promise<{
   syncQueueSize: number;
 }> {
   const db = await getDB();
-  const pendingOrders = await db.countFromIndex('offline_orders', 'by-synced', false);
-  const pendingCustomers = await db.countFromIndex('offline_customers', 'by-synced', false);
+  const allOrders: OfflineOrder[] = await db.getAll('offline_orders');
+  const allCustomers: OfflineCustomer[] = await db.getAll('offline_customers');
   const syncQueueSize = await db.count('sync_queue');
   
   return {
-    pendingOrders,
-    pendingCustomers,
+    pendingOrders: allOrders.filter(o => !o.synced).length,
+    pendingCustomers: allCustomers.filter(c => !c.synced).length,
     syncQueueSize,
   };
 }
@@ -311,17 +311,17 @@ export async function clearSyncedData(olderThanDays: number = 7): Promise<void> 
   cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
   
   // Clear old synced orders
-  const orders: OfflineOrder[] = await db.getAllFromIndex('offline_orders', 'by-synced', true);
+  const orders: OfflineOrder[] = await db.getAll('offline_orders');
   for (const order of orders) {
-    if (new Date(order.created_at) < cutoffDate) {
+    if (order.synced && new Date(order.created_at) < cutoffDate) {
       await db.delete('offline_orders', order.id);
     }
   }
   
   // Clear old synced customers
-  const customers: OfflineCustomer[] = await db.getAllFromIndex('offline_customers', 'by-synced', true);
+  const customers: OfflineCustomer[] = await db.getAll('offline_customers');
   for (const customer of customers) {
-    if (new Date(customer.created_at) < cutoffDate) {
+    if (customer.synced && new Date(customer.created_at) < cutoffDate) {
       await db.delete('offline_customers', customer.id);
     }
   }
