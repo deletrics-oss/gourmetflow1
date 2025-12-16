@@ -310,9 +310,13 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
         body: { imageBase64: imagePreview }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check if error contains the custom message from 402 response
+        const errorMessage = error.message || error.context?.message || 'Erro ao processar imagem';
+        throw new Error(errorMessage);
+      }
       
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
 
@@ -366,9 +370,12 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
         body: { imageUrl: imageUrl.trim() }
       });
 
-      if (error) throw error;
+      if (error) {
+        const errorMessage = error.message || error.context?.message || 'Erro ao processar URL';
+        throw new Error(errorMessage);
+      }
       
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
 
