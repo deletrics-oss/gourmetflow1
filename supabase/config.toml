@@ -42,6 +42,9 @@ verify_jwt = true
 [functions.stone-payment]
 verify_jwt = true
 
+[functions.test-gemini-key]
+verify_jwt = true
+
 [functions.whatsapp-create-device]
 verify_jwt = true
 

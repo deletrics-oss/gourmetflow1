@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard, Loader2, CheckCircle, AlertCircle, Users } from "lucide-react";
+import { Settings, Info, Palette, Volume2, DollarSign, Gift, Truck, MapPin, CreditCard, Loader2, CheckCircle, AlertCircle, Users, Sparkles, ExternalLink } from "lucide-react";
 import { DeliveryZonesManager } from "@/components/delivery/DeliveryZonesManager";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { AudioManager } from "@/components/AudioManager";
@@ -94,6 +94,11 @@ export default function Configuracoes() {
   });
   
   const [testingGateways, setTestingGateways] = useState<{[key: string]: boolean}>({});
+  
+  // Gemini AI states
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiStatus, setGeminiStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testingGemini, setTestingGemini] = useState(false);
   
   const { buscarCEP, loading: cepLoading } = useCEP();
 
@@ -220,6 +225,9 @@ export default function Configuracoes() {
         setCieloEnabled(data.cielo_enabled || false);
         setCieloMerchantId(data.cielo_merchant_id || '');
         setCieloMerchantKey(data.cielo_merchant_key || '');
+        
+        // Gemini API Key
+        setGeminiApiKey((data as any).gemini_api_key || '');
       }
     } catch (error) {
       console.error('[CONFIGURACOES] Erro ao carregar configurações:', error);
@@ -360,6 +368,8 @@ export default function Configuracoes() {
         cielo_enabled: cieloEnabled,
         cielo_merchant_id: cieloMerchantId || null,
         cielo_merchant_key: cieloMerchantKey || null,
+        // Gemini API
+        gemini_api_key: geminiApiKey || null,
       };
 
       console.log('[CONFIGURACOES] 📦 Dados que serão salvos:', {
@@ -515,6 +525,38 @@ export default function Configuracoes() {
     }
   };
 
+  const testGeminiKey = async () => {
+    if (!geminiApiKey) {
+      toast.error('Digite uma API Key do Gemini');
+      return;
+    }
+    
+    setTestingGemini(true);
+    setGeminiStatus('testing');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('test-gemini-key', {
+        body: { apiKey: geminiApiKey }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.valid) {
+        setGeminiStatus('success');
+        toast.success('✅ Chave do Gemini válida!');
+      } else {
+        setGeminiStatus('error');
+        toast.error(`❌ ${data?.error || 'Chave inválida'}`);
+      }
+    } catch (error: any) {
+      console.error('Erro ao testar chave Gemini:', error);
+      setGeminiStatus('error');
+      toast.error('❌ Erro ao testar chave');
+    } finally {
+      setTestingGemini(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mb-6">
@@ -562,6 +604,10 @@ export default function Configuracoes() {
           <TabsTrigger value="nfce" className="flex-shrink-0">
             <DollarSign className="h-4 w-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">NFC-e</span>
+          </TabsTrigger>
+          <TabsTrigger value="ia" className="flex-shrink-0">
+            <Sparkles className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">IA</span>
           </TabsTrigger>
           {(isOwner || isAdmin) && (
             <TabsTrigger value="funcionarios" className="flex-shrink-0">
@@ -1714,6 +1760,108 @@ export default function Configuracoes() {
 
               <Button onClick={handleSaveSettings} disabled={loading}>
                 {loading ? "Salvando..." : "Salvar Configurações NFC-e"}
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* Aba IA - Inteligência Artificial */}
+        <TabsContent value="ia">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Sparkles className="h-6 w-6 text-primary" />
+              <div>
+                <h3 className="text-lg font-semibold">Inteligência Artificial</h3>
+                <p className="text-sm text-muted-foreground">Configure sua chave da API do Google Gemini</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                  <strong>Por que usar sua própria chave?</strong>
+                </p>
+                <ul className="text-sm text-blue-700 dark:text-blue-300 list-disc ml-4 space-y-1">
+                  <li>Sem limites de créditos do Lovable</li>
+                  <li>Controle total do uso e custos</li>
+                  <li>Mesma qualidade com Gemini 2.0 Flash</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gemini-key">API Key do Google Gemini</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="gemini-key"
+                      type="password"
+                      placeholder="Cole sua API Key aqui..."
+                      value={geminiApiKey}
+                      onChange={(e) => {
+                        setGeminiApiKey(e.target.value);
+                        setGeminiStatus('idle');
+                      }}
+                      className="pr-10"
+                    />
+                    {geminiStatus === 'success' && (
+                      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-green-500" />
+                    )}
+                    {geminiStatus === 'error' && (
+                      <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-red-500" />
+                    )}
+                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={testGeminiKey}
+                    disabled={testingGemini || !geminiApiKey}
+                  >
+                    {testingGemini ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Testar'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Obtenha sua chave gratuitamente em{' '}
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Google AI Studio <ExternalLink className="h-3 w-3" />
+                  </a>
+                </p>
+              </div>
+
+              {geminiStatus === 'success' && (
+                <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    ✅ Chave válida! As funções de IA usarão sua chave do Gemini.
+                  </p>
+                </div>
+              )}
+
+              {geminiStatus === 'error' && (
+                <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    ❌ Chave inválida. Verifique se copiou corretamente do Google AI Studio.
+                  </p>
+                </div>
+              )}
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">Funcionalidades que usam IA:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Extração de cardápio de imagens (OCR)</li>
+                  <li>• Geração de fotos de produtos com IA</li>
+                  <li>• Designer de cardápios e panfletos</li>
+                </ul>
+              </div>
+
+              <Button onClick={handleSaveSettings} disabled={loading} className="w-full">
+                {loading ? "Salvando..." : "Salvar Configurações de IA"}
               </Button>
             </div>
           </Card>
