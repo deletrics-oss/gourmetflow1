@@ -359,7 +359,7 @@ export default function Cardapio() {
 
       <AddCategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} />
       <AddMenuItemDialog open={itemDialogOpen} onOpenChange={setItemDialogOpen} />
-      <ExtractMenuDialog open={extractDialogOpen} onOpenChange={setExtractDialogOpen} />
+      <ExtractMenuDialog open={extractDialogOpen} onOpenChange={setExtractDialogOpen} onSuccess={loadData} />
       
       {selectedCategory && (
         <EditCategoryDialog
