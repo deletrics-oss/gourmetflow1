@@ -169,7 +169,12 @@ serve(async (req) => {
     console.log('[MAIN] Gemini key found:', !!geminiApiKey, 'Lovable key available:', !!LOVABLE_API_KEY);
     
     if (!geminiApiKey && !LOVABLE_API_KEY) {
-      throw new Error('Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA.');
+      return new Response(JSON.stringify({ 
+        error: 'Para usar extração com IA, configure sua chave do Gemini em Configurações → IA. Acesse aistudio.google.com para obter uma chave gratuita.'
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Prepare image content
