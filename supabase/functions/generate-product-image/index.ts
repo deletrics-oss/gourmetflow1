@@ -7,7 +7,12 @@ const corsHeaders = {
 };
 
 async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
-  if (!restaurantId) return null;
+  console.log('[GET-KEY] Fetching Gemini API key for restaurantId:', restaurantId);
+  
+  if (!restaurantId) {
+    console.log('[GET-KEY] No restaurantId provided, returning null');
+    return null;
+  }
   
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -20,17 +25,34 @@ async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
       .eq('restaurant_id', restaurantId)
       .maybeSingle();
     
-    if (error || !data?.gemini_api_key) return null;
+    console.log('[GET-KEY] Query result:', { 
+      found: !!data, 
+      hasKey: !!data?.gemini_api_key,
+      keyLength: data?.gemini_api_key?.length || 0,
+      error: error?.message 
+    });
+    
+    if (error) {
+      console.error('[GET-KEY] Database error:', error.message);
+      return null;
+    }
+    
+    if (!data?.gemini_api_key) {
+      console.log('[GET-KEY] No Gemini API key configured for this restaurant');
+      return null;
+    }
+    
+    console.log('[GET-KEY] Successfully retrieved Gemini API key');
     return data.gemini_api_key;
   } catch (e) {
-    console.error('Error fetching Gemini API key:', e);
+    console.error('[GET-KEY] Exception:', e);
     return null;
   }
 }
 
 // Lovable AI Gateway - Nano Banana model (best for image generation)
 async function callLovableAIImageGen(apiKey: string, prompt: string): Promise<string | null> {
-  console.log('Calling Lovable AI Gateway with nano banana model...');
+  console.log('[LOVABLE-AI] Calling with nano banana model...');
   
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -45,9 +67,11 @@ async function callLovableAIImageGen(apiKey: string, prompt: string): Promise<st
     }),
   });
 
+  console.log('[LOVABLE-AI] Response status:', response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Lovable AI Gateway error:', response.status, errorText);
+    console.error('[LOVABLE-AI] Error:', response.status, errorText);
     
     if (response.status === 429) {
       throw { status: 429, message: 'Limite de requisições excedido. Tente novamente mais tarde.' };
@@ -60,22 +84,22 @@ async function callLovableAIImageGen(apiKey: string, prompt: string): Promise<st
   }
 
   const data = await response.json();
-  console.log('Lovable AI response received');
+  console.log('[LOVABLE-AI] Response received, checking for image...');
   
   // Extract image from response
   const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   if (imageUrl) {
-    console.log('Image extracted from Lovable AI response');
+    console.log('[LOVABLE-AI] Image extracted successfully');
     return imageUrl;
   }
   
-  console.log('No image in Lovable AI response');
+  console.log('[LOVABLE-AI] No image in response');
   return null;
 }
 
-// Direct Gemini API - Fallback when Lovable AI fails
+// Direct Gemini API - gemini-2.0-flash-exp for image generation
 async function callGeminiDirectImageGen(apiKey: string, prompt: string): Promise<string | null> {
-  console.log('Calling Gemini API directly with gemini-2.0-flash-exp...');
+  console.log('[GEMINI-DIRECT] Calling with gemini-2.0-flash-exp...');
   
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
   
@@ -90,14 +114,16 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string): Promise
     }),
   });
   
+  console.log('[GEMINI-DIRECT] Response status:', response.status);
+  
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini API error:', response.status, errorText);
+    console.error('[GEMINI-DIRECT] Error:', response.status, errorText);
     return null;
   }
   
   const data = await response.json();
-  console.log('Gemini API response received');
+  console.log('[GEMINI-DIRECT] Response received, checking for image...');
   
   // Extract image from response - check both naming conventions
   const parts = data.candidates?.[0]?.content?.parts || [];
@@ -105,12 +131,12 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string): Promise
     const imageData = part.inlineData?.data || part.inline_data?.data;
     if (imageData) {
       const mimeType = part.inlineData?.mimeType || part.inline_data?.mime_type || 'image/png';
-      console.log('Image extracted from Gemini response');
+      console.log('[GEMINI-DIRECT] Image extracted successfully');
       return `data:${mimeType};base64,${imageData}`;
     }
   }
   
-  console.log('No image in Gemini response');
+  console.log('[GEMINI-DIRECT] No image in response');
   return null;
 }
 
@@ -121,6 +147,9 @@ serve(async (req) => {
 
   try {
     const { name, category, description, restaurantId } = await req.json();
+    
+    console.log('[MAIN] ========================================');
+    console.log('[MAIN] Request received:', { name, category, restaurantId });
 
     if (!name) {
       return new Response(
@@ -129,11 +158,20 @@ serve(async (req) => {
       );
     }
 
+    // Get keys
     const geminiApiKey = await getGeminiApiKey(restaurantId);
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
+    console.log('[MAIN] Keys available:', { 
+      hasGeminiKey: !!geminiApiKey, 
+      hasLovableKey: !!LOVABLE_API_KEY 
+    });
+    
     if (!geminiApiKey && !LOVABLE_API_KEY) {
-      throw new Error('Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA.');
+      return new Response(
+        JSON.stringify({ error: 'Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Build optimized prompt for food photography
@@ -145,49 +183,63 @@ Create a professional food photography shot with: soft natural lighting, shallow
 clean white or light gray background, appetizing presentation, 45-degree angle, vibrant colors, 
 sharp focus on the dish. Square format, high resolution. DO NOT include any text in the image.`;
 
-    console.log('Generating image for:', name);
-
     let imageData: string | null = null;
     let usedMethod = '';
     
-    // Strategy: Try Lovable AI first (better model), then fallback to direct Gemini
-    if (LOVABLE_API_KEY) {
+    // STRATEGY: Gemini Direct FIRST if key available, then Lovable AI as fallback
+    if (geminiApiKey) {
+      console.log('[MAIN] Strategy: Trying Gemini Direct FIRST (key available)');
+      try {
+        imageData = await callGeminiDirectImageGen(geminiApiKey, prompt);
+        if (imageData) {
+          usedMethod = 'Gemini Direct';
+        }
+      } catch (error: any) {
+        console.log('[MAIN] Gemini Direct failed:', error.message);
+      }
+      
+      // Fallback to Lovable AI if Gemini failed
+      if (!imageData && LOVABLE_API_KEY) {
+        console.log('[MAIN] Gemini Direct failed, trying Lovable AI as fallback...');
+        try {
+          imageData = await callLovableAIImageGen(LOVABLE_API_KEY, prompt);
+          if (imageData) {
+            usedMethod = 'Lovable AI (fallback)';
+          }
+        } catch (error: any) {
+          console.log('[MAIN] Lovable AI fallback failed:', error.message);
+          if (error.status === 402 || error.status === 429) {
+            throw error;
+          }
+        }
+      }
+    } else if (LOVABLE_API_KEY) {
+      // No Gemini key, try Lovable AI directly
+      console.log('[MAIN] Strategy: No Gemini key, trying Lovable AI directly');
       try {
         imageData = await callLovableAIImageGen(LOVABLE_API_KEY, prompt);
-        usedMethod = 'Lovable AI (nano banana)';
-      } catch (error: any) {
-        console.log('Lovable AI failed, will try fallback:', error.message);
-        // If it's a credit/rate limit error, try Gemini as fallback
-        if ((error.status === 429 || error.status === 402) && geminiApiKey) {
-          console.log('Trying Gemini direct API as fallback...');
-          imageData = await callGeminiDirectImageGen(geminiApiKey, prompt);
-          usedMethod = 'Gemini Direct';
-        } else if (!geminiApiKey) {
-          throw error;
+        if (imageData) {
+          usedMethod = 'Lovable AI';
         }
+      } catch (error: any) {
+        console.log('[MAIN] Lovable AI failed:', error.message);
+        throw error;
       }
     }
     
-    // If still no image, try direct Gemini
-    if (!imageData && geminiApiKey) {
-      console.log('Trying Gemini direct API...');
-      imageData = await callGeminiDirectImageGen(geminiApiKey, prompt);
-      usedMethod = 'Gemini Direct';
-    }
-    
     if (!imageData) {
-      console.error('No image generated by any method');
+      console.error('[MAIN] No image generated by any method');
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'Imagem não gerada. Tente novamente.',
+          error: 'Imagem não gerada. Tente novamente ou configure sua API Key do Gemini.',
           productName: name
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Image generated successfully for:', name, 'using:', usedMethod);
+    console.log('[MAIN] SUCCESS - Image generated using:', usedMethod);
 
     return new Response(
       JSON.stringify({ 
@@ -200,7 +252,7 @@ sharp focus on the dish. Square format, high resolution. DO NOT include any text
     );
 
   } catch (error: any) {
-    console.error('Error in generate-product-image:', error);
+    console.error('[MAIN] ERROR:', error);
     
     if (error.status === 429 || error.status === 402) {
       return new Response(
