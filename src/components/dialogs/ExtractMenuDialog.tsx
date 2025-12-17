@@ -40,7 +40,7 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
   const navigate = useNavigate();
   
   const { toast } = useToast();
-  const { restaurantId } = useRestaurant();
+  const { restaurantId, loading: restaurantLoading } = useRestaurant();
 
   // Check if restaurant has Gemini API key configured
   useEffect(() => {
@@ -316,6 +316,15 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
   };
 
   const handleExtractFromImage = async () => {
+    if (!restaurantId) {
+      toast({
+        title: "Erro",
+        description: "Restaurante não identificado. Por favor, recarregue a página.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!imagePreview) {
       toast({
         title: "Erro",
@@ -379,6 +388,15 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
   };
 
   const handleExtractFromUrl = async () => {
+    if (!restaurantId) {
+      toast({
+        title: "Erro",
+        description: "Restaurante não identificado. Por favor, recarregue a página.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!imageUrl.trim()) {
       toast({
         title: "Erro",
@@ -693,9 +711,9 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleExtract} disabled={loading || !canExtract()}>
+          <Button onClick={handleExtract} disabled={loading || restaurantLoading || !restaurantId || !canExtract()}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {generateImages ? "Extrair com Fotos IA" : "Extrair e Cadastrar"}
+            {restaurantLoading ? "Carregando..." : generateImages ? "Extrair com Fotos IA" : "Extrair e Cadastrar"}
           </Button>
         </DialogFooter>
       </DialogContent>
