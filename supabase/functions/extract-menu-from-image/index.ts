@@ -7,12 +7,19 @@ const corsHeaders = {
 };
 
 async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
-  if (!restaurantId) return null;
+  console.log('[GET-KEY] Checking for Gemini API key, restaurantId:', restaurantId);
+  
+  if (!restaurantId) {
+    console.log('[GET-KEY] No restaurantId provided, returning null');
+    return null;
+  }
   
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    console.log('[GET-KEY] Querying restaurant_settings for restaurantId:', restaurantId);
     
     const { data, error } = await supabase
       .from('restaurant_settings')
@@ -20,17 +27,30 @@ async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
       .eq('restaurant_id', restaurantId)
       .maybeSingle();
     
-    if (error || !data?.gemini_api_key) return null;
+    console.log('[GET-KEY] Query result - data:', data ? 'found' : 'null', 'error:', error?.message || 'none');
+    console.log('[GET-KEY] Has gemini_api_key:', !!data?.gemini_api_key);
+    
+    if (error) {
+      console.error('[GET-KEY] Database error:', error);
+      return null;
+    }
+    
+    if (!data?.gemini_api_key) {
+      console.log('[GET-KEY] No gemini_api_key found in settings');
+      return null;
+    }
+    
+    console.log('[GET-KEY] Found Gemini API key (length):', data.gemini_api_key.length);
     return data.gemini_api_key;
   } catch (e) {
-    console.error('Error fetching Gemini API key:', e);
+    console.error('[GET-KEY] Exception:', e);
     return null;
   }
 }
 
 // Direct Gemini API for menu extraction (text analysis with vision)
 async function callGeminiDirect(apiKey: string, systemPrompt: string, imageContent: any) {
-  console.log('Calling Gemini API directly for menu extraction...');
+  console.log('[GEMINI-DIRECT] Starting Gemini API call...');
   
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
@@ -38,7 +58,6 @@ async function callGeminiDirect(apiKey: string, systemPrompt: string, imageConte
   
   if (imageContent) {
     const imageData = imageContent.image_url.url;
-    // Handle both base64 and URL formats
     if (imageData.startsWith('data:')) {
       const base64Match = imageData.match(/^data:([^;]+);base64,(.+)$/);
       if (base64Match) {
@@ -48,9 +67,10 @@ async function callGeminiDirect(apiKey: string, systemPrompt: string, imageConte
             data: base64Match[2]
           }
         });
+        console.log('[GEMINI-DIRECT] Added base64 image, mime:', base64Match[1]);
       }
     } else {
-      // For URLs, fetch and convert to base64
+      console.log('[GEMINI-DIRECT] Fetching image from URL...');
       const imgResponse = await fetch(imageData);
       const imgBuffer = await imgResponse.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
@@ -63,6 +83,7 @@ async function callGeminiDirect(apiKey: string, systemPrompt: string, imageConte
     }
   }
   
+  console.log('[GEMINI-DIRECT] Sending request to Gemini...');
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -73,17 +94,19 @@ async function callGeminiDirect(apiKey: string, systemPrompt: string, imageConte
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini direct API error:', response.status, errorText);
+    console.error('[GEMINI-DIRECT] API error:', response.status, errorText);
     throw new Error(`Gemini API error: ${response.status}`);
   }
   
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  console.log('[GEMINI-DIRECT] Response received, length:', text.length);
+  return text;
 }
 
 // Lovable AI Gateway for menu extraction (fallback)
 async function callLovableAI(apiKey: string, systemPrompt: string, imageContent: any) {
-  console.log('Calling Lovable AI Gateway for menu extraction...');
+  console.log('[LOVABLE-AI] Starting Lovable AI Gateway call...');
   
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -109,7 +132,7 @@ async function callLovableAI(apiKey: string, systemPrompt: string, imageContent:
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
+    console.error('[LOVABLE-AI] Error:', response.status, errorText);
     
     if (response.status === 429) {
       throw { status: 429, message: 'Limite de requisições excedido. Tente novamente mais tarde.' };
@@ -122,7 +145,9 @@ async function callLovableAI(apiKey: string, systemPrompt: string, imageContent:
   }
   
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  const text = data.choices?.[0]?.message?.content || '';
+  console.log('[LOVABLE-AI] Response received, length:', text.length);
+  return text;
 }
 
 serve(async (req) => {
@@ -131,11 +156,17 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, imageUrl, restaurantId } = await req.json();
+    const body = await req.json();
+    const { imageBase64, imageUrl, restaurantId } = body;
+    
+    console.log('[MAIN] Request received - restaurantId:', restaurantId);
+    console.log('[MAIN] Has imageBase64:', !!imageBase64, 'Has imageUrl:', !!imageUrl);
     
     // Try to get restaurant's own Gemini API key first
     const geminiApiKey = await getGeminiApiKey(restaurantId);
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    
+    console.log('[MAIN] Gemini key found:', !!geminiApiKey, 'Lovable key available:', !!LOVABLE_API_KEY);
     
     if (!geminiApiKey && !LOVABLE_API_KEY) {
       throw new Error('Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA.');
@@ -194,20 +225,22 @@ NÃO inclua nenhum texto antes ou depois do JSON.`;
     // Strategy: Try Gemini direct first if available, then Lovable AI
     if (geminiApiKey) {
       try {
-        console.log('Using restaurant Gemini API key for menu extraction');
+        console.log('[MAIN] Attempting Gemini Direct API...');
         content = await callGeminiDirect(geminiApiKey, systemPrompt, imageContent);
         usedMethod = 'Gemini Direct';
+        console.log('[MAIN] Gemini Direct succeeded');
       } catch (error: any) {
-        console.log('Gemini direct failed, trying Lovable AI fallback:', error.message);
+        console.log('[MAIN] Gemini direct failed:', error.message);
         if (LOVABLE_API_KEY) {
+          console.log('[MAIN] Falling back to Lovable AI...');
           content = await callLovableAI(LOVABLE_API_KEY, systemPrompt, imageContent);
-          usedMethod = 'Lovable AI';
+          usedMethod = 'Lovable AI (fallback)';
         } else {
           throw error;
         }
       }
     } else if (LOVABLE_API_KEY) {
-      console.log('Using Lovable AI for menu extraction (no restaurant Gemini key)');
+      console.log('[MAIN] No Gemini key, using Lovable AI...');
       content = await callLovableAI(LOVABLE_API_KEY, systemPrompt, imageContent);
       usedMethod = 'Lovable AI';
     } else {
@@ -218,19 +251,33 @@ NÃO inclua nenhum texto antes ou depois do JSON.`;
       throw new Error('Resposta vazia da IA');
     }
 
-    console.log('AI Response received using:', usedMethod);
+    console.log('[MAIN] AI Response received via:', usedMethod);
 
-    // Parse JSON from response
+    // Parse JSON from response - handle markdown code blocks
     let parsedItems;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      // Remove markdown code blocks if present
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.slice(7);
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.slice(3);
+      }
+      if (cleanContent.endsWith('```')) {
+        cleanContent = cleanContent.slice(0, -3);
+      }
+      cleanContent = cleanContent.trim();
+      
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsedItems = JSON.parse(jsonMatch[0]);
+        console.log('[MAIN] Parsed', parsedItems.items?.length || 0, 'items');
       } else {
         throw new Error('JSON não encontrado na resposta');
       }
     } catch (parseError) {
-      console.error('Parse error:', parseError);
+      console.error('[MAIN] Parse error:', parseError);
+      console.error('[MAIN] Raw content:', content.substring(0, 500));
       throw new Error('Não foi possível interpretar a resposta da IA');
     }
 
@@ -239,7 +286,7 @@ NÃO inclua nenhum texto antes ou depois do JSON.`;
     });
 
   } catch (error: any) {
-    console.error('Error in extract-menu-from-image:', error);
+    console.error('[MAIN] Error:', error);
     
     // Handle specific status errors
     if (error.status === 429 || error.status === 402) {
