@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +10,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Upload, FileText, Link, Image, X, Sparkles } from "lucide-react";
+import { Loader2, Upload, FileText, Link, Image, X, Sparkles, AlertTriangle, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface ExtractMenuDialogProps {
   open: boolean;
@@ -34,10 +35,31 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
   const [activeTab, setActiveTab] = useState("text");
   const [generateImages, setGenerateImages] = useState(false);
   const [imageProgress, setImageProgress] = useState({ current: 0, total: 0, itemName: "" });
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   
   const { toast } = useToast();
   const { restaurantId } = useRestaurant();
+
+  // Check if restaurant has Gemini API key configured
+  useEffect(() => {
+    const checkGeminiKey = async () => {
+      if (!restaurantId) return;
+      
+      const { data } = await supabase
+        .from('restaurant_settings')
+        .select('gemini_api_key')
+        .eq('restaurant_id', restaurantId)
+        .maybeSingle();
+      
+      setHasGeminiKey(!!data?.gemini_api_key);
+    };
+    
+    if (open && restaurantId) {
+      checkGeminiKey();
+    }
+  }, [restaurantId, open]);
 
   const parseMenuText = (input: string) => {
     const lines = input.split("\n").filter((line) => line.trim());
@@ -487,6 +509,39 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
           </TabsContent>
 
           <TabsContent value="upload" className="space-y-4 mt-4">
+            {hasGeminiKey === false && (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+                  <span className="font-medium text-yellow-800 dark:text-yellow-400">
+                    Configure sua chave de IA
+                  </span>
+                </div>
+                <p className="text-sm text-yellow-700 dark:text-yellow-500 mt-1">
+                  Para usar extração com IA, configure sua chave do Google Gemini em Configurações → IA.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button 
+                    variant="link" 
+                    className="text-yellow-800 dark:text-yellow-400 p-0 h-auto"
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate('/configuracoes?tab=ia');
+                    }}
+                  >
+                    Ir para Configurações →
+                  </Button>
+                  <a 
+                    href="https://aistudio.google.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-yellow-700 dark:text-yellow-500 hover:underline flex items-center gap-1"
+                  >
+                    Obter chave gratuita <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Faça upload da imagem do cardápio</Label>
               
@@ -537,6 +592,39 @@ export function ExtractMenuDialog({ open, onOpenChange, onSuccess }: ExtractMenu
           </TabsContent>
 
           <TabsContent value="url" className="space-y-4 mt-4">
+            {hasGeminiKey === false && (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+                  <span className="font-medium text-yellow-800 dark:text-yellow-400">
+                    Configure sua chave de IA
+                  </span>
+                </div>
+                <p className="text-sm text-yellow-700 dark:text-yellow-500 mt-1">
+                  Para usar extração com IA, configure sua chave do Google Gemini em Configurações → IA.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button 
+                    variant="link" 
+                    className="text-yellow-800 dark:text-yellow-400 p-0 h-auto"
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate('/configuracoes?tab=ia');
+                    }}
+                  >
+                    Ir para Configurações →
+                  </Button>
+                  <a 
+                    href="https://aistudio.google.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-yellow-700 dark:text-yellow-500 hover:underline flex items-center gap-1"
+                  >
+                    Obter chave gratuita <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Cole a URL da imagem do cardápio</Label>
               <Input

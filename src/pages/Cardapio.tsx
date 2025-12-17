@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Edit, Trash2, Sparkles, Copy, Trash } from "lucide-react";
+import { Plus, Edit, Trash2, Sparkles, Copy, Trash, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { EditCategoryDialog } from "@/components/dialogs/EditCategoryDialog";
 import { EditMenuItemDialog } from "@/components/dialogs/EditMenuItemDialog";
 import { AddCategoryDialog } from "@/components/dialogs/AddCategoryDialog";
@@ -26,10 +28,26 @@ export default function Cardapio() {
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
+  
+  const { restaurantId } = useRestaurant();
 
   useEffect(() => {
     loadData();
-  }, []);
+    checkGeminiKey();
+  }, [restaurantId]);
+
+  const checkGeminiKey = async () => {
+    if (!restaurantId) return;
+    
+    const { data } = await supabase
+      .from('restaurant_settings')
+      .select('gemini_api_key')
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle();
+    
+    setHasGeminiKey(!!data?.gemini_api_key);
+  };
 
   const loadData = async () => {
     try {
@@ -150,10 +168,26 @@ export default function Cardapio() {
           <h1 className="text-3xl font-bold mb-2">Gestão de Cardápio</h1>
           <p className="text-muted-foreground">Configure categorias e itens do seu menu</p>
         </div>
-        <Button size="lg" className="gap-2" onClick={() => setExtractDialogOpen(true)}>
-          <Sparkles className="h-4 w-4" />
-          Extrair com IA
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="lg" className="gap-2 relative" onClick={() => setExtractDialogOpen(true)}>
+                <Sparkles className="h-4 w-4" />
+                Extrair com IA
+                {hasGeminiKey === false && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-[10px] text-white">
+                    <AlertTriangle className="h-3 w-3" />
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            {hasGeminiKey === false && (
+              <TooltipContent>
+                <p>Configure sua chave de IA em Configurações</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <Tabs defaultValue="categorias" className="w-full">
