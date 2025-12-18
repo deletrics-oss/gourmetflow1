@@ -14,13 +14,14 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, requireAdmin, requireManager }: ProtectedRouteProps) {
   const { user, loading, isAdmin, isManager, isSuperAdmin } = useAuth();
   const { canAccess, isExpired, isBlocked, loading: subLoading } = useSubscription();
+  const { onboardingCompleted, loading: restaurantLoading } = useRestaurant();
   const location = useLocation();
 
-  // Rotas que não precisam verificar assinatura
+  // Rotas que não precisam verificar assinatura ou onboarding
   const bypassRoutes = ['/planos', '/onboarding'];
   const shouldBypassSubscription = bypassRoutes.some(route => location.pathname.startsWith(route));
 
-  if (loading || subLoading) {
+  if (loading || subLoading || restaurantLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -53,6 +54,11 @@ export function ProtectedRoute({ children, requireAdmin, requireManager }: Prote
 
     if (!canAccess || isExpired) {
       return <SubscriptionBlocker reason="trial_expired" />;
+    }
+
+    // Verificar se onboarding foi completado
+    if (onboardingCompleted === false) {
+      return <Navigate to="/onboarding" replace />;
     }
   }
 
