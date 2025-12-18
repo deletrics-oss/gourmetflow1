@@ -925,6 +925,7 @@ export type Database = {
           delivery_fee: number | null
           delivery_type: Database["public"]["Enums"]["delivery_type"]
           discount: number | null
+          estimated_delivery_time: string | null
           id: string
           loyalty_points_earned: number | null
           loyalty_points_used: number | null
@@ -932,6 +933,7 @@ export type Database = {
           notes: string | null
           number_of_guests: number | null
           order_number: string
+          order_source: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id: string | null
           scheduled_for: string | null
@@ -941,6 +943,7 @@ export type Database = {
           table_id: string | null
           total: number | null
           updated_at: string | null
+          whatsapp_notified: boolean | null
         }
         Insert: {
           comanda_fixa_id?: string | null
@@ -957,6 +960,7 @@ export type Database = {
           delivery_fee?: number | null
           delivery_type: Database["public"]["Enums"]["delivery_type"]
           discount?: number | null
+          estimated_delivery_time?: string | null
           id?: string
           loyalty_points_earned?: number | null
           loyalty_points_used?: number | null
@@ -964,6 +968,7 @@ export type Database = {
           notes?: string | null
           number_of_guests?: number | null
           order_number: string
+          order_source?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id?: string | null
           scheduled_for?: string | null
@@ -973,6 +978,7 @@ export type Database = {
           table_id?: string | null
           total?: number | null
           updated_at?: string | null
+          whatsapp_notified?: boolean | null
         }
         Update: {
           comanda_fixa_id?: string | null
@@ -989,6 +995,7 @@ export type Database = {
           delivery_fee?: number | null
           delivery_type?: Database["public"]["Enums"]["delivery_type"]
           discount?: number | null
+          estimated_delivery_time?: string | null
           id?: string
           loyalty_points_earned?: number | null
           loyalty_points_used?: number | null
@@ -996,6 +1003,7 @@ export type Database = {
           notes?: string | null
           number_of_guests?: number | null
           order_number?: string
+          order_source?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           restaurant_id?: string | null
           scheduled_for?: string | null
@@ -1005,6 +1013,7 @@ export type Database = {
           table_id?: string | null
           total?: number | null
           updated_at?: string | null
+          whatsapp_notified?: boolean | null
         }
         Relationships: [
           {
@@ -1186,11 +1195,15 @@ export type Database = {
           name: string
           neighborhood: string | null
           ninefood_token: string | null
+          notify_owner_cancellation: boolean | null
+          notify_owner_complaint: boolean | null
+          notify_owner_new_order: boolean | null
           nubank_client_id: string | null
           nubank_client_secret: string | null
           nubank_enabled: boolean | null
           number: string | null
           onboarding_completed: boolean | null
+          owner_whatsapp: string | null
           paghiper_api_key: string | null
           pagseguro_email: string | null
           pagseguro_enabled: boolean | null
@@ -1217,7 +1230,9 @@ export type Database = {
           twilio_phone_number: string | null
           updated_at: string | null
           whatsapp_api_key: string | null
+          whatsapp_group_id: string | null
           whatsapp_phone: string | null
+          whatsapp_server_url: string | null
           whatsapp_webhook_url: string | null
           zipcode: string | null
         }
@@ -1263,11 +1278,15 @@ export type Database = {
           name: string
           neighborhood?: string | null
           ninefood_token?: string | null
+          notify_owner_cancellation?: boolean | null
+          notify_owner_complaint?: boolean | null
+          notify_owner_new_order?: boolean | null
           nubank_client_id?: string | null
           nubank_client_secret?: string | null
           nubank_enabled?: boolean | null
           number?: string | null
           onboarding_completed?: boolean | null
+          owner_whatsapp?: string | null
           paghiper_api_key?: string | null
           pagseguro_email?: string | null
           pagseguro_enabled?: boolean | null
@@ -1294,7 +1313,9 @@ export type Database = {
           twilio_phone_number?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_group_id?: string | null
           whatsapp_phone?: string | null
+          whatsapp_server_url?: string | null
           whatsapp_webhook_url?: string | null
           zipcode?: string | null
         }
@@ -1340,11 +1361,15 @@ export type Database = {
           name?: string
           neighborhood?: string | null
           ninefood_token?: string | null
+          notify_owner_cancellation?: boolean | null
+          notify_owner_complaint?: boolean | null
+          notify_owner_new_order?: boolean | null
           nubank_client_id?: string | null
           nubank_client_secret?: string | null
           nubank_enabled?: boolean | null
           number?: string | null
           onboarding_completed?: boolean | null
+          owner_whatsapp?: string | null
           paghiper_api_key?: string | null
           pagseguro_email?: string | null
           pagseguro_enabled?: boolean | null
@@ -1371,7 +1396,9 @@ export type Database = {
           twilio_phone_number?: string | null
           updated_at?: string | null
           whatsapp_api_key?: string | null
+          whatsapp_group_id?: string | null
           whatsapp_phone?: string | null
+          whatsapp_server_url?: string | null
           whatsapp_webhook_url?: string | null
           zipcode?: string | null
         }
@@ -1847,6 +1874,177 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_broadcast_contacts: {
+        Row: {
+          broadcast_id: string | null
+          created_at: string | null
+          error: string | null
+          id: string
+          name: string | null
+          phone: string
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          broadcast_id?: string | null
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          name?: string | null
+          phone: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          broadcast_id?: string | null
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          name?: string | null
+          phone?: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcast_contacts_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_broadcasts: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          delay_seconds: number | null
+          device_id: string | null
+          failed_count: number | null
+          id: string
+          media_urls: Json | null
+          message: string
+          name: string
+          restaurant_id: string | null
+          scheduled_for: string | null
+          sent_count: number | null
+          started_at: string | null
+          status: string | null
+          total_contacts: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          delay_seconds?: number | null
+          device_id?: string | null
+          failed_count?: number | null
+          id?: string
+          media_urls?: Json | null
+          message: string
+          name: string
+          restaurant_id?: string | null
+          scheduled_for?: string | null
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_contacts?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          delay_seconds?: number | null
+          device_id?: string | null
+          failed_count?: number | null
+          id?: string
+          media_urls?: Json | null
+          message?: string
+          name?: string
+          restaurant_id?: string | null
+          scheduled_for?: string | null
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_contacts?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcasts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_broadcasts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_cart: {
+        Row: {
+          conversation_state: string | null
+          created_at: string | null
+          customer_id: string | null
+          expires_at: string | null
+          id: string
+          items: Json | null
+          phone: string
+          restaurant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          conversation_state?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          expires_at?: string | null
+          id?: string
+          items?: Json | null
+          phone: string
+          restaurant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          conversation_state?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          expires_at?: string | null
+          id?: string
+          items?: Json | null
+          phone?: string
+          restaurant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_cart_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer_order_history"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_cart_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_cart_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_conversations: {
         Row: {
           contact_name: string | null
@@ -2074,6 +2272,129 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_messages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_opt_outs: {
+        Row: {
+          id: string
+          opted_out_at: string | null
+          phone: string
+          reason: string | null
+          restaurant_id: string | null
+        }
+        Insert: {
+          id?: string
+          opted_out_at?: string | null
+          phone: string
+          reason?: string | null
+          restaurant_id?: string | null
+        }
+        Update: {
+          id?: string
+          opted_out_at?: string | null
+          phone?: string
+          reason?: string | null
+          restaurant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_opt_outs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_reminders: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_run_at: string | null
+          message_template: string
+          name: string
+          restaurant_id: string | null
+          send_time: string | null
+          trigger_days: number | null
+          trigger_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          message_template: string
+          name: string
+          restaurant_id?: string | null
+          send_time?: string | null
+          trigger_days?: number | null
+          trigger_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          message_template?: string
+          name?: string
+          restaurant_id?: string | null
+          send_time?: string | null
+          trigger_days?: number | null
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_reminders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string | null
+          id: string
+          name: string
+          restaurant_id: string | null
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          name: string
+          restaurant_id?: string | null
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          restaurant_id?: string | null
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_templates_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
