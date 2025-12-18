@@ -63,7 +63,7 @@ import Integracoes from "./pages/Integracoes";
 import Funcionarios from "./pages/Funcionarios";
 import WhatsAppManager from "./pages/WhatsAppManager";
 import DesignerCardapio from "./pages/DesignerCardapio";
-
+import Onboarding from "./pages/Onboarding";
 const queryClient = new QueryClient();
 
 // Layout com Sidebar responsivo
@@ -124,6 +124,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/termos" element={<TermosDeUso />} />
             <Route path="/privacidade" element={<PoliticaPrivacidade />} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             {/* Public Routes - Monitores Externos */}
         <Route path="/monitor-cozinha-externo" element={<MonitorCozinhaExterno />} />
         <Route path="/cozinha-externo" element={<CozinhaExterno />} />
