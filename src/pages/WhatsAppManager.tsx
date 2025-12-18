@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { useRestaurant } from "@/hooks/useRestaurant";
-import { Loader2, Smartphone, MessageCircle, Workflow, Send, AlertCircle, ExternalLink, Server, QrCode } from "lucide-react";
+import { Loader2, Smartphone, MessageCircle, Workflow, Send, Server, QrCode, Clock, Bell, ExternalLink } from "lucide-react";
 import { DevicesManager } from "@/components/whatsapp/DevicesManager";
 import { ChatInterface } from "@/components/whatsapp/ChatInterface";
 import { LogicEditor } from "@/components/whatsapp/LogicEditor";
 import { BroadcastPanel } from "@/components/whatsapp/BroadcastPanel";
+import { RemindersManager } from "@/components/whatsapp/RemindersManager";
+import { OwnerAlertsConfig } from "@/components/whatsapp/OwnerAlertsConfig";
 import { Button } from "@/components/ui/button";
 
 export default function WhatsAppManager() {
@@ -236,7 +238,7 @@ export default function WhatsAppManager() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="devices" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="devices" className="flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
             <span className="hidden sm:inline">Dispositivos</span>
@@ -252,6 +254,14 @@ export default function WhatsAppManager() {
           <TabsTrigger value="broadcast" className="flex items-center gap-2">
             <Send className="h-4 w-4" />
             <span className="hidden sm:inline">Broadcast</span>
+          </TabsTrigger>
+          <TabsTrigger value="reminders" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Lembretes</span>
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            <span className="hidden sm:inline">Alertas</span>
           </TabsTrigger>
         </TabsList>
 
@@ -269,6 +279,14 @@ export default function WhatsAppManager() {
 
         <TabsContent value="broadcast">
           <BroadcastPanel restaurantId={restaurantId!} />
+        </TabsContent>
+
+        <TabsContent value="reminders">
+          <RemindersManager restaurantId={restaurantId!} />
+        </TabsContent>
+
+        <TabsContent value="alerts">
+          <OwnerAlertsConfig restaurantId={restaurantId!} />
         </TabsContent>
       </Tabs>
     </div>

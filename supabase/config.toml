@@ -77,3 +77,21 @@ verify_jwt = true
 
 [functions.send-subscription-confirmed-email]
 verify_jwt = true
+
+[functions.whatsapp-server-proxy]
+verify_jwt = true
+
+[functions.whatsapp-ai-order]
+verify_jwt = false
+
+[functions.whatsapp-broadcast-queue]
+verify_jwt = true
+
+[functions.whatsapp-notify-motoboy]
+verify_jwt = true
+
+[functions.whatsapp-notify-owner]
+verify_jwt = true
+
+[functions.whatsapp-reminders-cron]
+verify_jwt = false
