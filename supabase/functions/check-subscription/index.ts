@@ -95,9 +95,9 @@ serve(async (req) => {
       
       // Mapear product_id para plan_type
       const productToPlan: Record<string, string> = {
-        "prod_TQVYhDe57NtmEo": "essencial",
-        "prod_TQVasFiHlnE9mI": "essencial_mesas",
-        "prod_TQVbmTNqjI3VMH": "customizado",
+        "prod_TUCuWibYtgymlE": "delivery1",
+        "prod_TUCujk7c7oAwaq": "delivery2",
+        "prod_TUCu1OjdrZ8lft": "delivery3",
       };
       planType = productToPlan[productId] || null;
       

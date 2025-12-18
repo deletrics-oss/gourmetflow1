@@ -183,11 +183,11 @@ export default function Landing() {
               </CardContent>
             </Card>
 
-            {/* Essencial */}
+            {/* Delivery Básico */}
             <Card className="border-border/50">
               <CardHeader>
-                <CardTitle>Essencial</CardTitle>
-                <div className="text-3xl font-bold">R$ 149<span className="text-base font-normal">/mês</span></div>
+                <CardTitle>Delivery Básico</CardTitle>
+                <div className="text-3xl font-bold">R$ 59,99<span className="text-base font-normal">/mês</span></div>
                 <CardDescription>Para delivery e balcão</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -219,21 +219,21 @@ export default function Landing() {
               </CardContent>
             </Card>
 
-            {/* Essencial + Mesas */}
+            {/* Delivery Pro */}
             <Card className="border-2 border-primary relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
                 Mais Popular
               </div>
               <CardHeader>
-                <CardTitle>Essencial + Mesas</CardTitle>
-                <div className="text-3xl font-bold">R$ 249<span className="text-base font-normal">/mês</span></div>
+                <CardTitle>Delivery Pro</CardTitle>
+                <div className="text-3xl font-bold">R$ 99,99<span className="text-base font-normal">/mês</span></div>
                 <CardDescription>Para restaurantes com salão</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Tudo do Essencial</span>
+                    <span className="text-sm">Tudo do Delivery Básico</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
@@ -258,11 +258,11 @@ export default function Landing() {
               </CardContent>
             </Card>
 
-            {/* Customizado */}
+            {/* Delivery Completo */}
             <Card className="border-border/50">
               <CardHeader>
-                <CardTitle>Customizado</CardTitle>
-                <div className="text-3xl font-bold">R$ 399<span className="text-base font-normal">/mês</span></div>
+                <CardTitle>Delivery Completo</CardTitle>
+                <div className="text-3xl font-bold">R$ 159,99<span className="text-base font-normal">/mês</span></div>
                 <CardDescription>Solução completa</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -273,19 +273,23 @@ export default function Landing() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm">WhatsApp Bot (ZapBot)</span>
+                    <span className="text-sm">🤖 WhatsApp Bot integrado</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm">NFC-e Nota Fiscal</span>
+                    <span className="text-sm">🎨 Design de cardápio com IA</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Relatórios avançados</span>
+                    <span className="text-sm">🍕 Integração iFood e 99Food</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Suporte prioritário 24/7</span>
+                    <span className="text-sm">📄 NFC-e Nota Fiscal</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-primary" />
+                    <span className="text-sm">⭐ Suporte 24/7</span>
                   </li>
                 </ul>
                 <Button className="w-full" variant="default" asChild>
