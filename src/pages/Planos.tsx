@@ -9,91 +9,84 @@ import { useState } from "react";
 
 const plans = [
   {
-    name: "Plano FREE - Trial 30 dias",
-    price: "Grátis por 30 dias",
+    name: "Trial Grátis",
+    price: "R$ 0",
     type: "free",
-    productId: "prod_TROuUGprpTFafd",
-    badge: "Teste Grátis",
+    badge: "30 dias grátis",
     features: [
-      "✅ Teste COMPLETO por 30 dias",
-      "✅ Pedidos Online (Delivery e Retirada)",
-      "✅ Pedidos no Balcão",
-      "✅ Gestão de Cardápio",
-      "✅ Cadastro de Clientes",
-      "✅ Relatórios Básicos"
+      "Acesso completo por 30 dias",
+      "Teste todas as funcionalidades",
+      "Sem cartão de crédito",
     ],
     notIncluded: [
-      "Após 30 dias, escolha um plano pago"
+      "Após 30 dias, escolha um plano"
     ],
     addons: [],
     isTrial: true
   },
   {
-    name: "Plano Essencial",
-    price: "R$ 149",
-    type: "essencial",
-    productId: "prod_TQVYhDe57NtmEo",
-    badge: "Mais Escolhido",
+    name: "Delivery Básico",
+    price: "R$ 59,99",
+    type: "delivery1",
+    productId: "prod_TUCuWibYtgymlE",
+    badge: null,
     features: [
-      "Pedidos Online",
-      "Pedidos Balcão (PDV)",
-      "Gestão de Cardápio",
-      "Gestão de Clientes",
-      "Relatórios Básicos",
+      "PDV completo",
+      "Cardápio online",
+      "Gestão de clientes",
+      "Relatórios básicos",
+      "Delivery integrado",
+      "Monitor Cozinha",
+      "Gestão de Motoboys",
     ],
     notIncluded: [
       "Gestão de Mesas",
       "Comandas",
-      "NFC-e",
-      "Zap Bot",
+      "Tablet na mesa",
+      "WhatsApp Bot",
+      "Design com IA",
     ],
-    addons: [
-      { name: "Integração iFood", price: "Grátis" },
-      { name: "Integração 99Food", price: "Grátis" },
-      { name: "Integração Keeta", price: "Grátis" },
-    ],
+    addons: [],
   },
   {
-    name: "Plano Essencial + Mesas",
-    price: "R$ 249",
-    type: "essencial_mesas",
-    productId: "prod_TQVasFiHlnE9mI",
-    badge: "Recomendado",
+    name: "Delivery Pro",
+    price: "R$ 99,99",
+    type: "delivery2",
+    productId: "prod_TUCujk7c7oAwaq",
+    badge: "Mais Popular",
     features: [
-      "Tudo do Essencial",
+      "Tudo do Delivery Básico",
       "Gestão de Mesas",
-      "Comandas",
-      "Controle de Salão",
+      "Comandas físicas",
+      "Tablet na mesa",
+      "Totem autoatendimento",
+      "Relatórios avançados",
+      "Monitor Gestor",
     ],
     notIncluded: [
-      "NFC-e",
-      "Zap Bot",
+      "WhatsApp Bot",
+      "Design com IA",
+      "Integração iFood/99Food",
     ],
-    addons: [
-      { name: "Integração iFood", price: "Grátis" },
-      { name: "Integração 99Food", price: "Grátis" },
-      { name: "Integração Keeta", price: "Grátis" },
-    ],
+    addons: [],
   },
   {
-    name: "Plano Customizado",
-    price: "R$ 399",
-    type: "customizado",
-    productId: "prod_TQVbmTNqjI3VMH",
+    name: "Delivery Completo",
+    price: "R$ 159,99",
+    type: "delivery3",
+    productId: "prod_TUCu1OjdrZ8lft",
     badge: "Completo",
     features: [
       "Tudo dos planos anteriores",
-      "NFC-e (Nota Fiscal)",
-      "Zap Bot",
-      "Relatórios Avançados",
-      "Suporte Prioritário",
+      "🤖 WhatsApp Bot totalmente integrado",
+      "🎨 Geração de design de cardápios com IA",
+      "🍕 Integração iFood",
+      "🛵 Integração 99Food",
+      "📄 NFC-e (Nota Fiscal)",
+      "⭐ Suporte prioritário 24/7",
     ],
     notIncluded: [],
-    addons: [
-      { name: "Integração iFood", price: "Grátis" },
-      { name: "Integração 99Food", price: "Grátis" },
-      { name: "Integração Keeta", price: "Grátis" },
-    ],
+    addons: [],
   },
 ];
 
@@ -150,7 +143,7 @@ export default function Planos() {
             ? "Você está em período de teste. Escolha um plano para continuar usando o sistema." 
             : subscribed 
               ? "Gerencie sua assinatura atual ou faça upgrade."
-              : "Comece com 10 dias grátis em qualquer plano."}
+              : "Comece com 30 dias grátis em qualquer plano."}
         </p>
         {subscribed && (
           <Button onClick={handleManageSubscription} variant="outline" className="mt-4">
@@ -159,17 +152,21 @@ export default function Planos() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {plans.map((plan) => {
           const isCurrentPlan = planType === plan.type && subscribed;
+          const isPopular = plan.badge === "Mais Popular";
           
           return (
             <Card 
               key={plan.name} 
-              className={`relative ${isCurrentPlan ? 'border-primary border-2' : ''}`}
+              className={`relative ${isCurrentPlan ? 'border-primary border-2' : ''} ${isPopular ? 'border-primary border-2' : ''}`}
             >
               {plan.badge && (
-                <Badge className="absolute top-4 right-4" variant="secondary">
+                <Badge 
+                  className={`absolute top-4 right-4 ${isPopular ? 'bg-primary text-primary-foreground' : ''}`} 
+                  variant={isPopular ? "default" : "secondary"}
+                >
                   {plan.badge}
                 </Badge>
               )}
@@ -183,17 +180,17 @@ export default function Planos() {
                 <CardTitle className="text-2xl">{plan.name}</CardTitle>
                 <CardDescription>
                   <span className="text-3xl font-bold text-foreground">{plan.price}</span>
-                  <span className="text-muted-foreground">/mês</span>
+                  {!plan.isTrial && <span className="text-muted-foreground">/mês</span>}
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-semibold mb-2 text-sm">Funcionalidades Incluídas:</h4>
+                  <h4 className="font-semibold mb-2 text-sm">Funcionalidades:</h4>
                   <ul className="space-y-2">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
                         <span>{feature}</span>
                       </li>
                     ))}
@@ -206,21 +203,8 @@ export default function Planos() {
                     <ul className="space-y-2">
                       {plan.notIncluded.map((feature) => (
                         <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <X className="h-4 w-4 text-muted-foreground" />
+                          <X className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {plan.addons.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-2 text-sm">Integrações Grátis:</h4>
-                    <ul className="space-y-1">
-                      {plan.addons.map((addon) => (
-                        <li key={addon.name} className="text-sm text-muted-foreground">
-                          • {addon.name}
                         </li>
                       ))}
                     </ul>
@@ -231,7 +215,7 @@ export default function Planos() {
               <CardFooter>
                 <Button
                   className="w-full"
-                  variant={isCurrentPlan ? "outline" : "default"}
+                  variant={isCurrentPlan ? "outline" : isPopular ? "default" : "default"}
                   onClick={() => handleSubscribe(plan.type)}
                   disabled={loading || processingPlan === plan.type || isCurrentPlan}
                 >
@@ -239,7 +223,9 @@ export default function Planos() {
                     ? "Processando..." 
                     : isCurrentPlan 
                       ? "Plano Atual" 
-                      : "Assinar"}
+                      : plan.isTrial 
+                        ? "Começar Grátis"
+                        : "Assinar"}
                 </Button>
               </CardFooter>
             </Card>

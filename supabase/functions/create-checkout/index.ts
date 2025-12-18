@@ -38,9 +38,9 @@ serve(async (req) => {
 
     // Mapping dos planos para os preços do Stripe (PRODUÇÃO)
     const planPrices: Record<string, string> = {
-      essencial: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
-      essencial_mesas: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
-      customizado: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
+      delivery1: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
+      delivery2: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
+      delivery3: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
     };
 
     const priceId = planPrices[planType];
