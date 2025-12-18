@@ -10,6 +10,9 @@ interface SubscriptionStatus {
   productId?: string;
   subscriptionEnd?: string;
   loading: boolean;
+  isExpired: boolean;
+  canAccess: boolean;
+  isBlocked: boolean;
 }
 
 export function useSubscription() {
@@ -18,11 +21,21 @@ export function useSubscription() {
     subscribed: false,
     inTrial: false,
     loading: true,
+    isExpired: false,
+    canAccess: true,
+    isBlocked: false,
   });
 
   const checkSubscription = async () => {
     if (!user) {
-      setStatus({ subscribed: false, inTrial: false, loading: false });
+      setStatus({ 
+        subscribed: false, 
+        inTrial: false, 
+        loading: false,
+        isExpired: false,
+        canAccess: false,
+        isBlocked: false,
+      });
       return;
     }
 
@@ -31,13 +44,38 @@ export function useSubscription() {
       
       if (error) throw error;
 
+      // Calcular flags de acesso
+      const inTrial = data?.inTrial || false;
+      const subscribed = data?.subscribed || false;
+      const daysLeft = data?.daysLeft ?? 0;
+      const isBlocked = data?.isBlocked || false;
+      
+      // Trial expirado = em trial mas sem dias restantes
+      const trialExpired = inTrial && daysLeft <= 0;
+      
+      // Expirado = trial expirado OU sem assinatura e não está em trial
+      const isExpired = trialExpired || (!subscribed && !inTrial);
+      
+      // Pode acessar = tem assinatura ativa OU está em trial válido (com dias restantes)
+      const canAccess = subscribed || (inTrial && daysLeft > 0);
+
       setStatus({
         ...data,
         loading: false,
+        isExpired,
+        canAccess: canAccess && !isBlocked,
+        isBlocked,
       });
     } catch (error) {
       console.error('Error checking subscription:', error);
-      setStatus({ subscribed: false, inTrial: false, loading: false });
+      setStatus({ 
+        subscribed: false, 
+        inTrial: false, 
+        loading: false,
+        isExpired: true,
+        canAccess: false,
+        isBlocked: false,
+      });
     }
   };
 
@@ -52,7 +90,7 @@ export function useSubscription() {
 
   const hasFeature = (featureKey: string): boolean => {
     // Durante trial, tem acesso a tudo
-    if (status.inTrial) return true;
+    if (status.inTrial && (status.daysLeft ?? 0) > 0) return true;
     
     // Se não tem assinatura ativa, não tem acesso
     if (!status.subscribed || !status.planType) return false;

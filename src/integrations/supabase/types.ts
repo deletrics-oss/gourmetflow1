@@ -1190,6 +1190,7 @@ export type Database = {
           nubank_client_secret: string | null
           nubank_enabled: boolean | null
           number: string | null
+          onboarding_completed: boolean | null
           paghiper_api_key: string | null
           pagseguro_email: string | null
           pagseguro_enabled: boolean | null
@@ -1266,6 +1267,7 @@ export type Database = {
           nubank_client_secret?: string | null
           nubank_enabled?: boolean | null
           number?: string | null
+          onboarding_completed?: boolean | null
           paghiper_api_key?: string | null
           pagseguro_email?: string | null
           pagseguro_enabled?: boolean | null
@@ -1342,6 +1344,7 @@ export type Database = {
           nubank_client_secret?: string | null
           nubank_enabled?: boolean | null
           number?: string | null
+          onboarding_completed?: boolean | null
           paghiper_api_key?: string | null
           pagseguro_email?: string | null
           pagseguro_enabled?: boolean | null

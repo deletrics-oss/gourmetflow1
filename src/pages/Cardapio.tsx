@@ -32,9 +32,13 @@ export default function Cardapio() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
   
-  // Estados para geração de fotos em lote
+  // Estados para geração de fotos em lote - ITENS
   const [generatingPhotos, setGeneratingPhotos] = useState(false);
   const [photoProgress, setPhotoProgress] = useState({ current: 0, total: 0, itemName: '' });
+  
+  // Estados para geração de fotos em lote - CATEGORIAS
+  const [generatingCategoryPhotos, setGeneratingCategoryPhotos] = useState(false);
+  const [categoryPhotoProgress, setCategoryPhotoProgress] = useState({ current: 0, total: 0, categoryName: '' });
   
   const { restaurantId } = useRestaurant();
 
@@ -42,6 +46,11 @@ export default function Cardapio() {
   const itemsWithoutPhoto = useMemo(() => {
     return menuItems.filter(item => !item.image_url || item.image_url.trim() === '');
   }, [menuItems]);
+  
+  // Calcula categorias sem foto
+  const categoriesWithoutPhoto = useMemo(() => {
+    return categories.filter(cat => !cat.image_url || cat.image_url.trim() === '');
+  }, [categories]);
 
   useEffect(() => {
     loadData();
@@ -191,6 +200,115 @@ export default function Cardapio() {
     loadData(); // Recarregar dados
   };
 
+  // Função para preencher fotos de categorias com IA
+  const handleFillMissingCategoryPhotos = async () => {
+    if (!restaurantId || categoriesWithoutPhoto.length === 0) {
+      toast.error('Nenhuma categoria sem foto encontrada');
+      return;
+    }
+    
+    if (!confirm(`Gerar fotos com IA para ${categoriesWithoutPhoto.length} categoria(s) sem foto?\n\nIsso pode levar alguns minutos dependendo da quantidade.`)) {
+      return;
+    }
+    
+    setGeneratingCategoryPhotos(true);
+    setCategoryPhotoProgress({ current: 0, total: categoriesWithoutPhoto.length, categoryName: '' });
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < categoriesWithoutPhoto.length; i++) {
+      const category = categoriesWithoutPhoto[i];
+      
+      setCategoryPhotoProgress({ 
+        current: i + 1, 
+        total: categoriesWithoutPhoto.length, 
+        categoryName: category.name 
+      });
+      
+      try {
+        // 1. Gerar imagem com IA
+        const { data, error } = await supabase.functions.invoke('generate-product-image', {
+          body: {
+            name: category.name,
+            category: 'categoria de cardápio',
+            description: category.description || `Categoria ${category.name} do cardápio`,
+            restaurantId
+          }
+        });
+        
+        if (error) {
+          console.error(`Erro ao gerar imagem para ${category.name}:`, error);
+          errorCount++;
+          continue;
+        }
+        
+        if (!data?.imageBase64) {
+          console.error(`Sem imagem retornada para ${category.name}:`, data);
+          errorCount++;
+          continue;
+        }
+        
+        // 2. Upload para Storage
+        const base64Data = data.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+        const fileName = `${restaurantId}/cat_${category.id}_${Date.now()}.png`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('menu-images')
+          .upload(fileName, decode(base64Data), {
+            contentType: 'image/png',
+            upsert: true
+          });
+        
+        if (uploadError) {
+          console.error(`Erro no upload para ${category.name}:`, uploadError);
+          errorCount++;
+          continue;
+        }
+        
+        // 3. Obter URL pública
+        const { data: publicUrlData } = supabase.storage
+          .from('menu-images')
+          .getPublicUrl(fileName);
+        
+        // 4. Atualizar categoria no banco
+        const { error: updateError } = await supabase
+          .from('categories')
+          .update({ image_url: publicUrlData.publicUrl })
+          .eq('id', category.id);
+        
+        if (updateError) {
+          console.error(`Erro ao atualizar ${category.name}:`, updateError);
+          errorCount++;
+          continue;
+        }
+        
+        successCount++;
+        
+      } catch (e) {
+        console.error(`Erro ao gerar foto para ${category.name}:`, e);
+        errorCount++;
+      }
+      
+      // Delay entre requisições
+      if (i < categoriesWithoutPhoto.length - 1) {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    
+    setGeneratingCategoryPhotos(false);
+    setCategoryPhotoProgress({ current: 0, total: 0, categoryName: '' });
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} foto(s) de categoria(s) gerada(s) com sucesso!`);
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount} foto(s) não puderam ser geradas`);
+    }
+    
+    loadData();
+  };
+
   const handleDeleteCategory = async (id: string, name: string) => {
     if (confirm(`Deseja realmente excluir a categoria "${name}"?`)) {
       try {
@@ -283,13 +401,13 @@ export default function Cardapio() {
 
   return (
     <div className="min-h-screen bg-background p-8">
-      {/* Modal de progresso */}
+      {/* Modal de progresso - ITENS */}
       {generatingPhotos && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="p-6 w-96 max-w-[90vw]">
             <div className="flex items-center gap-3 mb-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <h3 className="font-semibold">Gerando Fotos com IA</h3>
+              <h3 className="font-semibold">Gerando Fotos de Itens</h3>
             </div>
             <Progress value={(photoProgress.current / photoProgress.total) * 100} className="mb-3" />
             <p className="text-sm text-muted-foreground text-center">
@@ -300,9 +418,29 @@ export default function Cardapio() {
                 Gerando: {photoProgress.itemName}
               </p>
             )}
-            <p className="text-xs text-muted-foreground mt-3 text-center">
-              Não feche esta página...
+            <p className="text-xs text-muted-foreground mt-3 text-center">Não feche esta página...</p>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de progresso - CATEGORIAS */}
+      {generatingCategoryPhotos && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="p-6 w-96 max-w-[90vw]">
+            <div className="flex items-center gap-3 mb-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <h3 className="font-semibold">Gerando Fotos de Categorias</h3>
+            </div>
+            <Progress value={(categoryPhotoProgress.current / categoryPhotoProgress.total) * 100} className="mb-3" />
+            <p className="text-sm text-muted-foreground text-center">
+              {categoryPhotoProgress.current} de {categoryPhotoProgress.total}
             </p>
+            {categoryPhotoProgress.categoryName && (
+              <p className="text-xs text-muted-foreground mt-1 text-center truncate">
+                Gerando: {categoryPhotoProgress.categoryName}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-3 text-center">Não feche esta página...</p>
           </Card>
         </div>
       )}
@@ -363,7 +501,14 @@ export default function Cardapio() {
 
       <Tabs defaultValue="categorias" className="w-full">
         <TabsList className="mb-6">
-          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="categorias">
+            Categorias
+            {categoriesWithoutPhoto.length > 0 && (
+              <Badge variant="outline" className="ml-2 text-yellow-600 border-yellow-400">
+                {categoriesWithoutPhoto.length} sem foto
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="itens">
             Itens do Menu
             {itemsWithoutPhoto.length > 0 && (
@@ -375,11 +520,17 @@ export default function Cardapio() {
         </TabsList>
 
         <TabsContent value="categorias">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
             <Button className="gap-2" onClick={() => setCategoryDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               Nova Categoria
             </Button>
+            {categoriesWithoutPhoto.length > 0 && (
+              <Button variant="outline" className="gap-2" onClick={handleFillMissingCategoryPhotos} disabled={generatingCategoryPhotos || hasGeminiKey === false}>
+                <ImagePlus className="h-4 w-4" />
+                Preencher {categoriesWithoutPhoto.length} Foto(s) com IA
+              </Button>
+            )}
             {selectedCategories.length > 0 && (
               <Button variant="destructive" className="gap-2" onClick={handleBulkDeleteCategories}>
                 <Trash className="h-4 w-4" />
