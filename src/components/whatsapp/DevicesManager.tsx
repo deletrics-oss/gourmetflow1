@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Plus, Smartphone, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, Settings } from "lucide-react";
+import { Plus, Smartphone, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, Power, PowerOff } from "lucide-react";
 
 interface Device {
   id: string;
@@ -42,6 +42,8 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [newDeviceName, setNewDeviceName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadData();
@@ -61,6 +63,7 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
 
     return () => {
       supabase.removeChannel(channel);
+      if (pollingInterval) clearInterval(pollingInterval);
     };
   }, [restaurantId]);
 
@@ -113,6 +116,11 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
     if (!confirm("Tem certeza que deseja remover este dispositivo?")) return;
 
     try {
+      // Disconnect first
+      await supabase.functions.invoke('whatsapp-server-proxy', {
+        body: { action: 'disconnect', deviceId, restaurantId }
+      });
+
       const { error } = await supabase.from('whatsapp_devices').delete().eq('id', deviceId);
       if (error) throw error;
 
@@ -136,21 +144,110 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
     }
   };
 
+  const pollDeviceStatus = useCallback(async (deviceId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-server-proxy', {
+        body: { action: 'status', deviceId, restaurantId }
+      });
+
+      if (error) throw error;
+
+      // Update local state if device is the selected one
+      if (selectedDevice?.id === deviceId && data) {
+        if (data.status === 'connected') {
+          toast.success("WhatsApp conectado com sucesso!");
+          setQrDialogOpen(false);
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+        } else if (data.qrCode && data.qrCode !== selectedDevice.qr_code) {
+          setSelectedDevice(prev => prev ? { ...prev, qr_code: data.qrCode } : null);
+        }
+      }
+
+      loadData();
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+    }
+  }, [selectedDevice, pollingInterval, restaurantId]);
+
   const handleConnectDevice = async (device: Device) => {
     setSelectedDevice(device);
     setQrDialogOpen(true);
+    setConnecting(true);
 
-    // Simular geração de QR Code (em produção, isso viria do servidor WhatsApp)
     try {
-      await supabase.from('whatsapp_devices').update({
-        connection_status: 'qr_ready',
-        qr_code: `QR_${device.id}_${Date.now()}`, // Placeholder - em produção viria do servidor
-      }).eq('id', device.id);
+      // Call proxy to create session and get QR code
+      const { data, error } = await supabase.functions.invoke('whatsapp-server-proxy', {
+        body: { action: 'connect', deviceId: device.id, restaurantId }
+      });
 
-      toast.info("Escaneie o QR Code no seu WhatsApp");
+      if (error) throw error;
+
+      if (data?.qrCode) {
+        setSelectedDevice({ ...device, qr_code: data.qrCode, connection_status: 'qr_ready' });
+        toast.info("Escaneie o QR Code no seu WhatsApp");
+
+        // Start polling for status
+        const interval = setInterval(() => pollDeviceStatus(device.id), 3000);
+        setPollingInterval(interval);
+      } else {
+        toast.error("Servidor WhatsApp não retornou QR Code. Verifique se o servidor está rodando.");
+      }
     } catch (error) {
       console.error('Erro ao gerar QR Code:', error);
-      toast.error("Erro ao gerar QR Code");
+      toast.error("Erro ao conectar. Verifique se o servidor WhatsApp está rodando em http://72.60.246.250:3022");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnectDevice = async (device: Device) => {
+    try {
+      await supabase.functions.invoke('whatsapp-server-proxy', {
+        body: { action: 'disconnect', deviceId: device.id, restaurantId }
+      });
+
+      toast.success("Dispositivo desconectado!");
+      loadData();
+    } catch (error) {
+      console.error('Erro ao desconectar:', error);
+      toast.error("Erro ao desconectar dispositivo");
+    }
+  };
+
+  const handleReconnectDevice = async (device: Device) => {
+    setSelectedDevice(device);
+    setQrDialogOpen(true);
+    setConnecting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-server-proxy', {
+        body: { action: 'reconnect', deviceId: device.id, restaurantId }
+      });
+
+      if (error) throw error;
+
+      if (data?.qrCode) {
+        setSelectedDevice({ ...device, qr_code: data.qrCode, connection_status: 'qr_ready' });
+        
+        const interval = setInterval(() => pollDeviceStatus(device.id), 3000);
+        setPollingInterval(interval);
+      }
+    } catch (error) {
+      console.error('Erro ao reconectar:', error);
+      toast.error("Erro ao reconectar");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleCloseQrDialog = () => {
+    setQrDialogOpen(false);
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
     }
   };
 
@@ -283,10 +380,15 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
                     Conectar
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => loadData()}>
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    Atualizar
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleReconnectDevice(device)}>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Reconectar
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => handleDisconnectDevice(device)}>
+                      <PowerOff className="h-4 w-4" />
+                    </Button>
+                  </>
                 )}
                 <Button variant="destructive" size="sm" onClick={() => handleDeleteDevice(device.id)}>
                   <Trash2 className="h-4 w-4" />
@@ -298,22 +400,41 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
       )}
 
       {/* QR Code Dialog */}
-      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+      <Dialog open={qrDialogOpen} onOpenChange={handleCloseQrDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar {selectedDevice?.name}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center space-y-4 py-4">
-            <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center">
-              {selectedDevice?.qr_code ? (
+            <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+              {connecting ? (
                 <div className="text-center">
-                  <QrCode className="h-32 w-32 mx-auto text-primary mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    Escaneie com o WhatsApp
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
+                </div>
+              ) : selectedDevice?.qr_code?.startsWith('data:image') ? (
+                <img 
+                  src={selectedDevice.qr_code} 
+                  alt="QR Code" 
+                  className="w-full h-full object-contain"
+                />
+              ) : selectedDevice?.qr_code ? (
+                <div className="text-center p-4">
+                  <QrCode className="h-16 w-16 mx-auto text-primary mb-2" />
+                  <p className="text-xs text-muted-foreground break-all">
+                    {selectedDevice.qr_code.substring(0, 50)}...
                   </p>
                 </div>
               ) : (
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <div className="text-center">
+                  <QrCode className="h-16 w-16 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Aguardando servidor...
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Verifique se o servidor está rodando
+                  </p>
+                </div>
               )}
             </div>
             <div className="text-center">
@@ -325,6 +446,12 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
                 <li>4. Escaneie este QR Code</li>
               </ol>
             </div>
+            {selectedDevice?.connection_status === 'qr_ready' && (
+              <p className="text-xs text-yellow-600 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Aguardando escaneamento...
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

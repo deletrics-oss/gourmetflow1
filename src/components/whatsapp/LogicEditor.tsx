@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Plus, Workflow, Trash2, Save, Loader2, Sparkles, Code, Brain, Edit } from "lucide-react";
+import { Plus, Workflow, Trash2, Save, Loader2, Sparkles, Code, Brain, Edit, ShoppingCart, UtensilsCrossed, Coins, Award, XCircle, UserX, UserCheck } from "lucide-react";
 
 interface LogicRule {
   id: string;
@@ -35,6 +35,16 @@ interface LogicConfig {
 interface Props {
   restaurantId: string;
 }
+
+const SPECIAL_ACTIONS = [
+  { key: '#CARDAPIO', label: 'Cardápio', icon: UtensilsCrossed, description: 'Mostra o cardápio do restaurante' },
+  { key: '#PEDIR', label: 'Fazer Pedido', icon: ShoppingCart, description: 'Inicia fluxo de pedido' },
+  { key: '#CASHBACK', label: 'Cashback', icon: Coins, description: 'Mostra saldo de cashback' },
+  { key: '#PONTOS', label: 'Pontos', icon: Award, description: 'Mostra pontos de fidelidade' },
+  { key: '#CANCELAR', label: 'Cancelar', icon: XCircle, description: 'Cancela pedido em andamento' },
+  { key: '#PARAR', label: 'Opt-out', icon: UserX, description: 'Remove do cadastro (LGPD)' },
+  { key: '#HUMANO', label: 'Atendente', icon: UserCheck, description: 'Transfere para humano' },
+];
 
 export function LogicEditor({ restaurantId }: Props) {
   const [logics, setLogics] = useState<LogicConfig[]>([]);
@@ -83,7 +93,18 @@ export function LogicEditor({ restaurantId }: Props) {
         description: newLogic.description.trim() || null,
         logic_type: newLogic.logic_type,
         logic_json: { rules: [], default_reply: "Olá! Como posso ajudar?" },
-        ai_prompt: newLogic.logic_type === 'ai' ? "Você é um assistente virtual de um restaurante. Responda de forma educada e prestativa." : null,
+        ai_prompt: newLogic.logic_type === 'ai' ? `Você é um assistente virtual de um restaurante. Seja educado e prestativo.
+
+AÇÕES ESPECIAIS DISPONÍVEIS:
+- Use #CARDAPIO quando o cliente pedir para ver o cardápio
+- Use #PEDIR quando o cliente quiser fazer um pedido
+- Use #CASHBACK para mostrar o saldo de cashback
+- Use #PONTOS para mostrar pontos de fidelidade
+- Use #CANCELAR se o cliente quiser cancelar
+- Use #PARAR se o cliente quiser sair da lista
+- Use #HUMANO para transferir para atendimento humano
+
+Responda de forma natural e inclua a ação especial quando apropriado.` : null,
       }).select().single();
 
       if (error) throw error;
@@ -190,6 +211,29 @@ export function LogicEditor({ restaurantId }: Props) {
         rules: selectedLogic.logic_json.rules.filter(rule => rule.id !== ruleId),
       },
     });
+  };
+
+  const handleInsertAction = (actionKey: string, targetField: 'response' | 'ai_prompt' | 'default_reply', ruleId?: string) => {
+    if (!selectedLogic) return;
+
+    if (targetField === 'ai_prompt') {
+      setSelectedLogic({
+        ...selectedLogic,
+        ai_prompt: (selectedLogic.ai_prompt || '') + ' ' + actionKey,
+      });
+    } else if (targetField === 'default_reply') {
+      setSelectedLogic({
+        ...selectedLogic,
+        logic_json: {
+          ...selectedLogic.logic_json,
+          default_reply: selectedLogic.logic_json.default_reply + ' ' + actionKey,
+        },
+      });
+    } else if (ruleId) {
+      handleUpdateRule(ruleId, {
+        response: selectedLogic.logic_json.rules.find(r => r.id === ruleId)?.response + ' ' + actionKey,
+      });
+    }
   };
 
   const getLogicTypeBadge = (type: string) => {
@@ -326,6 +370,35 @@ export function LogicEditor({ restaurantId }: Props) {
               </div>
             </div>
 
+            {/* Special Actions Chips */}
+            <Card className="p-3 bg-muted/50">
+              <p className="text-xs font-medium mb-2">Ações Especiais (clique para inserir):</p>
+              <div className="flex flex-wrap gap-2">
+                {SPECIAL_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <Badge
+                      key={action.key}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                      onClick={() => {
+                        if (selectedLogic.logic_type !== 'json') {
+                          handleInsertAction(action.key, 'ai_prompt');
+                        } else {
+                          handleInsertAction(action.key, 'default_reply');
+                        }
+                        toast.success(`${action.key} inserido`);
+                      }}
+                      title={action.description}
+                    >
+                      <Icon className="h-3 w-3 mr-1" />
+                      {action.label}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </Card>
+
             <Tabs defaultValue={selectedLogic.logic_type === 'ai' ? 'ai' : 'rules'}>
               <TabsList>
                 {selectedLogic.logic_type !== 'ai' && (
@@ -392,7 +465,26 @@ export function LogicEditor({ restaurantId }: Props) {
                             </div>
                           </div>
                           <div>
-                            <Label className="text-xs">Resposta</Label>
+                            <div className="flex items-center justify-between mb-1">
+                              <Label className="text-xs">Resposta</Label>
+                              <div className="flex gap-1">
+                                {SPECIAL_ACTIONS.slice(0, 3).map((action) => {
+                                  const Icon = action.icon;
+                                  return (
+                                    <Button
+                                      key={action.key}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2"
+                                      onClick={() => handleInsertAction(action.key, 'response', rule.id)}
+                                      title={action.description}
+                                    >
+                                      <Icon className="h-3 w-3" />
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                             <Textarea
                               value={rule.response}
                               onChange={(e) => handleUpdateRule(rule.id, { response: e.target.value })}
@@ -415,10 +507,10 @@ export function LogicEditor({ restaurantId }: Props) {
                       value={selectedLogic.ai_prompt || ""}
                       onChange={(e) => setSelectedLogic({ ...selectedLogic, ai_prompt: e.target.value })}
                       placeholder="Instruções para a IA..."
-                      rows={8}
+                      rows={10}
                     />
                     <p className="text-xs text-muted-foreground mt-2">
-                      Este prompt define o comportamento da IA ao responder mensagens.
+                      Este prompt define o comportamento da IA. Use as ações especiais acima para adicionar funcionalidades.
                     </p>
                   </div>
                 </TabsContent>
