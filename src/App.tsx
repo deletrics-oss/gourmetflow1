@@ -64,6 +64,7 @@ import Funcionarios from "./pages/Funcionarios";
 import WhatsAppManager from "./pages/WhatsAppManager";
 import DesignerCardapio from "./pages/DesignerCardapio";
 import Onboarding from "./pages/Onboarding";
+import TesteSistema from "./pages/TesteSistema";
 const queryClient = new QueryClient();
 
 // Layout com Sidebar responsivo
@@ -227,6 +228,11 @@ const App = () => {
                       <Route path="/designer-cardapio" element={
                         <ProtectedRoute>
                           <DesignerCardapio />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/teste-sistema" element={
+                        <ProtectedRoute requireAdmin>
+                          <TesteSistema />
                         </ProtectedRoute>
                       } />
                       <Route path="*" element={<NotFound />} />
