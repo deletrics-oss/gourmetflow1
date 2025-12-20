@@ -119,137 +119,133 @@ const App = () => {
               {showSearch && <FloatingAISearch onClose={() => setShowSearch(false)} />}
               <BrowserRouter>
                 <SubscriptionAlert />
-          <Routes>
-            {/* Public Routes - Landing e Auth */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/termos" element={<TermosDeUso />} />
-            <Route path="/privacidade" element={<PoliticaPrivacidade />} />
-            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-            {/* Public Routes - Monitores Externos */}
-        <Route path="/monitor-cozinha-externo" element={<MonitorCozinhaExterno />} />
-        <Route path="/cozinha-externo" element={<CozinhaExterno />} />
-        <Route path="/monitor-gestor-externo" element={<MonitorGestorExterno />} />
-            {/* Public Routes - Cardápio do Cliente */}
-          <Route path="/customer-menu" element={<CustomerMenu />} />
-          <Route path="/table-menu" element={<TableCustomerMenu />} />
-          <Route path="/balcao-externo" element={<BalcaoExterno />} />
-          <Route path="/menu-tablet" element={<CustomerMenuTablet />} />
-          <Route path="/totem" element={<CustomerMenuTotem />} />
-          <Route path="/monitor-senhas" element={<MonitorSenhasExterno />} />
-            {/* Public Route - Balcão */}
-            <Route path="/balcao" element={<Balcao />} />
-            
-            <Route path="/*" element={
-              <ProtectedRoute>
-                <ProtectedLayout>
-                  <Routes>
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/pedidos" element={<Pedidos />} />
-                      <Route path="/cardapio" element={<Cardapio />} />
-                      <Route path="/salao" element={<Salao />} />
-                      <Route path="/table/:tableId" element={<TableOrder />} />
-                      <Route path="/comandas" element={<Comandas />} />
-                      <Route path="/cozinha" element={<Cozinha />} />
-                      <Route path="/estoque" element={<Estoque />} />
-                      <Route path="/pdv" element={<PDV />} />
-                      <Route path="/gestao-financeira" element={<GestaoFinanceira />} />
-                      <Route path="/monitor-cozinha" element={<MonitorCozinha />} />
-                      <Route path="/monitor-gestor" element={
-                        <ProtectedRoute requireManager>
-                          <MonitorGestor />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/relatorios" element={<Relatorios />} />
-                      <Route path="/configuracoes" element={<Configuracoes />} />
-                      <Route path="/cupons" element={<Cupons />} />
-                      <Route path="/cashback" element={<Cashback />} />
-                      <Route path="/clientes" element={<Clientes />} />
-                      <Route path="/fornecedores" element={<Fornecedores />} />
-                      <Route path="/motoboys" element={<Motoboys />} />
-                      <Route path="/despesas" element={<Despesas />} />
-                      <Route path="/usuarios" element={
-                        <ProtectedRoute requireAdmin>
-                          <Usuarios />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/funcionarios" element={
-                        <ProtectedRoute requireAdmin>
-                          <Funcionarios />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/permissoes" element={
-                        <ProtectedRoute requireAdmin>
-                          <PermissoesUsuarios />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/admin/assinaturas" element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminAssinaturas />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/super-admin" element={
-                        <ProtectedRoute requireAdmin>
-                          <SuperAdmin />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/planos" element={<Planos />} />
-                      <Route path="/zapbot" element={<ProtectedRoute><ZapBot /></ProtectedRoute>} />
-                      <Route path="/system-logs" element={
-                        <ProtectedRoute requireAdmin>
-                          <SystemLogs />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/disparo-massa" element={
-                        <ProtectedRoute requireAdmin>
-                          <DisparoMassa />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/fidelidade" element={
-                        <ProtectedRoute requireAdmin>
-                          <RelatorioFidelidade />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/nfc-e" element={
-                        <ProtectedRoute requireAdmin>
-                          <NotaFiscal />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/integracoes" element={
-                        <ProtectedRoute requireAdmin>
-                          <Integracoes />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/whatsapp-manager" element={
-                        <ProtectedRoute requireAdmin>
-                          <WhatsAppManager />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/designer-cardapio" element={
-                        <ProtectedRoute>
-                          <DesignerCardapio />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/teste-sistema" element={
-                        <ProtectedRoute requireAdmin>
-                          <TesteSistema />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                </ProtectedLayout>
-              </ProtectedRoute>
-            } />
-            
-            {/* Rota pública do Balcão - sem proteção */}
-            <Route path="/balcao" element={<Balcao />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </AppProvider>
-      </ThemeProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+                <Routes>
+                  {/* Public Routes - Landing e Auth */}
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/termos" element={<TermosDeUso />} />
+                  <Route path="/privacidade" element={<PoliticaPrivacidade />} />
+                  <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+                  {/* Public Routes - Monitores Externos */}
+                  <Route path="/monitor-cozinha-externo" element={<MonitorCozinhaExterno />} />
+                  <Route path="/cozinha-externo" element={<CozinhaExterno />} />
+                  <Route path="/monitor-gestor-externo" element={<MonitorGestorExterno />} />
+                  {/* Public Routes - Cardápio do Cliente */}
+                  <Route path="/customer-menu" element={<CustomerMenu />} />
+                  <Route path="/table-menu" element={<TableCustomerMenu />} />
+                  <Route path="/balcao-externo" element={<BalcaoExterno />} />
+                  <Route path="/menu-tablet" element={<CustomerMenuTablet />} />
+                  <Route path="/totem" element={<CustomerMenuTotem />} />
+                  <Route path="/monitor-senhas" element={<MonitorSenhasExterno />} />
+
+                  <Route path="/*" element={
+                    <ProtectedRoute>
+                      <ProtectedLayout>
+                        <Routes>
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/pedidos" element={<Pedidos />} />
+                          <Route path="/cardapio" element={<Cardapio />} />
+                          <Route path="/salao" element={<Salao />} />
+                          <Route path="/table/:tableId" element={<TableOrder />} />
+                          <Route path="/comandas" element={<Comandas />} />
+                          <Route path="/cozinha" element={<Cozinha />} />
+                          <Route path="/estoque" element={<Estoque />} />
+                          <Route path="/pdv" element={<PDV />} />
+                          <Route path="/balcao" element={<Balcao />} />
+                          <Route path="/gestao-financeira" element={<GestaoFinanceira />} />
+                          <Route path="/monitor-cozinha" element={<MonitorCozinha />} />
+                          <Route path="/monitor-gestor" element={
+                            <ProtectedRoute requireManager>
+                              <MonitorGestor />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/relatorios" element={<Relatorios />} />
+                          <Route path="/configuracoes" element={<Configuracoes />} />
+                          <Route path="/cupons" element={<Cupons />} />
+                          <Route path="/cashback" element={<Cashback />} />
+                          <Route path="/clientes" element={<Clientes />} />
+                          <Route path="/fornecedores" element={<Fornecedores />} />
+                          <Route path="/motoboys" element={<Motoboys />} />
+                          <Route path="/despesas" element={<Despesas />} />
+                          <Route path="/usuarios" element={
+                            <ProtectedRoute requireAdmin>
+                              <Usuarios />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/funcionarios" element={
+                            <ProtectedRoute requireAdmin>
+                              <Funcionarios />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/permissoes" element={
+                            <ProtectedRoute requireAdmin>
+                              <PermissoesUsuarios />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/admin/assinaturas" element={
+                            <ProtectedRoute requireAdmin>
+                              <AdminAssinaturas />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/super-admin" element={
+                            <ProtectedRoute requireAdmin>
+                              <SuperAdmin />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/planos" element={<Planos />} />
+                          <Route path="/zapbot" element={<ProtectedRoute><ZapBot /></ProtectedRoute>} />
+                          <Route path="/system-logs" element={
+                            <ProtectedRoute requireAdmin>
+                              <SystemLogs />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/disparo-massa" element={
+                            <ProtectedRoute requireAdmin>
+                              <DisparoMassa />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/fidelidade" element={
+                            <ProtectedRoute requireAdmin>
+                              <RelatorioFidelidade />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/nfc-e" element={
+                            <ProtectedRoute requireAdmin>
+                              <NotaFiscal />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/integracoes" element={
+                            <ProtectedRoute requireAdmin>
+                              <Integracoes />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/whatsapp-manager" element={
+                            <ProtectedRoute requireAdmin>
+                              <WhatsAppManager />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/designer-cardapio" element={
+                            <ProtectedRoute>
+                              <DesignerCardapio />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="/teste-sistema" element={
+                            <ProtectedRoute requireAdmin>
+                              <TesteSistema />
+                            </ProtectedRoute>
+                          } />
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </ProtectedLayout>
+                    </ProtectedRoute>
+                  } />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </AppProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 

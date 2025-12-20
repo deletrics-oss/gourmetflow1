@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin, Star, AlertTriangle, Scale } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Printer, Clock, CheckCircle, Bike, Loader2, MapPin, Star, AlertTriangle, Scale, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ export default function PDV() {
   const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [searchOrderNumber, setSearchOrderNumber] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchingOrder, setSearchingOrder] = useState(false);
   const [customerCpf, setCustomerCpf] = useState("");
   const [searchingCustomer, setSearchingCustomer] = useState(false);
@@ -516,10 +517,9 @@ export default function PDV() {
     }
   };
 
-  const filteredItems =
-    selectedCategory === "all"
-      ? menuItems
-      : menuItems.filter((item) => item.category_id === selectedCategory);
+  const filteredItems = menuItems
+    .filter(item => selectedCategory === "all" || item.category_id === selectedCategory)
+    .filter(item => searchQuery === "" || item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleAddToCart = async (item: MenuItem) => {
     // Check if item is sold by weight
@@ -979,6 +979,16 @@ export default function PDV() {
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar item..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
             <TabsContent value={selectedCategory}>
               <div className="grid gap-3 grid-cols-2 md:grid-cols-3">

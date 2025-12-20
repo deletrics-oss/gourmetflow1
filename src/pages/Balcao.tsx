@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Maximize, Bike, CheckCircle, Loader2, AlertTriangle, Gift, Scale } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Maximize, Bike, CheckCircle, Loader2, AlertTriangle, Gift, Scale, Search, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { logActionWithContext } from "@/lib/logging";
 import { validateCustomerData, sanitizeInput } from "@/lib/validation";
+import { useNavigate } from "react-router-dom";
 
 interface CartItem {
   id: string;
@@ -57,6 +58,7 @@ export default function Balcao() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [deliveryType, setDeliveryType] = useState<"retirada" | "entrega">("retirada");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
   const [customerName, setCustomerName] = useState("");
@@ -65,7 +67,7 @@ export default function Balcao() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [isSuspicious, setIsSuspicious] = useState(false);
-  
+
   // ✅ FASE 3: Estados para uso de pontos de fidelidade
   const [usePoints, setUsePoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState(0);
@@ -105,6 +107,7 @@ export default function Balcao() {
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
   const { calculateFromAddress, loading: deliveryLoading } = useDeliveryFee();
+  const navigate = useNavigate();
 
   // Busca automática de cliente por telefone (com debounce)
   useEffect(() => {
@@ -117,7 +120,7 @@ export default function Balcao() {
       }
 
       setSearchingCustomer(true);
-      
+
       try {
         const { data: customer } = await supabase
           .from('customers')
@@ -237,7 +240,7 @@ export default function Balcao() {
       .from("nfce_settings")
       .select("*")
       .maybeSingle();
-    
+
     if (nfceData && nfceData.is_active) {
       setNfceEnabled(true);
       setNfceSettings(nfceData);
@@ -277,7 +280,7 @@ export default function Balcao() {
 
   const handleWeightConfirm = (weight: number, totalPrice: number) => {
     if (!weightItem) return;
-    
+
     setCart([...cart, {
       id: weightItem.id,
       name: weightItem.name,
@@ -287,7 +290,7 @@ export default function Balcao() {
       customizationsText: `${weight.toFixed(3)} kg`,
       weight: weight
     }]);
-    
+
     setWeightItem(null);
   };
 
@@ -337,7 +340,7 @@ export default function Balcao() {
 
   // Calcular subtotal e total ANTES de usar em outras funções
   const subtotal = cart.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0);
-  
+
   // ✅ FASE 3: Calcular desconto por pontos
   useEffect(() => {
     if (usePoints && pointsToUse > 0 && loyaltyRedemptionValue > 0) {
@@ -347,7 +350,7 @@ export default function Balcao() {
       setPointsDiscount(0);
     }
   }, [usePoints, pointsToUse, loyaltyRedemptionValue, subtotal]);
-  
+
   const total = subtotal + deliveryFee - pointsDiscount;
 
   // Cálculo de pontos em tempo real
@@ -363,7 +366,7 @@ export default function Balcao() {
     if (!selectedMotoboy || selectedMotoboy === "none") return;
 
     setNotifyingMotoboy(true);
-    
+
     try {
       const { data: motoboy } = await supabase
         .from("motoboys")
@@ -376,7 +379,7 @@ export default function Balcao() {
         return;
       }
 
-      const message = 
+      const message =
         `🛵 *NOVA ENTREGA DISPONÍVEL*\n\n` +
         `📦 Pedido: #${orderNumber}\n` +
         `👤 Cliente: ${customerName}\n` +
@@ -420,10 +423,10 @@ export default function Balcao() {
     });
 
     if (!validation.valid) {
-      toast({ 
-        title: "Dados inválidos", 
-        description: validation.errors.join(', '), 
-        variant: "destructive" 
+      toast({
+        title: "Dados inválidos",
+        description: validation.errors.join(', '),
+        variant: "destructive"
       });
       return;
     }
@@ -435,7 +438,7 @@ export default function Balcao() {
 
       // Criar/atualizar cliente automaticamente
       let finalCustomerId = customerId;
-      
+
       if (customerPhone) {
         if (customerId) {
           // Atualizar cliente existente se nome ou CPF mudaram
@@ -476,7 +479,7 @@ export default function Balcao() {
             })
             .select('id')
             .single();
-          
+
           if (newCustomer) {
             finalCustomerId = newCustomer.id;
             sonnerToast.success('✅ Novo cliente cadastrado!');
@@ -534,7 +537,7 @@ export default function Balcao() {
       if (usePoints && pointsToUse > 0 && finalCustomerId) {
         await supabase
           .from('customers')
-          .update({ 
+          .update({
             loyalty_points: loyaltyPoints - pointsToUse
           })
           .eq('id', finalCustomerId);
@@ -549,11 +552,11 @@ export default function Balcao() {
             description: `Desconto no pedido ${orderNumber}`
           });
       }
-      
+
       // Atualizar pontos de fidelidade (ganhos)
       if (loyaltyEnabled && customerCpf && finalCustomerId) {
         const pointsEarned = Math.floor(total * loyaltyPointsPerReal);
-        
+
         // Buscar pontos atuais
         const { data: currentCustomer } = await supabase
           .from('customers')
@@ -562,10 +565,10 @@ export default function Balcao() {
           .single();
 
         const currentPoints = currentCustomer?.loyalty_points || 0;
-        
+
         await supabase
           .from('customers')
-          .update({ 
+          .update({
             loyalty_points: currentPoints + pointsEarned
           })
           .eq('id', finalCustomerId);
@@ -668,7 +671,7 @@ export default function Balcao() {
       sonnerToast.success(`✅ Pedido ${orderNumber} criado! Pagar no PDV.`, {
         description: `Total: R$ ${total.toFixed(2)}`
       });
-      
+
       // Notificar motoboy apenas se foi pago diretamente (não deve acontecer agora)
       // if (selectedMotoboy && selectedMotoboy !== "none") {
       //   setTimeout(() => {
@@ -692,7 +695,7 @@ export default function Balcao() {
       });
       setDeliveryFee(0);
       setDeliveryDistance(null);
-      
+
     } catch (error: any) {
       console.error('Erro ao finalizar venda:', error);
       toast({
@@ -705,9 +708,9 @@ export default function Balcao() {
     }
   };
 
-  const filteredItems = selectedCategory === "all" 
-    ? menuItems 
-    : menuItems.filter(item => item.category_id === selectedCategory);
+  const filteredItems = menuItems
+    .filter(item => selectedCategory === "all" || item.category_id === selectedCategory)
+    .filter(item => searchQuery === "" || item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -716,17 +719,12 @@ export default function Balcao() {
           <h1 className="text-3xl font-bold">Balcão</h1>
           <Button
             variant="outline"
-            size="icon"
-            onClick={() => {
-              const elem = document.documentElement;
-              if (!document.fullscreenElement) {
-                elem.requestFullscreen();
-              } else {
-                document.exitFullscreen();
-              }
-            }}
+            size="sm"
+            onClick={() => navigate('/balcao-externo')}
+            className="gap-2"
           >
-            <Maximize className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" />
+            Abrir Balcão Externo
           </Button>
         </div>
 
@@ -735,6 +733,15 @@ export default function Balcao() {
             <Card>
               <CardHeader>
                 <CardTitle>Cardápio</CardTitle>
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar item..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -744,15 +751,15 @@ export default function Balcao() {
                       <TabsTrigger key={cat.id} value={cat.id}>{cat.name}</TabsTrigger>
                     ))}
                   </TabsList>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     {filteredItems.map(item => (
                       <Card key={item.id} className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-4">
                           {item.image_url && (
                             <div className="w-full h-32 mb-3 overflow-hidden rounded-md">
-                              <img 
-                                src={item.image_url} 
+                              <img
+                                src={item.image_url}
                                 alt={item.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -779,8 +786,8 @@ export default function Balcao() {
                               )}
                             </div>
                           </div>
-                          <Button 
-                            onClick={() => handleAddToCart(item)} 
+                          <Button
+                            onClick={() => handleAddToCart(item)}
                             className="w-full mt-2"
                             size="sm"
                           >
@@ -897,18 +904,18 @@ export default function Balcao() {
                           <Gift className="h-5 w-5 text-primary" />
                           <h4 className="font-semibold text-sm">Cashback desta Venda</h4>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Pontos atuais:</span>
                             <span className="font-medium">{loyaltyPoints.toLocaleString('pt-BR')}</span>
                           </div>
-                          
+
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Vai ganhar:</span>
                             <span className="font-semibold text-primary">+{pointsToEarn.toLocaleString('pt-BR')}</span>
                           </div>
-                          
+
                           <div className="border-t pt-2 mt-2">
                             <div className="flex justify-between">
                               <span className="text-sm font-semibold">Novo saldo:</span>
@@ -921,104 +928,104 @@ export default function Balcao() {
                         </div>
                       </CardContent>
                     </Card>
-                   )}
-                  </div>
-
-                  {/* Seletor de Tipo de Entrega */}
-                  <div className="border-t pt-4">
-                    <Label>Tipo de Venda</Label>
-                    <RadioGroup value={deliveryType} onValueChange={(v: any) => setDeliveryType(v)} className="mt-2">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="retirada" id="retirada" />
-                        <Label htmlFor="retirada" className="cursor-pointer">
-                          🏪 Retirada no Balcão (Taxa R$ 0,00)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="entrega" id="entrega" />
-                        <Label htmlFor="entrega" className="cursor-pointer">
-                          🚚 Entrega (Taxa calculada automaticamente)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {/* Formulário de Endereço de Entrega - APENAS se for entrega */}
-                  {deliveryType === 'entrega' && (
-                    <div className="border-t pt-4">
-                      <CustomerAddressForm
-                        address={customerAddress}
-                        onAddressChange={setCustomerAddress}
-                        onDeliveryFeeChange={(fee, distance, coords) => {
-                          setDeliveryFee(fee);
-                          setDeliveryDistance(distance);
-                          if (coords) {
-                            setCustomerAddress(prev => ({
-                              ...prev,
-                              latitude: coords.latitude,
-                              longitude: coords.longitude,
-                            }));
-                          }
-                        }}
-                      />
-                      {deliveryLoading && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Calculando taxa de entrega...
-                        </div>
-                      )}
-                      {deliveryDistance && (
-                        <Badge variant="secondary" className="text-sm mt-2">
-                          📍 {deliveryDistance.toFixed(2)}km | Taxa: R$ {deliveryFee.toFixed(2)}
-                        </Badge>
-                      )}
-                    </div>
                   )}
+                </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    {/* ✅ FASE 3: Seção de Fidelidade */}
-                    {loyaltyEnabled && customerId && loyaltyPoints > 0 && (
-                      <Card className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <Gift className="h-5 w-5 text-yellow-600" />
-                            <div>
-                              <p className="font-semibold text-sm">Você tem {loyaltyPoints} pontos!</p>
-                              <p className="text-xs text-muted-foreground">
-                                Cada ponto vale R$ {loyaltyRedemptionValue.toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                          <Checkbox
-                            checked={usePoints}
-                            onCheckedChange={(checked) => {
-                              setUsePoints(!!checked);
-                              if (!checked) {
-                                setPointsToUse(0);
-                                setPointsDiscount(0);
-                              }
-                            }}
-                          />
-                        </div>
-                        
-                        {usePoints && (
-                          <div className="space-y-2">
-                            <Label>Quantos pontos usar?</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={loyaltyPoints}
-                              value={pointsToUse}
-                              onChange={(e) => setPointsToUse(Math.min(Number(e.target.value), loyaltyPoints))}
-                            />
-                            <p className="text-sm text-green-600 font-semibold">
-                              Desconto: -R$ {pointsDiscount.toFixed(2)}
+                {/* Seletor de Tipo de Entrega */}
+                <div className="border-t pt-4">
+                  <Label>Tipo de Venda</Label>
+                  <RadioGroup value={deliveryType} onValueChange={(v: any) => setDeliveryType(v)} className="mt-2">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="retirada" id="retirada" />
+                      <Label htmlFor="retirada" className="cursor-pointer">
+                        🏪 Retirada no Balcão (Taxa R$ 0,00)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="entrega" id="entrega" />
+                      <Label htmlFor="entrega" className="cursor-pointer">
+                        🚚 Entrega (Taxa calculada automaticamente)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Formulário de Endereço de Entrega - APENAS se for entrega */}
+                {deliveryType === 'entrega' && (
+                  <div className="border-t pt-4">
+                    <CustomerAddressForm
+                      address={customerAddress}
+                      onAddressChange={setCustomerAddress}
+                      onDeliveryFeeChange={(fee, distance, coords) => {
+                        setDeliveryFee(fee);
+                        setDeliveryDistance(distance);
+                        if (coords) {
+                          setCustomerAddress(prev => ({
+                            ...prev,
+                            latitude: coords.latitude,
+                            longitude: coords.longitude,
+                          }));
+                        }
+                      }}
+                    />
+                    {deliveryLoading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Calculando taxa de entrega...
+                      </div>
+                    )}
+                    {deliveryDistance && (
+                      <Badge variant="secondary" className="text-sm mt-2">
+                        📍 {deliveryDistance.toFixed(2)}km | Taxa: R$ {deliveryFee.toFixed(2)}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t pt-4 space-y-4">
+                  {/* ✅ FASE 3: Seção de Fidelidade */}
+                  {loyaltyEnabled && customerId && loyaltyPoints > 0 && (
+                    <Card className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-yellow-600" />
+                          <div>
+                            <p className="font-semibold text-sm">Você tem {loyaltyPoints} pontos!</p>
+                            <p className="text-xs text-muted-foreground">
+                              Cada ponto vale R$ {loyaltyRedemptionValue.toFixed(2)}
                             </p>
                           </div>
-                        )}
-                      </Card>
-                    )}
-                    
+                        </div>
+                        <Checkbox
+                          checked={usePoints}
+                          onCheckedChange={(checked) => {
+                            setUsePoints(!!checked);
+                            if (!checked) {
+                              setPointsToUse(0);
+                              setPointsDiscount(0);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {usePoints && (
+                        <div className="space-y-2">
+                          <Label>Quantos pontos usar?</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={loyaltyPoints}
+                            value={pointsToUse}
+                            onChange={(e) => setPointsToUse(Math.min(Number(e.target.value), loyaltyPoints))}
+                          />
+                          <p className="text-sm text-green-600 font-semibold">
+                            Desconto: -R$ {pointsDiscount.toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
                   {/* Motoboy */}
                   <div>
                     <Label htmlFor="motoboy">Motoboy (Opcional)</Label>
@@ -1082,7 +1089,7 @@ export default function Balcao() {
                       </span>
                     </div>
                   )}
-                  
+
                   <div className="flex justify-between mb-2">
                     <span className="text-muted-foreground">Subtotal:</span>
                     <span className="font-medium">R$ {subtotal.toFixed(2)}</span>
@@ -1099,8 +1106,8 @@ export default function Balcao() {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleFinalizeSale} 
+                <Button
+                  onClick={handleFinalizeSale}
                   className="w-full"
                   size="lg"
                   disabled={isFinalizingSale || cart.length === 0}
