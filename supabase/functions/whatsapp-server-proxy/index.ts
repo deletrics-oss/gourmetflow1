@@ -6,8 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Default server URL - can be overridden per restaurant
-const DEFAULT_SERVER_URL = "http://72.60.246.250:3022";
+// Default server URL - can be configured via:
+// 1. WHATSAPP_SERVER_URL secret in Supabase Dashboard
+// 2. whatsapp_server_url in restaurant_settings table
+// 3. Hardcoded fallback below
+const DEFAULT_SERVER_URL = Deno.env.get("WHATSAPP_SERVER_URL") || "http://206.183.130.29:3088";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,7 +32,7 @@ serve(async (req) => {
         .select("whatsapp_server_url")
         .eq("restaurant_id", restaurantId)
         .maybeSingle();
-      
+
       if (settings?.whatsapp_server_url) {
         serverUrl = settings.whatsapp_server_url;
       }
@@ -51,7 +54,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        
+
         // Update device with QR code
         if (data.qrCode) {
           await supabase
@@ -72,7 +75,7 @@ serve(async (req) => {
       case "status": {
         // Get session status
         const response = await fetch(`${serverUrl}/api/sessions/${deviceId}/status`);
-        
+
         if (!response.ok) {
           return new Response(JSON.stringify({ status: "disconnected" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -80,7 +83,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        
+
         // Update device status
         await supabase
           .from("whatsapp_devices")
@@ -139,7 +142,7 @@ serve(async (req) => {
       case "contacts": {
         // List contacts
         const response = await fetch(`${serverUrl}/api/contacts/${deviceId}`);
-        
+
         if (!response.ok) {
           return new Response(JSON.stringify({ contacts: [] }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -183,7 +186,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        
+
         if (data.qrCode) {
           await supabase
             .from("whatsapp_devices")

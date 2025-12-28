@@ -58,18 +58,18 @@ const businessStyles: Record<string, string> = {
 
 async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
   if (!restaurantId) return null;
-  
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
+
     const { data, error } = await supabase
       .from('restaurant_settings')
       .select('gemini_api_key')
       .eq('restaurant_id', restaurantId)
       .maybeSingle();
-    
+
     if (error || !data?.gemini_api_key) return null;
     return data.gemini_api_key;
   } catch (e) {
@@ -78,75 +78,16 @@ async function getGeminiApiKey(restaurantId?: string): Promise<string | null> {
   }
 }
 
-// Lovable AI Gateway - Nano Banana model (best for image generation)
-async function callLovableAIImageGen(apiKey: string, prompt: string, referenceImageBase64?: string): Promise<string | null> {
-  console.log('Calling Lovable AI Gateway with nano banana model...');
-  
-  let messages: any[];
-  
-  if (referenceImageBase64) {
-    messages = [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: referenceImageBase64 } }
-        ],
-      },
-    ];
-  } else {
-    messages = [{ role: 'user', content: prompt }];
-  }
-
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-image-preview',
-      messages,
-      modalities: ['image', 'text'],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Lovable AI Gateway error:', response.status, errorText);
-    
-    if (response.status === 429) {
-      throw { status: 429, message: 'Limite de requisições excedido. Tente novamente mais tarde.' };
-    }
-    if (response.status === 402) {
-      throw { status: 402, message: 'Créditos de IA esgotados. Configure sua API Key do Gemini em Configurações → IA.' };
-    }
-    
-    throw new Error(`Lovable AI error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log('Lovable AI response received');
-  
-  // Extract image from response
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  if (imageUrl) {
-    console.log('Image extracted from Lovable AI response');
-    return imageUrl;
-  }
-  
-  console.log('No image in Lovable AI response');
-  return null;
-}
+// Removed Lovable AI function - now using only Gemini
 
 // Direct Gemini API - Fallback when Lovable AI fails
 async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenceImageBase64?: string): Promise<string | null> {
   console.log('Calling Gemini API directly with gemini-2.0-flash-exp...');
-  
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
-  
+
   const parts: any[] = [{ text: prompt }];
-  
+
   if (referenceImageBase64) {
     const base64Match = referenceImageBase64.match(/^data:([^;]+);base64,(.+)$/);
     if (base64Match) {
@@ -158,7 +99,7 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenc
       });
     }
   }
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -169,16 +110,16 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenc
       }
     }),
   });
-  
+
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Gemini API error:', response.status, errorText);
     return null;
   }
-  
+
   const data = await response.json();
   console.log('Gemini API response received');
-  
+
   // Extract image from response - check both naming conventions
   const responseParts = data.candidates?.[0]?.content?.parts || [];
   for (const part of responseParts) {
@@ -189,7 +130,7 @@ async function callGeminiDirectImageGen(apiKey: string, prompt: string, referenc
       return `data:${mimeType};base64,${imageData}`;
     }
   }
-  
+
   console.log('No image in Gemini response');
   return null;
 }
@@ -201,13 +142,13 @@ serve(async (req) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { 
-      items, 
-      materialType, 
-      visualStyle, 
-      primaryColor, 
-      accentColor, 
-      restaurantName, 
+    const {
+      items,
+      materialType,
+      visualStyle,
+      primaryColor,
+      accentColor,
+      restaurantName,
       logoUrl,
       businessType,
       customPrompt,
@@ -215,11 +156,14 @@ serve(async (req) => {
       restaurantId
     } = body;
 
-    const geminiApiKey = await getGeminiApiKey(restaurantId);
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    
-    if (!geminiApiKey && !LOVABLE_API_KEY) {
-      throw new Error('Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA.');
+    // Get keys - prefer restaurant's key, fallback to env var
+    let geminiApiKey = await getGeminiApiKey(restaurantId);
+    if (!geminiApiKey) {
+      geminiApiKey = Deno.env.get('GEMINI_API_KEY') || null;
+    }
+
+    if (!geminiApiKey) {
+      throw new Error('Nenhuma chave de API configurada. Configure sua API Key do Gemini em Configurações → IA ou no Dashboard do Supabase.');
     }
 
     // Formatar lista de itens em português
@@ -268,35 +212,16 @@ Gere uma imagem de cardápio profissional e bonita.`;
 
     let imageUrl: string | null = null;
     let usedMethod = '';
-    
-    // Strategy: Try Lovable AI first (better model), then fallback to direct Gemini
-    if (LOVABLE_API_KEY) {
-      try {
-        imageUrl = await callLovableAIImageGen(LOVABLE_API_KEY, prompt, referenceImageBase64);
-        usedMethod = 'Lovable AI (nano banana)';
-      } catch (error: any) {
-        console.log('Lovable AI failed, will try fallback:', error.message);
-        // If it's a credit/rate limit error, propagate it
-        if (error.status === 429 || error.status === 402) {
-          // If we have Gemini key, try that as fallback
-          if (geminiApiKey) {
-            console.log('Trying Gemini direct API as fallback...');
-            imageUrl = await callGeminiDirectImageGen(geminiApiKey, prompt, referenceImageBase64);
-            usedMethod = 'Gemini Direct';
-          } else {
-            throw error;
-          }
-        }
-      }
-    }
-    
-    // If still no image, try direct Gemini
-    if (!imageUrl && geminiApiKey) {
-      console.log('Trying Gemini direct API...');
+
+    // Use Gemini Direct only
+    console.log('Using Gemini Direct for menu design generation...');
+    try {
       imageUrl = await callGeminiDirectImageGen(geminiApiKey, prompt, referenceImageBase64);
       usedMethod = 'Gemini Direct';
+    } catch (error: any) {
+      console.log('Gemini Direct failed:', error.message);
     }
-    
+
     if (!imageUrl) {
       console.error('Nenhuma imagem gerada por nenhum método');
       throw new Error('Nenhuma imagem gerada. Tente novamente ou configure sua chave do Gemini em Configurações → IA.');
@@ -305,7 +230,7 @@ Gere uma imagem de cardápio profissional e bonita.`;
     console.log('Imagem gerada com sucesso usando:', usedMethod);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         imageUrl,
         message: 'Imagem gerada com sucesso',
         method: usedMethod
@@ -315,14 +240,14 @@ Gere uma imagem de cardápio profissional e bonita.`;
 
   } catch (error: any) {
     console.error('Erro ao gerar design de cardápio:', error);
-    
+
     if (error.status === 429 || error.status === 402) {
       return new Response(
         JSON.stringify({ error: error.message }),
         { status: error.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     const errorMessage = error.message || 'Falha ao gerar design do cardápio';
     return new Response(
       JSON.stringify({ error: errorMessage }),

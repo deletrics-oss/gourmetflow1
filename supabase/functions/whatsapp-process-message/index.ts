@@ -43,55 +43,60 @@ function matchRule(message: string, rule: LogicRule): boolean {
 function executeLogic(message: string, logicJson: LogicJson): string | null {
   // Sort by priority and find first matching rule
   const sortedRules = [...logicJson.rules].sort((a, b) => a.priority - b.priority);
-  
+
   for (const rule of sortedRules) {
     if (matchRule(message, rule)) {
       return rule.response;
     }
   }
-  
+
   return null;
 }
 
 async function getAIResponse(message: string, aiPrompt: string, conversationHistory: string[]): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  
-  if (!LOVABLE_API_KEY) {
-    console.error('LOVABLE_API_KEY not configured');
+  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+
+  if (!GEMINI_API_KEY) {
+    console.error('GEMINI_API_KEY not configured');
     return "Desculpe, estou com problemas técnicos. Por favor, tente novamente mais tarde.";
   }
 
   try {
-    const messages = [
-      { role: "system", content: aiPrompt },
+    // Build messages for Gemini format
+    const geminiContents = [
+      { role: "user", parts: [{ text: aiPrompt }] },
+      { role: "model", parts: [{ text: "Entendido! Estou pronto para ajudar." }] },
       ...conversationHistory.slice(-10).map((msg, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content: msg
+        role: i % 2 === 0 ? "user" : "model",
+        parts: [{ text: msg }]
       })),
-      { role: "user", content: message }
+      { role: "user", parts: [{ text: message }] }
     ];
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages,
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: geminiContents,
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: 0.7,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
-      console.error('AI gateway error:', response.status);
+      console.error('Gemini API error:', response.status);
       return "Desculpe, não consegui processar sua mensagem. Por favor, tente novamente.";
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "Desculpe, não consegui gerar uma resposta.";
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não consegui gerar uma resposta.";
   } catch (error) {
-    console.error('Error calling AI:', error);
+    console.error('Error calling Gemini AI:', error);
     return "Desculpe, ocorreu um erro ao processar sua mensagem.";
   }
 }
@@ -142,7 +147,7 @@ serve(async (req) => {
 
         if (existingConvo) {
           conversationId = existingConvo.id;
-          
+
           // If conversation is paused, don't auto-respond
           if (existingConvo.is_paused) {
             // Save incoming message only
@@ -160,7 +165,7 @@ serve(async (req) => {
             // Update conversation
             await supabase
               .from('whatsapp_conversations')
-              .update({ 
+              .update({
                 last_message_at: new Date().toISOString(),
                 unread_count: (existingConvo as any).unread_count + 1 || 1
               })
@@ -217,7 +222,7 @@ serve(async (req) => {
 
               const historyMessages = history?.map(h => h.message_content) || [];
               response = await getAIResponse(
-                message, 
+                message,
                 logic.ai_prompt || "Você é um assistente virtual prestativo.",
                 historyMessages
               );

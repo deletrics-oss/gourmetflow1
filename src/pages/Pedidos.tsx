@@ -35,7 +35,7 @@ export default function Pedidos() {
       loadOrders();
       loadMotoboys();
     }
-    
+
     // Realtime subscription
     const channel = supabase
       .channel('orders-changes')
@@ -51,7 +51,7 @@ export default function Pedidos() {
 
   const loadMotoboys = async () => {
     if (!restaurantId) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('motoboys')
@@ -74,9 +74,9 @@ export default function Pedidos() {
       // Atualizar pedido com motoboy e status
       const { error: updateError } = await supabase
         .from("orders")
-        .update({ 
+        .update({
           motoboy_id: motoboyId,
-          status: "out_for_delivery" 
+          status: "out_for_delivery"
         })
         .eq("id", orderId);
 
@@ -111,7 +111,7 @@ export default function Pedidos() {
 
   const loadOrders = async () => {
     if (!restaurantId) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -135,7 +135,7 @@ export default function Pedidos() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string, motoboyId?: string) => {
     console.log("🔧 Iniciando atualização de status:", { orderId, newStatus, motoboyId });
-    
+
     try {
       // Buscar o pedido completo
       const { data: order, error: fetchError } = await supabase
@@ -167,7 +167,7 @@ export default function Pedidos() {
         // Atualizar status do pedido
         const { data: updated, error } = await supabase
           .from('orders')
-          .update({ 
+          .update({
             status: newStatus,
             completed_at: new Date().toISOString()
           })
@@ -180,7 +180,7 @@ export default function Pedidos() {
           toast.error(`Erro: ${error.message}`);
           throw error;
         }
-        
+
         console.log("✅ Pedido DEPOIS:", updated);
 
         // Log da ação
@@ -248,19 +248,19 @@ export default function Pedidos() {
       } else {
         // Para outros status, apenas atualizar
         const updates: any = { status: newStatus };
-        
+
         if (newStatus === 'preparing') {
           console.log("⏱️ Atualizando para status 'preparing'");
           updates.updated_at = new Date().toISOString();
         }
-        
+
         if (motoboyId) {
           console.log("🚗 Atribuindo motoboy:", motoboyId);
           updates.motoboy_id = motoboyId;
         }
-        
+
         console.log("📝 Atualizando pedido com:", updates);
-        
+
         const { data: updated, error: updateError } = await supabase
           .from('orders')
           .update(updates)
@@ -273,9 +273,9 @@ export default function Pedidos() {
           toast.error(`Erro: ${updateError.message}`);
           throw updateError;
         }
-        
+
         console.log("✅ Pedido atualizado com sucesso:", updated);
-        
+
         // Log da ação
         await logActionWithContext(
           'update_order_status',
@@ -287,10 +287,10 @@ export default function Pedidos() {
             motoboy_id: motoboyId || null
           }
         );
-        
+
         toast.success('Status atualizado!');
       }
-      
+
       // Forçar reload completo
       setTimeout(() => {
         loadOrders();
@@ -301,10 +301,10 @@ export default function Pedidos() {
       console.error("💥 Detalhes:", error?.details);
       console.error("💥 Hint:", error?.hint);
       console.error("💥 Message:", error?.message);
-      
+
       const errorMessage = error?.message || 'Erro desconhecido';
       const errorCode = error?.code || 'N/A';
-      
+
       toast.error(`Erro ${errorCode}: ${errorMessage}`, {
         description: 'Verifique o console (F12) para mais detalhes',
         duration: 5000
@@ -314,10 +314,10 @@ export default function Pedidos() {
 
   const getFilteredCompletedOrders = () => {
     let filtered = orders.filter((o) => o.status === "completed");
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (dateFilter === 'today') {
       filtered = filtered.filter((o) => new Date(o.created_at) >= today);
     } else if (dateFilter === 'week') {
@@ -331,7 +331,7 @@ export default function Pedidos() {
     if (deliveryTypeFilter !== 'all') {
       filtered = filtered.filter((o) => o.delivery_type === deliveryTypeFilter);
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((o) =>
@@ -340,18 +340,18 @@ export default function Pedidos() {
         o.customer_cpf?.includes(query)
       );
     }
-    
-    return filtered.sort((a, b) => 
+
+    return filtered.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   };
 
   const getFilteredCancelledOrders = () => {
     let filtered = orders.filter((o) => o.status === "cancelled");
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (dateFilter === 'today') {
       filtered = filtered.filter((o) => new Date(o.created_at) >= today);
     } else if (dateFilter === 'week') {
@@ -361,7 +361,7 @@ export default function Pedidos() {
       const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       filtered = filtered.filter((o) => new Date(o.created_at) >= monthAgo);
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((o) =>
@@ -370,8 +370,8 @@ export default function Pedidos() {
         o.customer_cpf?.includes(query)
       );
     }
-    
-    return filtered.sort((a, b) => 
+
+    return filtered.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   };
@@ -420,7 +420,28 @@ export default function Pedidos() {
   // Badge de origem do pedido
   const getOrderOriginBadge = (order: any) => {
     const orderNum = order.order_number || '';
-    
+    const notes = (order.notes || '').toLowerCase();
+
+    // Detectar origem via order_number ou notes
+    const isTest = orderNum.includes('TEST-') || notes.includes('pedido de teste');
+    const isIFood = notes.includes('ifood') || orderNum.includes('IFOOD');
+    const is99Food = notes.includes('99food') || orderNum.includes('99FOOD');
+    const isKeeta = notes.includes('keeta') || orderNum.includes('KEETA');
+
+    if (isTest) {
+      return <Badge className="bg-amber-500 text-white animate-pulse">🧪 TESTE</Badge>;
+    }
+
+    if (isIFood) {
+      return <Badge className="bg-red-600 text-white">🛵 iFood</Badge>;
+    }
+    if (is99Food) {
+      return <Badge className="bg-yellow-500 text-black">🛵 99Food</Badge>;
+    }
+    if (isKeeta) {
+      return <Badge className="bg-green-600 text-white">🛵 Keeta</Badge>;
+    }
+
     if (orderNum.startsWith('TOTEM-')) {
       return <Badge className="bg-purple-500 text-white">🖥️ TOTEM</Badge>;
     }
@@ -657,8 +678,8 @@ export default function Pedidos() {
                     <Button className="flex-1" onClick={() => updateOrderStatus(order.id, "preparing")}>
                       Iniciar Preparo
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="icon"
                       onClick={() => handleCancelOrder(order)}
                       title="Cancelar pedido"
@@ -717,15 +738,15 @@ export default function Pedidos() {
                     <span>Total:</span>
                     <span>R$ {order.total.toFixed(2)}</span>
                   </div>
-                   {order.payment_method === 'pending' ? (
-                     <Button className="w-full" variant="outline" disabled>
-                       Aguardando Pagamento no PDV
-                     </Button>
-                   ) : (
-                     <Button className="w-full" onClick={() => updateOrderStatus(order.id, "ready")}>
-                       Marcar como Pronto
-                     </Button>
-                   )}
+                  {order.payment_method === 'pending' ? (
+                    <Button className="w-full" variant="outline" disabled>
+                      Aguardando Pagamento no PDV
+                    </Button>
+                  ) : (
+                    <Button className="w-full" onClick={() => updateOrderStatus(order.id, "ready")}>
+                      Marcar como Pronto
+                    </Button>
+                  )}
                 </Card>
               ))}
             </div>
@@ -758,11 +779,11 @@ export default function Pedidos() {
                       {getDeliveryTypeLabel(order.delivery_type)}
                     </Badge>
                   </div>
-                   <div className="flex justify-between items-center mb-4">
+                  <div className="flex justify-between items-center mb-4">
                     <span className="font-semibold">Total:</span>
                     <span className="text-xl font-bold">R$ {order.total.toFixed(2)}</span>
                   </div>
-                  
+
                   {/* Seleção de Motoboy para Entregas */}
                   {order.delivery_type === 'delivery' && (
                     <div className="mb-4 space-y-2">
@@ -784,19 +805,19 @@ export default function Pedidos() {
                       </select>
                     </div>
                   )}
-                  
+
                   <div className="space-y-2">
                     {order.delivery_type === 'delivery' && selectedMotoboy[order.id] && (
-                      <Button 
-                        className="w-full" 
+                      <Button
+                        className="w-full"
                         onClick={() => handleAssignMotoboy(order.id, selectedMotoboy[order.id], order.order_number)}
                       >
                         <Truck className="mr-2 h-4 w-4" />
                         Atribuir Motoboy e Enviar
                       </Button>
                     )}
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       variant={selectedMotoboy[order.id] ? "outline" : "default"}
                       onClick={() => updateOrderStatus(order.id, "completed")}
                     >
@@ -858,15 +879,15 @@ export default function Pedidos() {
             <Card className="p-4">
               <p className="text-sm text-muted-foreground">Ticket Médio</p>
               <p className="text-2xl font-bold">
-                R$ {(completedOrders.reduce((sum, o) => sum + o.total, 0) / 
-                    Math.max(1, completedOrders.length)).toFixed(2)}
+                R$ {(completedOrders.reduce((sum, o) => sum + o.total, 0) /
+                  Math.max(1, completedOrders.length)).toFixed(2)}
               </p>
             </Card>
             <Card className="p-4">
               <p className="text-sm text-muted-foreground">Formas de Pagamento</p>
               <div className="text-xs text-muted-foreground">
-                💵 {completedOrders.filter(o => o.payment_method === 'cash').length} | 
-                💳 {completedOrders.filter(o => o.payment_method === 'credit_card' || o.payment_method === 'debit_card').length} | 
+                💵 {completedOrders.filter(o => o.payment_method === 'cash').length} |
+                💳 {completedOrders.filter(o => o.payment_method === 'credit_card' || o.payment_method === 'debit_card').length} |
                 📱 {completedOrders.filter(o => o.payment_method === 'pix').length}
               </div>
             </Card>
@@ -880,8 +901,8 @@ export default function Pedidos() {
           ) : (
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
               {completedOrders.map((order) => (
-                <Card 
-                  key={order.id} 
+                <Card
+                  key={order.id}
                   className="p-4 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {
                     setSelectedOrder(order);
@@ -949,8 +970,8 @@ export default function Pedidos() {
             <Card className="p-4 border-destructive/20">
               <p className="text-sm text-muted-foreground">Taxa de Cancelamento</p>
               <p className="text-2xl font-bold text-destructive">
-                {orders.length > 0 
-                  ? ((cancelledOrders.length / orders.length) * 100).toFixed(1) 
+                {orders.length > 0
+                  ? ((cancelledOrders.length / orders.length) * 100).toFixed(1)
                   : 0}%
               </p>
             </Card>
@@ -965,8 +986,8 @@ export default function Pedidos() {
           ) : (
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
               {cancelledOrders.map((order) => (
-                <Card 
-                  key={order.id} 
+                <Card
+                  key={order.id}
                   className="p-4 border-destructive/30 bg-destructive/5 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {
                     setSelectedOrder(order);

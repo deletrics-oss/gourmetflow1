@@ -19,7 +19,7 @@ serve(async (req) => {
 
     let body;
     const contentType = req.headers.get("content-type") || "";
-    
+
     if (contentType.includes("application/json")) {
       body = await req.json();
     } else if (contentType.includes("application/x-www-form-urlencoded")) {
@@ -117,31 +117,39 @@ Você deve:
       content: m.message_content,
     }));
 
-    // Call Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    // Call Gemini AI
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY not configured");
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...userMessages,
-        ],
-        max_tokens: 512,
-        temperature: 0.7,
-      }),
-    });
+    // Build messages for Gemini format
+    const geminiContents = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Entendido! Estou pronto para ajudar." }] },
+      ...userMessages.map(m => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+    ];
+
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: geminiContents,
+          generationConfig: {
+            maxOutputTokens: 512,
+            temperature: 0.7,
+          },
+        }),
+      }
+    );
 
     const aiData = await aiResponse.json();
-    const aiMessage = aiData.choices?.[0]?.message?.content || "Desculpe, não entendi.";
+    const aiMessage = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não entendi.";
 
     // Save AI response
     await supabase
@@ -157,7 +165,7 @@ Você deve:
 
     // Return TwiML for Twilio
     const twiml = `<Response><Message>${aiMessage}</Message></Response>`;
-    
+
     return new Response(twiml, {
       headers: { ...corsHeaders, "Content-Type": "application/xml" },
     });

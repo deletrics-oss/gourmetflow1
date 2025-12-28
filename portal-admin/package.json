@@ -1,0 +1,12 @@
+{
+    "name": "portal-deletrics",
+    "version": "1.0.0",
+    "description": "Portal de Sistemas Deletrics com Admin",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}

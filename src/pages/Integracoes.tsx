@@ -8,16 +8,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { 
-  Save, 
-  Loader2, 
-  Facebook, 
-  MessageCircle, 
-  CheckCircle2, 
-  AlertTriangle, 
+import {
+  Save,
+  Loader2,
+  Facebook,
+  MessageCircle,
+  CheckCircle2,
+  AlertTriangle,
   ExternalLink,
   Info,
-  Smartphone
+  Smartphone,
+  PlayCircle,
+  Beaker,
+  Zap
 } from "lucide-react";
 import { useRestaurant } from "@/hooks/useRestaurant";
 
@@ -25,6 +28,9 @@ export default function Integracoes() {
   const { restaurantId, loading: restaurantLoading } = useRestaurant();
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [generatingOrder, setGeneratingOrder] = useState<string | null>(null);
   const [settings, setSettings] = useState({
     // iFood - API Oficial
     ifood_enabled: false,
@@ -64,7 +70,7 @@ export default function Integracoes() {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
-      
+
       if (data) {
         // Parse ifood_token as JSON if it contains client_id/client_secret/merchant_id
         let ifoodData = { client_id: "", client_secret: "", merchant_id: "" };
@@ -102,6 +108,150 @@ export default function Integracoes() {
     }
   };
 
+  const handleTestConnection = async (platform: 'ifood' | '99food' | 'keeta') => {
+    if (!restaurantId) {
+      toast.error("Restaurante não identificado");
+      return;
+    }
+
+    setTesting(platform);
+    try {
+      let functionName = '';
+      switch (platform) {
+        case 'ifood':
+          functionName = 'ifood-auth';
+          break;
+        case '99food':
+          functionName = 'ninefood-orders';
+          break;
+        case 'keeta':
+          functionName = 'keeta-orders';
+          break;
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: { action: 'validate', restaurantId }
+      });
+
+      if (error) throw error;
+
+      if (data.success || data.valid) {
+        toast.success(`${platform.toUpperCase()}: Conexão válida!`);
+      } else {
+        toast.error(data.message || `Erro ao validar ${platform}`);
+      }
+    } catch (error: any) {
+      console.error(`Erro ao testar ${platform}:`, error);
+      toast.error(error.message || `Erro ao testar conexão ${platform}`);
+    } finally {
+      setTesting(null);
+    }
+  };
+
+  // Dados para simulação local
+  const mockNames = [
+    'Maria Silva', 'João Santos', 'Ana Oliveira', 'Pedro Costa',
+    'Juliana Souza', 'Lucas Ferreira', 'Fernanda Lima', 'Ricardo Almeida'
+  ];
+
+  const mockAddresses = [
+    'Rua das Flores, 123 - Centro', 'Av. Brasil, 456 - Jd. América',
+    'Rua São Paulo, 789 - Vila Nova', 'Av. Paulista, 1000 - Bela Vista'
+  ];
+
+  const mockItems = {
+    default: [
+      { name: 'X-Burguer Especial', price: 25.90 },
+      { name: 'Pizza Calabresa', price: 45.00 },
+      { name: 'Açaí 500ml', price: 18.00 },
+      { name: 'Refrigerante 2L', price: 12.00 }
+    ]
+  };
+
+  const handleGenerateTestOrder = async (platform: string) => {
+    if (!restaurantId) {
+      toast.error("Restaurante não identificado");
+      return;
+    }
+
+    setGeneratingOrder(platform);
+    try {
+      // Simulação Local no Frontend
+      const numItems = Math.floor(Math.random() * 3) + 1;
+      const selectedItems = [];
+      let subtotal = 0;
+
+      for (let i = 0; i < numItems; i++) {
+        const item = mockItems.default[Math.floor(Math.random() * mockItems.default.length)];
+        const qty = Math.floor(Math.random() * 2) + 1;
+        selectedItems.push({
+          name: item.name,
+          quantity: qty,
+          unit_price: item.price,
+          total_price: item.price * qty,
+          notes: Math.random() > 0.7 ? 'Sem cebola' : null,
+        });
+        subtotal += item.price * qty;
+      }
+
+      const deliveryFee = 5.00;
+      const total = subtotal + deliveryFee;
+
+      // 1. Criar o Pedido
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          restaurant_id: restaurantId,
+          external_id: `TEST-${platform.toUpperCase()}-${Date.now()}`,
+          external_platform: platform,
+          customer_name: mockNames[Math.floor(Math.random() * mockNames.length)],
+          customer_phone: '11999999999',
+          order_number: `TEST-${Math.floor(Math.random() * 1000)}`,
+          subtotal: subtotal,
+          delivery_fee: deliveryFee,
+          total: total,
+          status: 'pending',
+          order_type: 'delivery',
+          delivery_type: 'delivery', // Importante para o PDV
+          delivery_address: {
+            street: mockAddresses[Math.floor(Math.random() * mockAddresses.length)],
+            number: '123',
+            city: 'Cidade Exemplo'
+          },
+          payment_method: 'pix',
+          is_test: true,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Criar Itens do Pedido
+      const orderItemsData = selectedItems.map(item => ({
+        order_id: order.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        notes: item.notes
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsData);
+
+      if (itemsError) throw itemsError;
+
+      toast.success(`Pedido de teste ${platform.toUpperCase()} gerado com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao gerar pedido de teste:", error);
+      toast.error(error.message || "Erro ao gerar pedido");
+    } finally {
+      setGeneratingOrder(null);
+    }
+  };
+
   const handleSave = async () => {
     if (!restaurantId) {
       toast.error("Restaurante não identificado");
@@ -120,10 +270,10 @@ export default function Integracoes() {
       // Store iFood credentials as JSON
       const ifoodToken = settings.ifood_enabled
         ? JSON.stringify({
-            client_id: settings.ifood_client_id,
-            client_secret: settings.ifood_client_secret,
-            merchant_id: settings.ifood_merchant_id,
-          })
+          client_id: settings.ifood_client_id,
+          client_secret: settings.ifood_client_secret,
+          merchant_id: settings.ifood_merchant_id,
+        })
         : null;
 
       const dataToSave = {
@@ -208,6 +358,83 @@ export default function Integracoes() {
         </TabsList>
 
         <TabsContent value="delivery" className="space-y-4">
+          {/* Modo Demonstração */}
+          <Card className="p-6 border-dashed border-2 bg-muted/30">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Beaker className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Modo de Demonstração</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Simule pedidos para ver o fluxo no painel de pedidos online
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="demo-mode" className="text-sm font-medium">Ativar Modo Teste</Label>
+                <Switch
+                  id="demo-mode"
+                  checked={demoMode}
+                  onCheckedChange={setDemoMode}
+                />
+              </div>
+            </div>
+
+            {demoMode && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-background rounded-lg border">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+                    <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                    iFood Simulator
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start hover:bg-red-50 hover:text-red-700 hover:border-red-200"
+                    onClick={() => handleGenerateTestOrder('ifood')}
+                    disabled={generatingOrder !== null}
+                  >
+                    {generatingOrder === 'ifood' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    Novo Pedido iFood
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-yellow-600">
+                    <span className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse" />
+                    99Food Simulator
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-200"
+                    onClick={() => handleGenerateTestOrder('99food')}
+                    disabled={generatingOrder !== null}
+                  >
+                    {generatingOrder === '99food' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    Novo Pedido 99Food
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-green-600">
+                    <span className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+                    Keeta Simulator
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start hover:bg-green-50 hover:text-green-700 hover:border-green-200"
+                    onClick={() => handleGenerateTestOrder('keeta')}
+                    disabled={generatingOrder !== null}
+                  >
+                    {generatingOrder === 'keeta' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    Novo Pedido Keeta
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+
           {/* Aviso Importante */}
           <Alert>
             <AlertTriangle className="h-4 w-4" />
@@ -218,7 +445,7 @@ export default function Integracoes() {
                 A integração direta só é possível após aprovação das plataformas.
               </p>
               <p className="text-sm">
-                Recomendamos usar <strong>agregadores homologados</strong> como Anota AI ou Hubster 
+                Recomendamos usar <strong>agregadores homologados</strong> como Anota AI ou Hubster
                 para receber pedidos de múltiplas plataformas em um único painel.
               </p>
             </AlertDescription>
@@ -240,7 +467,7 @@ export default function Integracoes() {
               </div>
               <Switch
                 checked={settings.ifood_enabled}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setSettings({ ...settings, ifood_enabled: checked })
                 }
               />
@@ -267,7 +494,7 @@ export default function Integracoes() {
                     <Input
                       id="ifood_client_id"
                       value={settings.ifood_client_id}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setSettings({ ...settings, ifood_client_id: e.target.value })
                       }
                       placeholder="Seu Client ID do iFood"
@@ -279,7 +506,7 @@ export default function Integracoes() {
                       id="ifood_client_secret"
                       type="password"
                       value={settings.ifood_client_secret}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setSettings({ ...settings, ifood_client_secret: e.target.value })
                       }
                       placeholder="Seu Client Secret"
@@ -291,7 +518,7 @@ export default function Integracoes() {
                   <Input
                     id="ifood_merchant_id"
                     value={settings.ifood_merchant_id}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, ifood_merchant_id: e.target.value })
                     }
                     placeholder="ID do seu restaurante no iFood"
@@ -301,12 +528,26 @@ export default function Integracoes() {
                   </p>
                 </div>
 
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://developer.ifood.com.br" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Acessar iFood Developer
-                  </a>
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="https://developer.ifood.com.br" target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Acessar iFood Developer
+                    </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleTestConnection('ifood')}
+                    disabled={testing === 'ifood' || !settings.ifood_client_id}
+                  >
+                    {testing === 'ifood' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlayCircle className="mr-2 h-4 w-4" />
+                    )}
+                    Testar Conexão
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -327,7 +568,7 @@ export default function Integracoes() {
               </div>
               <Switch
                 checked={settings.ninefood_enabled}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setSettings({ ...settings, ninefood_enabled: checked })
                 }
               />
@@ -349,7 +590,7 @@ export default function Integracoes() {
                     id="ninefood_token"
                     type="password"
                     value={settings.ninefood_token}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, ninefood_token: e.target.value })
                     }
                     placeholder="Token obtido via parceria oficial"
@@ -375,7 +616,7 @@ export default function Integracoes() {
               </div>
               <Switch
                 checked={settings.keeta_enabled}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setSettings({ ...settings, keeta_enabled: checked })
                 }
               />
@@ -396,7 +637,7 @@ export default function Integracoes() {
                     id="keeta_token"
                     type="password"
                     value={settings.keeta_token}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, keeta_token: e.target.value })
                     }
                     placeholder="Token obtido via parceria oficial"
@@ -413,7 +654,7 @@ export default function Integracoes() {
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <AlertTitle className="text-green-800">Recomendado</AlertTitle>
             <AlertDescription className="text-green-700">
-              Agregadores são a forma mais fácil de receber pedidos de múltiplas plataformas 
+              Agregadores são a forma mais fácil de receber pedidos de múltiplas plataformas
               (iFood, 99Food, Keeta, Rappi) em um único painel integrado ao seu sistema.
             </AlertDescription>
           </Alert>
@@ -511,7 +752,7 @@ export default function Integracoes() {
               </div>
               <Switch
                 checked={settings.whatsapp_enabled}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setSettings({ ...settings, whatsapp_enabled: checked })
                 }
               />
@@ -537,7 +778,7 @@ export default function Integracoes() {
                     id="whatsapp_api_key"
                     type="password"
                     value={settings.whatsapp_api_key}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, whatsapp_api_key: e.target.value })
                     }
                     placeholder="Chave de API (Evolution, Twilio ou Meta)"
@@ -548,7 +789,7 @@ export default function Integracoes() {
                   <Input
                     id="whatsapp_phone"
                     value={settings.whatsapp_phone}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, whatsapp_phone: e.target.value })
                     }
                     placeholder="5511999999999"
@@ -559,7 +800,7 @@ export default function Integracoes() {
                   <Input
                     id="whatsapp_webhook"
                     value={settings.whatsapp_webhook_url}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, whatsapp_webhook_url: e.target.value })
                     }
                     placeholder="https://sua-api.com/webhook"
@@ -587,7 +828,7 @@ export default function Integracoes() {
               </div>
               <Switch
                 checked={settings.facebook_enabled}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setSettings({ ...settings, facebook_enabled: checked })
                 }
               />
@@ -600,7 +841,7 @@ export default function Integracoes() {
                   <Input
                     id="facebook_business_id"
                     value={settings.facebook_business_id}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, facebook_business_id: e.target.value })
                     }
                     placeholder="ID da sua conta Business"
@@ -612,7 +853,7 @@ export default function Integracoes() {
                     id="facebook_access_token"
                     type="password"
                     value={settings.facebook_access_token}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, facebook_access_token: e.target.value })
                     }
                     placeholder="Token de acesso da API"
@@ -623,7 +864,7 @@ export default function Integracoes() {
                   <Input
                     id="facebook_phone_id"
                     value={settings.facebook_phone_number_id}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSettings({ ...settings, facebook_phone_number_id: e.target.value })
                     }
                     placeholder="ID do número de telefone"

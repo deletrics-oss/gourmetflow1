@@ -127,7 +127,7 @@ export function OwnerAlertsConfig({ restaurantId }: Props) {
             <Input
               value={config.whatsapp_server_url}
               onChange={(e) => setConfig({ ...config, whatsapp_server_url: e.target.value })}
-              placeholder="http://72.60.246.250:3022"
+              placeholder="http://localhost:3022"
             />
             <p className="text-xs text-muted-foreground mt-1">URL do seu servidor WhatsApp</p>
           </div>
