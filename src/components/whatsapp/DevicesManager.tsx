@@ -92,22 +92,31 @@ export function DevicesManager({ restaurantId, onRefresh }: Props) {
 
     setSaving(true);
     try {
-      const { error } = await supabase.from('whatsapp_devices').insert({
+      const { data, error } = await supabase.from('whatsapp_devices').insert({
         restaurant_id: restaurantId,
         name: newDeviceName.trim(),
         connection_status: 'disconnected',
-      });
+      }).select().single();
 
       if (error) throw error;
 
-      toast.success("Dispositivo adicionado!", { description: "Aguardando conexão..." });
+      toast.success("Dispositivo adicionado!", { description: "Iniciando conexão..." });
       setNewDeviceName("");
       setIsAddDialogOpen(false);
-      loadData();
+
+      // Auto-start connection to generate QR Code
+      if (data) {
+        // Add to local state immediately to avoid flickers
+        setDevices(prev => [data, ...prev]);
+        // Trigger reconnect (init session)
+        await handleReconnect(data, false);
+      }
+
       onRefresh();
     } catch (error) {
       console.error('Erro ao adicionar dispositivo:', error);
       toast.error("Erro ao adicionar dispositivo");
+      loadData(); // Reload to be safe
     } finally {
       setSaving(false);
     }

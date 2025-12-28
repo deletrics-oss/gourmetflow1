@@ -10,7 +10,7 @@ const corsHeaders = {
 // 1. WHATSAPP_SERVER_URL secret in Supabase Dashboard
 // 2. whatsapp_server_url in restaurant_settings table
 // 3. Hardcoded fallback below
-const DEFAULT_SERVER_URL = Deno.env.get("WHATSAPP_SERVER_URL") || "http://206.183.130.29:3088";
+const DEFAULT_SERVER_URL = Deno.env.get("WHATSAPP_SERVER_URL") || "https://iapedido.deletrics.site";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
