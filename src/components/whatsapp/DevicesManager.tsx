@@ -23,7 +23,7 @@ interface Device {
   lastConnectedAt?: string;
 }
 
-export default function DevicesPage() {
+function DevicesPageComponent() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState("");
   const { toast } = useToast();
@@ -343,3 +343,9 @@ export default function DevicesPage() {
     </div >
   );
 }
+
+// Named export for use in other components
+export const DevicesManager = DevicesPageComponent;
+
+// Default export
+export default DevicesPageComponent;
