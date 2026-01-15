@@ -36,16 +36,43 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Mapping dos planos para os preços do Stripe (PRODUÇÃO)
-    const planPrices: Record<string, string> = {
-      delivery1: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
-      delivery2: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
-      delivery3: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
-    };
+    // Buscar price_id da tabela billing_plans
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
 
-    const priceId = planPrices[planType];
+    const { data: planData, error: planError } = await supabaseAdmin
+      .from('billing_plans')
+      .select('stripe_price_id')
+      .eq('plan_key', planType)
+      .eq('is_active', true)
+      .single();
+
+    if (planError || !planData?.stripe_price_id) {
+      // Fallback para preços hardcoded
+      const planPrices: Record<string, string> = {
+        delivery1: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
+        delivery2: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
+        delivery3: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
+      };
+      const fallbackPriceId = planPrices[planType];
+      if (!fallbackPriceId) throw new Error("Invalid plan type");
+      logStep("Using fallback price ID", { priceId: fallbackPriceId });
+    }
+
+    const priceId = planData?.stripe_price_id || (() => {
+      const planPrices: Record<string, string> = {
+        delivery1: "price_1SXEUNPDGZjTHjxq7tgsf3Uf",
+        delivery2: "price_1SXEUaPDGZjTHjxqqWAYOo0p",
+        delivery3: "price_1SXEV2PDGZjTHjxqR1Q2CoLF",
+      };
+      return planPrices[planType];
+    })();
+
     if (!priceId) throw new Error("Invalid plan type");
-    logStep("Price ID determined", { priceId });
+    logStep("Price ID determined", { priceId, fromDB: !!planData?.stripe_price_id });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",

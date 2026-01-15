@@ -41,10 +41,10 @@ serve(async (req) => {
     });
 
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    
+
     if (customers.data.length === 0) {
       logStep("No customer found");
-      
+
       // Verificar se tem subscription no banco
       const { data: dbSub } = await supabaseClient
         .from('subscriptions')
@@ -56,12 +56,20 @@ serve(async (req) => {
         const now = new Date();
         const trialEnd = new Date(dbSub.trial_end);
         const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
+
+        // Get configured trial days
+        const { data: configData } = await supabaseClient
+          .from('billing_config')
+          .select('trial_days')
+          .single();
+        const configuredTrialDays = configData?.trial_days || 30;
+
         return new Response(JSON.stringify({
           subscribed: false,
-          inTrial: true,
-          daysLeft,
+          inTrial: daysLeft > 0,
+          daysLeft: Math.max(0, daysLeft),
           planType: dbSub.plan_type,
+          trialDays: configuredTrialDays,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
@@ -92,15 +100,16 @@ serve(async (req) => {
       const subscription = subscriptions.data[0];
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       productId = subscription.items.data[0].price.product as string;
-      
-      // Mapear product_id para plan_type
-      const productToPlan: Record<string, string> = {
-        "prod_TUCuWibYtgymlE": "delivery1",
-        "prod_TUCujk7c7oAwaq": "delivery2",
-        "prod_TUCu1OjdrZ8lft": "delivery3",
+
+      // Mapear price_id para plan_type
+      const priceToPlan: Record<string, string> = {
+        "price_1SXEUNPDGZjTHjxq7tgsf3Uf": "delivery1",  // R$59,99
+        "price_1SXEUaPDGZjTHjxqqWAYOo0p": "delivery2",  // R$99,99
+        "price_1SXEV2PDGZjTHjxqR1Q2CoLF": "delivery3",  // R$159,99
       };
-      planType = productToPlan[productId] || null;
-      
+      const priceId = subscription.items.data[0].price.id;
+      planType = priceToPlan[priceId] || null;
+
       logStep("Active subscription found", { subscriptionId: subscription.id, planType });
 
       // Atualizar no banco de dados

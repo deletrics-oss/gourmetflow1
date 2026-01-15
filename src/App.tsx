@@ -65,6 +65,7 @@ import WhatsAppManager from "./pages/WhatsAppManager";
 import DesignerCardapio from "./pages/DesignerCardapio";
 import Onboarding from "./pages/Onboarding";
 import TesteSistema from "./pages/TesteSistema";
+import Cobranca from "./pages/Cobranca";
 const queryClient = new QueryClient();
 
 // Layout com Sidebar responsivo
@@ -193,6 +194,11 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           <Route path="/planos" element={<Planos />} />
+                          <Route path="/cobranca" element={
+                            <ProtectedRoute requireAdmin>
+                              <Cobranca />
+                            </ProtectedRoute>
+                          } />
                           <Route path="/zapbot" element={<ProtectedRoute><ZapBot /></ProtectedRoute>} />
                           <Route path="/system-logs" element={
                             <ProtectedRoute requireAdmin>
