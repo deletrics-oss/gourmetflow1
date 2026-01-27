@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_SERVER_URL = "http://72.60.246.250:3022";
+const DEFAULT_SERVER_URL = "https://iapedido.deletrics.site/whatsapp-api";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -49,7 +49,7 @@ serve(async (req) => {
             .select("whatsapp_server_url")
             .eq("restaurant_id", broadcast.restaurant_id)
             .maybeSingle();
-          
+
           if (settings?.whatsapp_server_url) {
             serverUrl = settings.whatsapp_server_url;
           }
@@ -171,8 +171,8 @@ serve(async (req) => {
         if (remaining === 0) {
           await supabase
             .from("whatsapp_broadcasts")
-            .update({ 
-              status: "completed", 
+            .update({
+              status: "completed",
               completed_at: new Date().toISOString(),
               sent_count: sentCount,
               failed_count: failedCount
@@ -180,11 +180,11 @@ serve(async (req) => {
             .eq("id", broadcastId);
         }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          sentCount, 
+        return new Response(JSON.stringify({
+          success: true,
+          sentCount,
           failedCount,
-          remaining 
+          remaining
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

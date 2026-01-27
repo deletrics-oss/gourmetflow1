@@ -63,16 +63,16 @@ serve(async (req) => {
 
     if (deviceError) throw deviceError;
 
-    const whatsappServerUrl = Deno.env.get("WHATSAPP_SERVER_URL") || "http://72.60.246.250:3022";
-    
+    const whatsappServerUrl = Deno.env.get("WHATSAPP_SERVER_URL") || "https://iapedido.deletrics.site/whatsapp-api";
+
     const nodeResponse = await fetch(`${whatsappServerUrl}/api/sessions`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         sessionId: deviceId,
-        restaurantId: restaurant.restaurant_id 
+        restaurantId: restaurant.restaurant_id
       })
     });
 

@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_SERVER_URL = "http://72.60.246.250:3022";
+const DEFAULT_SERVER_URL = "https://iapedido.deletrics.site/whatsapp-api";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -79,7 +79,7 @@ serve(async (req) => {
       .select("whatsapp_server_url")
       .eq("restaurant_id", order.restaurant_id)
       .maybeSingle();
-    
+
     if (settings?.whatsapp_server_url) {
       serverUrl = settings.whatsapp_server_url;
     }
@@ -92,7 +92,7 @@ serve(async (req) => {
     }
 
     // Build items list
-    const itemsList = order.order_items?.map((item: any) => 
+    const itemsList = order.order_items?.map((item: any) =>
       `• ${item.quantity}x ${item.name}${item.notes ? ` (${item.notes})` : ""}`
     ).join("\n") || "Itens não disponíveis";
 

@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_SERVER_URL = "http://72.60.246.250:3022";
+const DEFAULT_SERVER_URL = "https://iapedido.deletrics.site/whatsapp-api";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -62,7 +62,7 @@ serve(async (req) => {
           .select("whatsapp_server_url, loyalty_enabled")
           .eq("restaurant_id", reminder.restaurant_id)
           .maybeSingle();
-        
+
         if (settings?.whatsapp_server_url) {
           serverUrl = settings.whatsapp_server_url;
         }

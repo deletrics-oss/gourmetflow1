@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_SERVER_URL = "http://72.60.246.250:3022";
+const DEFAULT_SERVER_URL = "https://iapedido.deletrics.site/whatsapp-api";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -79,7 +79,7 @@ serve(async (req) => {
 
     // Build message based on type
     let message = "";
-    
+
     switch (type) {
       case "new_order": {
         const order = data.order;
