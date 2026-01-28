@@ -1,8 +1,6 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Save, Upload, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,13 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import dynamic from "next/dynamic";
-
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
 export default function LogicEditPage() {
     const { id } = useParams();
-    const router = useRouter();
+    const navigate = useNavigate();
     const { toast } = useToast();
 
     const [name, setName] = useState("");
@@ -153,13 +148,13 @@ export default function LogicEditPage() {
         <div className="p-6 md:p-8 space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                    <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="w-5 h-5" />
                     </Button>
                     <h1 className="text-3xl font-bold">Editar Lógica</h1>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => router.push('/logicas')}>
+                    <Button variant="outline" onClick={() => navigate('/logicas')}>
                         Cancelar
                     </Button>
                     <Button onClick={handleSave} disabled={updateLogicMutation.isPending}>
@@ -298,22 +293,14 @@ export default function LogicEditPage() {
                                         <Sparkles className="w-4 h-4 mr-1" /> Gerar JSON
                                     </Button>
                                 </div>
-                                <div className="h-[500px] border rounded-md overflow-hidden">
-                                    <Editor
-                                        height="100%"
-                                        defaultLanguage="json"
-                                        value={logicJsonStr}
-                                        onChange={(value) => setLogicJsonStr(value || "")}
-                                        theme="vs-dark"
-                                        options={{
-                                            minimap: { enabled: false },
-                                            formatOnPaste: true,
-                                            formatOnType: true
-                                        }}
-                                    />
-                                </div>
+                                <Textarea
+                                    value={logicJsonStr}
+                                    onChange={(e) => setLogicJsonStr(e.target.value)}
+                                    className="min-h-[400px] font-mono text-sm"
+                                    placeholder='{"rules": []}'
+                                />
                                 {jsonError && (
-                                    <p className="text-sm text-red-500 font-bold">{jsonError}</p>
+                                    <p className="text-sm text-destructive font-bold">{jsonError}</p>
                                 )}
                             </div>
                         )}

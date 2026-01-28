@@ -11,9 +11,32 @@ export const queryClient = new QueryClient({
     },
 });
 
-// Helper function for API requests
-export async function apiRequest(url: string, options: RequestInit = {}) {
+// Helper function for API requests - supports both formats:
+// apiRequest(method, url, body) - 3 arguments
+// apiRequest(url, options) - 2 arguments (legacy)
+export async function apiRequest(
+    methodOrUrl: string,
+    urlOrOptions?: string | RequestInit,
+    body?: any
+): Promise<any> {
     const baseUrl = import.meta.env.VITE_WHATSAPP_SERVER_URL || 'http://localhost:3088';
+
+    let url: string;
+    let options: RequestInit = {};
+
+    // Detect which format is being used
+    if (typeof urlOrOptions === 'string') {
+        // 3-argument format: apiRequest(method, url, body)
+        options.method = methodOrUrl;
+        url = urlOrOptions;
+        if (body !== undefined) {
+            options.body = JSON.stringify(body);
+        }
+    } else {
+        // 2-argument format: apiRequest(url, options)
+        url = methodOrUrl;
+        options = urlOrOptions || {};
+    }
 
     const response = await fetch(`${baseUrl}${url}`, {
         headers: {
@@ -24,7 +47,8 @@ export async function apiRequest(url: string, options: RequestInit = {}) {
     });
 
     if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
+        const errorText = await response.text().catch(() => response.statusText);
+        throw new Error(errorText || `API Error: ${response.statusText}`);
     }
 
     return response.json();
