@@ -12,6 +12,7 @@ import { LogicEditor } from "@/components/whatsapp/LogicEditor";
 import { BroadcastPanel } from "@/components/whatsapp/BroadcastPanel";
 import { RemindersManager } from "@/components/whatsapp/RemindersManager";
 import { OwnerAlertsConfig } from "@/components/whatsapp/OwnerAlertsConfig";
+import { EvolutionManager } from "@/components/whatsapp/EvolutionManager";
 import { Button } from "@/components/ui/button";
 
 export default function WhatsAppManager() {
@@ -89,10 +90,10 @@ export default function WhatsAppManager() {
         </AlertTitle>
         <AlertDescription className="text-amber-700 dark:text-amber-300 space-y-4">
           <p>
-            O WhatsApp Bot requer um <strong>servidor externo</strong> para funcionar. 
+            O WhatsApp Bot requer um <strong>servidor externo</strong> para funcionar.
             Escolha uma das opções abaixo:
           </p>
-          
+
           {/* Option 1: Evolution API */}
           <div className="bg-white dark:bg-amber-900/50 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
             <p className="font-semibold mb-2 flex items-center gap-2">
@@ -112,7 +113,7 @@ export default function WhatsAppManager() {
               </a>
             </Button>
           </div>
-          
+
           {/* Option 2: Self-hosted */}
           <div className="bg-white dark:bg-amber-900/50 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
             <p className="font-semibold mb-2">🖥️ Servidor Próprio (Avançado)</p>
@@ -165,7 +166,7 @@ export default function WhatsAppManager() {
                 Configure o servidor externo e adicione um dispositivo para ver o QR Code
               </p>
             </div>
-            <Button onClick={() => {}} className="gap-2 bg-green-600 hover:bg-green-700">
+            <Button onClick={() => { }} className="gap-2 bg-green-600 hover:bg-green-700">
               <Smartphone className="h-4 w-4" />
               Adicionar Dispositivo
             </Button>
@@ -263,10 +264,14 @@ export default function WhatsAppManager() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Alertas</span>
           </TabsTrigger>
+          <TabsTrigger value="evolution" className="flex items-center gap-2">
+            <Server className="h-4 w-4" />
+            <span className="hidden sm:inline">Revolution API</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices">
-          <DevicesManager restaurantId={restaurantId!} onRefresh={loadStats} />
+          <DevicesManager />
         </TabsContent>
 
         <TabsContent value="chat">
@@ -287,6 +292,10 @@ export default function WhatsAppManager() {
 
         <TabsContent value="alerts">
           <OwnerAlertsConfig restaurantId={restaurantId!} />
+        </TabsContent>
+
+        <TabsContent value="evolution">
+          <EvolutionManager restaurantId={restaurantId!} />
         </TabsContent>
       </Tabs>
     </div>
