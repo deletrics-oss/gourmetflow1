@@ -1,8 +1,6 @@
-"use client";
-
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, Edit, Sparkles, FileJson, Zap, Upload, Calendar, Brain, Copy, CheckSquare, Square } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 export default function LogicsPage() {
-    const searchParams = useSearchParams();
+    const [searchParams] = useSearchParams();
     const typeFilter = searchParams.get('type');
 
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
