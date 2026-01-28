@@ -13,7 +13,12 @@ export const queryClient = new QueryClient({
 
 // Helper function for API requests
 export async function apiRequest(url: string, options: RequestInit = {}) {
-    const baseUrl = import.meta.env.VITE_WHATSAPP_SERVER_URL || 'http://localhost:3088';
+    // In production (non-localhost), use relative path through Nginx proxy
+    // In development (localhost), use direct connection to WhatsApp server
+    const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+    const baseUrl = isProduction
+        ? '' // Use relative path - Nginx will proxy /api/ to the WhatsApp server
+        : (import.meta.env.VITE_WHATSAPP_SERVER_URL || 'http://localhost:3088');
 
     const response = await fetch(`${baseUrl}${url}`, {
         headers: {
