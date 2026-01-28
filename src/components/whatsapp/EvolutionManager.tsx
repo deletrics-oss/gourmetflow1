@@ -23,9 +23,15 @@ interface Device {
 export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [newDeviceName, setNewDeviceName] = useState("");
-    const [integrationType, setIntegrationType] = useState<'WHATSAPP-BAILEYS' | 'WHATSAPP-BUSINESS'>("WHATSAPP-BAILEYS");
+    const [integrationType, setIntegrationType] = useState<'BAILEYS' | 'EVOLUTION' | 'CLOUD'>("BAILEYS");
+    const [evolutionApiKey, setEvolutionApiKey] = useState("");
+    const [cloudToken, setCloudToken] = useState("");
+    const [cloudPhoneId, setCloudPhoneId] = useState("");
     const { toast } = useToast();
     const [userId, setUserId] = useState<string | null>(null);
+
+    // Evolution API Settings (whatsapi.deletrics.site)
+    const EVOLUTION_API_URL = "https://whatsapi.deletrics.site";
 
     // Fetch current user first, then fetch devices
     const { data: authData } = useQuery({
@@ -207,13 +213,59 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
                                     value={integrationType}
                                     onChange={(e) => setIntegrationType(e.target.value as any)}
                                 >
-                                    <option value="WHATSAPP-BAILEYS">QR Code (Grátis - Baileys)</option>
-                                    <option value="WHATSAPP-BUSINESS">API Oficial (Nativa Cloud API)</option>
+                                    <option value="BAILEYS">QR Code (Grátis - Baileys)</option>
+                                    <option value="EVOLUTION">Evolution API (whatsapi.deletrics.site)</option>
+                                    <option value="CLOUD">Cloud API (Oficial Meta)</option>
                                 </select>
                                 <p className="text-[10px] text-muted-foreground">
                                     Nota: A API Oficial requer configuração prévia no painel da Meta/Evolution.
                                 </p>
                             </div>
+
+                            {/* Evolution API Key Field */}
+                            {integrationType === 'EVOLUTION' && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="evolution-api-key">API Key (Evolution)</Label>
+                                    <Input
+                                        id="evolution-api-key"
+                                        type="password"
+                                        placeholder="Cole sua API Key do Evolution"
+                                        value={evolutionApiKey}
+                                        onChange={(e) => setEvolutionApiKey(e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Obtenha sua API Key em: <a href="https://whatsapi.deletrics.site/manager" target="_blank" className="text-primary underline">whatsapi.deletrics.site/manager</a>
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Cloud API Fields */}
+                            {integrationType === 'CLOUD' && (
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cloud-token">Access Token (Meta)</Label>
+                                        <Input
+                                            id="cloud-token"
+                                            type="password"
+                                            placeholder="Token de acesso da Cloud API"
+                                            value={cloudToken}
+                                            onChange={(e) => setCloudToken(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cloud-phone-id">Phone Number ID</Label>
+                                        <Input
+                                            id="cloud-phone-id"
+                                            placeholder="ID do número no Meta Business"
+                                            value={cloudPhoneId}
+                                            onChange={(e) => setCloudPhoneId(e.target.value)}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Configure em: <a href="https://developers.facebook.com/apps" target="_blank" className="text-primary underline">Meta for Developers</a>
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -265,12 +317,14 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
             </Card>
 
             {/* Error Message */}
-            {isError && (
-                <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-md">
-                    <p className="font-bold">Erro ao carregar dispositivos:</p>
-                    <p>{error?.message || "Erro desconhecido. Verifique se o servidor Evolution API está configurado."}</p>
-                </div>
-            )}
+            {
+                isError && (
+                    <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-md">
+                        <p className="font-bold">Erro ao carregar dispositivos:</p>
+                        <p>{error?.message || "Erro desconhecido. Verifique se o servidor Evolution API está configurado."}</p>
+                    </div>
+                )
+            }
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -320,204 +374,206 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
             </div>
 
             {/* Devices Grid */}
-            {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2].map((i) => (
-                        <Card key={i}>
-                            <CardHeader>
-                                <Skeleton className="h-6 w-32" />
-                            </CardHeader>
-                            <CardContent>
-                                <Skeleton className="h-48 w-full" />
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            ) : devices.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {devices.map((device) => {
-                        const statusInfo = getStatusBadge(device.connectionStatus);
-
-                        return (
-                            <Card key={device.id} className="overflow-hidden">
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-3">
-                                            <Smartphone className="w-5 h-5 text-primary" />
-                                            <div>
-                                                <CardTitle className="text-lg">{device.name}</CardTitle>
-                                                <CardDescription>
-                                                    {device.phoneNumber || "Aguardando conexão"}
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                        <Badge variant={statusInfo.variant} className="flex items-center gap-1">
-                                            <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
-                                            {statusInfo.label}
-                                        </Badge>
-                                    </div>
+            {
+                isLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2].map((i) => (
+                            <Card key={i}>
+                                <CardHeader>
+                                    <Skeleton className="h-6 w-32" />
                                 </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {/* QR Code ou Status */}
-                                    {device.connectionStatus === 'connected' ? (
-                                        <div className="flex items-center justify-center p-6 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                                            <div className="text-center space-y-2">
-                                                <Wifi className="w-12 h-12 text-green-500 mx-auto" />
-                                                <p className="font-medium text-green-700 dark:text-green-400">
-                                                    Conectado!
-                                                </p>
-                                                {device.phoneNumber && (
-                                                    <p className="text-lg font-bold">📱 {device.phoneNumber}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ) : device.qrCode ? (
-                                        <div className="space-y-3">
-                                            <div className="bg-white p-4 rounded-lg flex items-center justify-center border">
-                                                <img
-                                                    src={device.qrCode}
-                                                    alt="QR Code"
-                                                    className="w-48 h-48 object-contain"
-                                                />
-                                            </div>
-                                            <p className="text-xs text-center text-muted-foreground">
-                                                Abra o WhatsApp → Configurações → Dispositivos Conectados → Escanear
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center p-8 bg-muted rounded-lg">
-                                            <div className="text-center space-y-2">
-                                                <WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />
-                                                <p className="font-medium">Desconectado</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Clique em Reconectar para gerar QR Code
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Bot Logic Selector */}
-                                    {device.connectionStatus === 'connected' && (
-                                        <div className="space-y-2 pt-4 border-t">
-                                            <label className="text-sm font-medium flex items-center gap-2">
-                                                <Bot className="w-4 h-4" />
-                                                Lógica do Bot
-                                            </label>
-                                            <select
-                                                className="w-full p-2 border rounded-md bg-background text-sm"
-                                                value={device.activeLogicId || 'none'}
-                                                onChange={(e) => updateLogicMutation.mutate({
-                                                    deviceId: device.id,
-                                                    logicId: e.target.value
-                                                })}
-                                            >
-                                                <option value="none">⌨️ MANUAL (sem bot)</option>
-                                                {logics.map((logic: any) => (
-                                                    <option key={logic.id} value={logic.id}>
-                                                        {logic.logicType === 'ai' ? '🤖' :
-                                                            logic.logicType === 'ai_scheduling' ? '📅' :
-                                                                logic.logicType === 'hybrid' ? '⚡' : '📋'} {logic.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {device.activeLogicId ? (
-                                                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                                    <Bot className="w-3 h-3" />
-                                                    Bot ativo - Respostas automáticas
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                                                    <Bot className="w-3 h-3" />
-                                                    Modo Manual - Sem respostas automáticas
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="flex gap-2 pt-4 flex-wrap">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1"
-                                            onClick={() => reconnectMutation.mutate(device.id)}
-                                            disabled={reconnectMutation.isPending}
-                                        >
-                                            <RefreshCw className="w-4 h-4 mr-2" />
-                                            Reconectar
-                                        </Button>
-
-                                        {device.connectionStatus === 'connected' && (
-                                            <Button
-                                                variant="default"
-                                                size="sm"
-                                                className="bg-blue-600 hover:bg-blue-700"
-                                                onClick={async () => {
-                                                    try {
-                                                        const res = await fetch(`/api/devices/${device.id}`, {
-                                                            method: 'PATCH',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({ action: 'configure_webhook' })
-                                                        });
-                                                        const data = await res.json();
-                                                        if (data.success) {
-                                                            toast({ title: "Sucesso!", description: "Webhook do Robô configurado." });
-                                                        } else {
-                                                            toast({ title: "Erro", description: "Falha ao configurar webhook", variant: "destructive" });
-                                                        }
-                                                    } catch (err) {
-                                                        toast({ title: "Erro", description: "Falha na requisição", variant: "destructive" });
-                                                    }
-                                                }}
-                                            >
-                                                <Bot className="w-4 h-4 mr-1" />
-                                                Ligar Cérebro
-                                            </Button>
-                                        )}
-
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => clearSessionMutation.mutate(device.id)}
-                                            disabled={clearSessionMutation.isPending}
-                                            title="Limpar sessão"
-                                        >
-                                            <RotateCcw className="w-4 h-4" />
-                                        </Button>
-                                        <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() => {
-                                                if (confirm('Remover este dispositivo?')) {
-                                                    deleteDeviceMutation.mutate(device.id);
-                                                }
-                                            }}
-                                            disabled={deleteDeviceMutation.isPending}
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
+                                <CardContent>
+                                    <Skeleton className="h-48 w-full" />
                                 </CardContent>
                             </Card>
-                        );
-                    })}
-                </div>
-            ) : (
-                <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-16">
-                        <Smartphone className="w-16 h-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Configure o Evolution API</h3>
-                        <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
-                            Para usar esta aba, você precisa instalar o servidor Evolution API.
-                            Caso já tenho instalado, certifique-se que o endpoint /api/devices está acessível.
-                        </p>
-                        <Button onClick={() => setIsAddDialogOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Novo Dispositivo
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
+                        ))}
+                    </div>
+                ) : devices.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {devices.map((device) => {
+                            const statusInfo = getStatusBadge(device.connectionStatus);
+
+                            return (
+                                <Card key={device.id} className="overflow-hidden">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <Smartphone className="w-5 h-5 text-primary" />
+                                                <div>
+                                                    <CardTitle className="text-lg">{device.name}</CardTitle>
+                                                    <CardDescription>
+                                                        {device.phoneNumber || "Aguardando conexão"}
+                                                    </CardDescription>
+                                                </div>
+                                            </div>
+                                            <Badge variant={statusInfo.variant} className="flex items-center gap-1">
+                                                <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
+                                                {statusInfo.label}
+                                            </Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {/* QR Code ou Status */}
+                                        {device.connectionStatus === 'connected' ? (
+                                            <div className="flex items-center justify-center p-6 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                                                <div className="text-center space-y-2">
+                                                    <Wifi className="w-12 h-12 text-green-500 mx-auto" />
+                                                    <p className="font-medium text-green-700 dark:text-green-400">
+                                                        Conectado!
+                                                    </p>
+                                                    {device.phoneNumber && (
+                                                        <p className="text-lg font-bold">📱 {device.phoneNumber}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : device.qrCode ? (
+                                            <div className="space-y-3">
+                                                <div className="bg-white p-4 rounded-lg flex items-center justify-center border">
+                                                    <img
+                                                        src={device.qrCode}
+                                                        alt="QR Code"
+                                                        className="w-48 h-48 object-contain"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-center text-muted-foreground">
+                                                    Abra o WhatsApp → Configurações → Dispositivos Conectados → Escanear
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-center p-8 bg-muted rounded-lg">
+                                                <div className="text-center space-y-2">
+                                                    <WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />
+                                                    <p className="font-medium">Desconectado</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Clique em Reconectar para gerar QR Code
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Bot Logic Selector */}
+                                        {device.connectionStatus === 'connected' && (
+                                            <div className="space-y-2 pt-4 border-t">
+                                                <label className="text-sm font-medium flex items-center gap-2">
+                                                    <Bot className="w-4 h-4" />
+                                                    Lógica do Bot
+                                                </label>
+                                                <select
+                                                    className="w-full p-2 border rounded-md bg-background text-sm"
+                                                    value={device.activeLogicId || 'none'}
+                                                    onChange={(e) => updateLogicMutation.mutate({
+                                                        deviceId: device.id,
+                                                        logicId: e.target.value
+                                                    })}
+                                                >
+                                                    <option value="none">⌨️ MANUAL (sem bot)</option>
+                                                    {logics.map((logic: any) => (
+                                                        <option key={logic.id} value={logic.id}>
+                                                            {logic.logicType === 'ai' ? '🤖' :
+                                                                logic.logicType === 'ai_scheduling' ? '📅' :
+                                                                    logic.logicType === 'hybrid' ? '⚡' : '📋'} {logic.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {device.activeLogicId ? (
+                                                    <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                                        <Bot className="w-3 h-3" />
+                                                        Bot ativo - Respostas automáticas
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                                                        <Bot className="w-3 h-3" />
+                                                        Modo Manual - Sem respostas automáticas
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Actions */}
+                                        <div className="flex gap-2 pt-4 flex-wrap">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() => reconnectMutation.mutate(device.id)}
+                                                disabled={reconnectMutation.isPending}
+                                            >
+                                                <RefreshCw className="w-4 h-4 mr-2" />
+                                                Reconectar
+                                            </Button>
+
+                                            {device.connectionStatus === 'connected' && (
+                                                <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    className="bg-blue-600 hover:bg-blue-700"
+                                                    onClick={async () => {
+                                                        try {
+                                                            const res = await fetch(`/api/devices/${device.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ action: 'configure_webhook' })
+                                                            });
+                                                            const data = await res.json();
+                                                            if (data.success) {
+                                                                toast({ title: "Sucesso!", description: "Webhook do Robô configurado." });
+                                                            } else {
+                                                                toast({ title: "Erro", description: "Falha ao configurar webhook", variant: "destructive" });
+                                                            }
+                                                        } catch (err) {
+                                                            toast({ title: "Erro", description: "Falha na requisição", variant: "destructive" });
+                                                        }
+                                                    }}
+                                                >
+                                                    <Bot className="w-4 h-4 mr-1" />
+                                                    Ligar Cérebro
+                                                </Button>
+                                            )}
+
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => clearSessionMutation.mutate(device.id)}
+                                                disabled={clearSessionMutation.isPending}
+                                                title="Limpar sessão"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => {
+                                                    if (confirm('Remover este dispositivo?')) {
+                                                        deleteDeviceMutation.mutate(device.id);
+                                                    }
+                                                }}
+                                                disabled={deleteDeviceMutation.isPending}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <Card>
+                        <CardContent className="flex flex-col items-center justify-center py-16">
+                            <Smartphone className="w-16 h-16 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-semibold mb-2">Configure o Evolution API</h3>
+                            <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
+                                Para usar esta aba, você precisa instalar o servidor Evolution API.
+                                Caso já tenho instalado, certifique-se que o endpoint /api/devices está acessível.
+                            </p>
+                            <Button onClick={() => setIsAddDialogOpen(true)}>
+                                <Plus className="w-4 h-4 mr-2" />
+                                Novo Dispositivo
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )
+            }
+        </div >
     );
 }
