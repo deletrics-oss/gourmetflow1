@@ -201,25 +201,21 @@ export default function Integracoes() {
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          restaurant_id: restaurantId,
-          external_id: `TEST-${platform.toUpperCase()}-${Date.now()}`,
-          external_platform: platform,
           customer_name: mockNames[Math.floor(Math.random() * mockNames.length)],
           customer_phone: '11999999999',
           order_number: `TEST-${Math.floor(Math.random() * 1000)}`,
           subtotal: subtotal,
           delivery_fee: deliveryFee,
           total: total,
-          status: 'pending',
-          order_type: 'delivery',
-          delivery_type: 'delivery', // Importante para o PDV
+          status: 'new',
+          delivery_type: 'delivery',
           delivery_address: {
             street: mockAddresses[Math.floor(Math.random() * mockAddresses.length)],
             number: '123',
             city: 'Cidade Exemplo'
           },
           payment_method: 'pix',
-          is_test: true,
+          notes: `Pedido de teste ${platform.toUpperCase()}`,
           created_at: new Date().toISOString(),
         })
         .select()

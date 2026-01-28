@@ -17,7 +17,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { DataTableActions } from "@/components/ui/data-table-actions";
 
 interface Contact {
     id: string;
@@ -655,12 +654,22 @@ export default function BroadcastPage() {
                 </div>
             ) : broadcasts && broadcasts.length > 0 ? (
                 <div className="space-y-4">
-                    <DataTableActions
-                        selectedCount={selectedBroadcasts.length}
-                        onDelete={() => massDeleteMutation.mutate(selectedBroadcasts)}
-                        noun="disparos"
-                        loading={massDeleteMutation.isPending}
-                    />
+                    {selectedBroadcasts.length > 0 && (
+                        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                            <span className="text-sm text-muted-foreground">
+                                {selectedBroadcasts.length} disparo(s) selecionado(s)
+                            </span>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => massDeleteMutation.mutate(selectedBroadcasts)}
+                                disabled={massDeleteMutation.isPending}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir Selecionados
+                            </Button>
+                        </div>
+                    )}
 
                     {broadcasts.map((broadcast) => {
                         const statusInfo = getStatusBadge(broadcast.status);
