@@ -1,9 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
@@ -13,53 +12,21 @@ const PORT = process.env.PORT || 3088;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const EVOLUTION_API_URL = (process.env.EVOLUTION_API_URL || 'https://evolution2.deletrics.site').replace(/\/$/, '');
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'chatbot_premium_key_2026';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yzvcpfcmfutczrlporjp.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const RESTAURANT_ID = process.env.RESTAURANT_ID || null;
 
 // ============================================
-// JSON FILE DATABASE (for logics, conversations, messages)
+// SUPABASE CLIENT
 // ============================================
-const DB_PATH = path.join(__dirname, 'database.json');
-
-function loadDB() {
-    try {
-        if (fs.existsSync(DB_PATH)) {
-            return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-        }
-    } catch (e) {
-        console.error('Error loading database:', e);
-    }
-    return { devices: [], conversations: [], messages: [], broadcasts: [], logics: [], templates: [] };
-}
-
-function saveDB(data) {
-    try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error('Error saving DB:', e); }
-}
-
-let db = loadDB();
-
-function findById(collection, id) { return db[collection]?.find(item => item.id === id); }
-function insertItem(collection, item) { if (!db[collection]) db[collection] = []; db[collection].push(item); saveDB(db); return item; }
-function updateItem(collection, id, updates) {
-    const idx = db[collection]?.findIndex(i => i.id === id);
-    if (idx !== undefined && idx !== -1) { db[collection][idx] = { ...db[collection][idx], ...updates }; saveDB(db); return db[collection][idx]; }
-    return null;
-}
-function deleteItem(collection, id) {
-    if (!db[collection]) return false;
-    const idx = db[collection].findIndex(i => i.id === id);
-    if (idx !== -1) { db[collection].splice(idx, 1); saveDB(db); return true; }
-    return false;
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ============================================
 // EVOLUTION API HELPER
 // ============================================
 async function evoFetch(endpoint, options = {}) {
     const url = `${EVOLUTION_API_URL}${endpoint}`;
-    const headers = {
-        'apikey': EVOLUTION_API_KEY,
-        'Content-Type': 'application/json',
-        ...options.headers,
-    };
+    const headers = { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json', ...options.headers };
     try {
         const res = await fetch(url, { ...options, headers });
         const text = await res.text();
@@ -70,108 +37,154 @@ async function evoFetch(endpoint, options = {}) {
     }
 }
 
-// Map Evolution status to our status
 function mapStatus(state) {
     if (!state) return 'disconnected';
-    const s = (state.state || state.status || state || '').toLowerCase();
+    const s = (state.state || state.status || state || '').toString().toLowerCase();
     if (s === 'open' || s === 'connected') return 'connected';
     if (s === 'connecting') return 'connecting';
-    if (s === 'close' || s === 'disconnected') return 'disconnected';
     return 'disconnected';
 }
 
 // ============================================
-// API ROUTES - DEVICES (proxied to Evolution API)
+// HELPER: get restaurant_id (from header, query, or env)
+// ============================================
+function getRestaurantId(req) {
+    return req.query.restaurantId || req.headers['x-restaurant-id'] || RESTAURANT_ID;
+}
+
+// ============================================
+// API: DEVICES
 // ============================================
 
-// GET /api/devices — list all instances
+// GET /api/devices — list instances, sync to Supabase
 app.get('/api/devices', async (req, res) => {
     try {
+        const restaurantId = getRestaurantId(req);
+        
+        // Fetch instances from Evolution API
         const instances = await evoFetch('/instance/fetchInstances');
-        if (!Array.isArray(instances)) {
-            return res.json(db.devices || []);
+        
+        if (!Array.isArray(instances) || instances.length === 0) {
+            // Fallback: return from Supabase
+            if (restaurantId) {
+                const { data } = await supabase.from('whatsapp_devices').select('*').eq('restaurant_id', restaurantId);
+                return res.json((data || []).map(d => ({
+                    id: d.id, name: d.name,
+                    connectionStatus: d.connection_status || 'disconnected',
+                    phoneNumber: d.phone_number, qrCode: d.qr_code,
+                    activeLogicId: d.active_logic_id,
+                    integration: 'EVOLUTION',
+                })));
+            }
+            return res.json([]);
         }
 
-        const devices = instances.map(inst => {
+        const devices = [];
+        for (const inst of instances) {
             const name = inst.instance?.instanceName || inst.instanceName || 'unknown';
-            const id = inst.instance?.instanceId || inst.instanceId || name;
+            const instanceId = inst.instance?.instanceId || inst.instanceId || name;
             const state = inst.instance?.state || inst.instance?.status || 'disconnected';
-            const phone = inst.instance?.owner || null;
+            const phone = inst.instance?.owner?.replace('@s.whatsapp.net', '') || null;
+            const status = mapStatus(state);
 
-            // Sync to local DB
-            let local = findById('devices', id);
-            if (!local) {
-                local = insertItem('devices', {
-                    id, name, connectionStatus: mapStatus(state),
-                    phoneNumber: phone, activeLogicId: null, isGlobalSdr: false,
-                    integration: 'EVOLUTION', createdAt: new Date().toISOString()
-                });
+            // Sync to Supabase: upsert by name
+            if (restaurantId) {
+                const { data: existing } = await supabase
+                    .from('whatsapp_devices')
+                    .select('id')
+                    .eq('name', name)
+                    .eq('restaurant_id', restaurantId)
+                    .maybeSingle();
+
+                if (existing) {
+                    await supabase.from('whatsapp_devices').update({
+                        connection_status: status,
+                        phone_number: phone,
+                        ...(status === 'connected' ? { last_connected_at: new Date().toISOString() } : {}),
+                    }).eq('id', existing.id);
+
+                    devices.push({
+                        id: existing.id, name, connectionStatus: status,
+                        phoneNumber: phone, qrCode: null,
+                        activeLogicId: null, integration: 'EVOLUTION',
+                    });
+
+                    // Fetch active_logic_id
+                    const { data: full } = await supabase.from('whatsapp_devices').select('active_logic_id').eq('id', existing.id).single();
+                    if (full) devices[devices.length - 1].activeLogicId = full.active_logic_id;
+                } else {
+                    const newId = uuidv4();
+                    await supabase.from('whatsapp_devices').insert({
+                        id: newId, name, connection_status: status,
+                        phone_number: phone, restaurant_id: restaurantId,
+                    });
+                    devices.push({
+                        id: newId, name, connectionStatus: status,
+                        phoneNumber: phone, qrCode: null,
+                        activeLogicId: null, integration: 'EVOLUTION',
+                    });
+                }
             } else {
-                updateItem('devices', id, { connectionStatus: mapStatus(state), phoneNumber: phone });
+                devices.push({
+                    id: instanceId, name, connectionStatus: status,
+                    phoneNumber: phone, qrCode: null,
+                    activeLogicId: null, integration: 'EVOLUTION',
+                });
             }
-
-            return {
-                id, name,
-                connectionStatus: mapStatus(state),
-                phoneNumber: phone,
-                qrCode: null,
-                isGlobalSdr: local?.isGlobalSdr || false,
-                integration: 'EVOLUTION',
-                activeLogicId: local?.activeLogicId || null,
-            };
-        });
+        }
 
         res.json(devices);
     } catch (err) {
-        console.error('[GET /api/devices] Error:', err.message);
-        res.json(db.devices || []);
+        console.error('[GET /api/devices]', err.message);
+        res.json([]);
     }
 });
 
-// POST /api/devices — create new instance
+// POST /api/devices — create instance
 app.post('/api/devices', async (req, res) => {
     try {
-        const { name, isGlobalSdr } = req.body;
+        const { name } = req.body;
+        const restaurantId = getRestaurantId(req);
         const instanceName = (name || 'device-' + Date.now()).toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
-        // Create instance on Evolution
         const result = await evoFetch('/instance/create', {
             method: 'POST',
             body: JSON.stringify({
-                instanceName,
-                integration: 'WHATSAPP-BAILEYS',
-                qrcode: true,
-                reject_call: false,
-                always_online: true,
+                instanceName, integration: 'WHATSAPP-BAILEYS',
+                qrcode: true, reject_call: false, always_online: true,
             }),
         });
 
         console.log('[CREATE] Evolution response:', JSON.stringify(result));
-
-        const instanceId = result?.instance?.instanceId || result?.instance?.instanceName || instanceName;
         const qr = result?.qrcode?.base64 || result?.qrcode?.code || null;
 
-        // Save locally
-        const device = insertItem('devices', {
-            id: instanceId, name: instanceName,
-            connectionStatus: qr ? 'qr_ready' : 'connecting',
-            phoneNumber: null, activeLogicId: null,
-            isGlobalSdr: isGlobalSdr || false,
-            integration: 'EVOLUTION',
-            createdAt: new Date().toISOString()
-        });
+        // Save to Supabase
+        const newId = uuidv4();
+        if (restaurantId) {
+            await supabase.from('whatsapp_devices').insert({
+                id: newId, name: instanceName,
+                connection_status: qr ? 'qr_ready' : 'connecting',
+                restaurant_id: restaurantId,
+            });
+        }
 
-        // Wait a moment for QR generation
+        // If no QR returned, try to connect
+        let finalQr = qr;
         if (!qr) {
             await new Promise(r => setTimeout(r, 2000));
             const connectResult = await evoFetch(`/instance/connect/${instanceName}`);
-            const qr2 = connectResult?.base64 || connectResult?.code || null;
-            return res.json({ ...device, qrCode: qr2 });
+            finalQr = connectResult?.base64 || connectResult?.code || null;
         }
 
-        res.json({ ...device, qrCode: qr });
+        if (finalQr && restaurantId) {
+            await supabase.from('whatsapp_devices').update({
+                connection_status: 'qr_ready', qr_code: finalQr,
+            }).eq('id', newId);
+        }
+
+        res.json({ id: newId, name: instanceName, connectionStatus: finalQr ? 'qr_ready' : 'connecting', qrCode: finalQr });
     } catch (err) {
-        console.error('[POST /api/devices] Error:', err.message);
+        console.error('[POST /api/devices]', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -180,104 +193,83 @@ app.post('/api/devices', async (req, res) => {
 app.post('/api/devices/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const device = findById('devices', id);
+        
+        // Get device name from Supabase
+        const { data: device } = await supabase.from('whatsapp_devices').select('*').eq('id', id).single();
         const instanceName = device?.name || id;
 
-        // Try to get connection state first
+        // Check state
         const stateResult = await evoFetch(`/instance/connectionState/${instanceName}`);
         const currentState = mapStatus(stateResult?.instance);
 
         if (currentState === 'connected') {
-            return res.json({ ...device, connectionStatus: 'connected', qrCode: null, message: 'Já conectado!' });
+            await supabase.from('whatsapp_devices').update({
+                connection_status: 'connected', qr_code: null,
+                last_connected_at: new Date().toISOString(),
+            }).eq('id', id);
+            return res.json({ connectionStatus: 'connected', qrCode: null, message: 'Já conectado!' });
         }
 
-        // Try to connect and get QR
+        // Get QR
         const connectResult = await evoFetch(`/instance/connect/${instanceName}`);
         const qr = connectResult?.base64 || connectResult?.code || null;
 
         if (qr) {
-            updateItem('devices', id, { connectionStatus: 'qr_ready' });
-            return res.json({ ...device, connectionStatus: 'qr_ready', qrCode: qr, message: 'Escaneie o QR Code' });
+            await supabase.from('whatsapp_devices').update({
+                connection_status: 'qr_ready', qr_code: qr,
+            }).eq('id', id);
         }
 
-        res.json({ ...device, connectionStatus: currentState, qrCode: null, message: 'Tentando reconectar...' });
+        res.json({ connectionStatus: qr ? 'qr_ready' : currentState, qrCode: qr, message: qr ? 'Escaneie o QR Code' : 'Reconectando...' });
     } catch (err) {
-        console.error('[POST /api/devices/:id] Error:', err.message);
+        console.error('[POST /api/devices/:id]', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// GET /api/devices/:id/status — get connection state
-app.get('/api/devices/:id/status', async (req, res) => {
+// PATCH /api/devices/:id — update logic, etc.
+app.patch('/api/devices/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const device = findById('devices', id);
-        const instanceName = device?.name || id;
-        const stateResult = await evoFetch(`/instance/connectionState/${instanceName}`);
+        const { logicId, isGlobalSdr } = req.body;
+        const updates = {};
+        if (logicId !== undefined) updates.active_logic_id = logicId;
 
-        res.json({
-            id,
-            status: mapStatus(stateResult?.instance),
-            phoneNumber: device?.phoneNumber,
-        });
+        const { data, error } = await supabase.from('whatsapp_devices').update(updates).eq('id', id).select().single();
+        if (error) throw error;
+        res.json(data);
     } catch (err) {
-        res.json({ id: req.params.id, status: 'disconnected' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-// PATCH /api/devices/:id — update device settings (logicId, isGlobalSdr)
-app.patch('/api/devices/:id', (req, res) => {
-    const { id } = req.params;
-    const { logicId, isGlobalSdr } = req.body;
-    const updates = {};
-    if (logicId !== undefined) updates.activeLogicId = logicId;
-    if (isGlobalSdr !== undefined) updates.isGlobalSdr = isGlobalSdr;
-
-    const updated = updateItem('devices', id, updates);
-    if (updated) {
-        res.json(updated);
-    } else {
-        res.status(404).json({ error: 'Device not found' });
-    }
-});
-
-// DELETE /api/devices/:id — delete instance
+// DELETE /api/devices/:id
 app.delete('/api/devices/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const device = findById('devices', id);
-        const instanceName = device?.name || id;
+        const { data: device } = await supabase.from('whatsapp_devices').select('name').eq('id', id).single();
 
-        // Delete on Evolution
-        await evoFetch(`/instance/delete/${instanceName}`, { method: 'DELETE' });
+        if (device) {
+            await evoFetch(`/instance/delete/${device.name}`, { method: 'DELETE' });
+        }
 
-        // Delete locally
-        deleteItem('devices', id);
-
-        // Clean conversations/messages
-        const convs = (db.conversations || []).filter(c => c.deviceId === id);
-        convs.forEach(c => {
-            db.messages = (db.messages || []).filter(m => m.conversationId !== c.id);
-        });
-        db.conversations = (db.conversations || []).filter(c => c.deviceId !== id);
-        saveDB(db);
-
+        // Delete from Supabase (cascades conversations/messages via FK)
+        await supabase.from('whatsapp_devices').delete().eq('id', id);
         res.json({ success: true });
     } catch (err) {
-        console.error('[DELETE /api/devices/:id] Error:', err.message);
+        console.error('[DELETE /api/devices/:id]', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// POST /api/whatsapp/reconnect/:id — alias for reconnect
+// POST /api/whatsapp/reconnect/:id
 app.post('/api/whatsapp/reconnect/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const device = findById('devices', id);
+        const { data: device } = await supabase.from('whatsapp_devices').select('name').eq('id', id).single();
         const instanceName = device?.name || id;
 
         if (req.body?.forceReset) {
-            // Logout first, then reconnect
             await evoFetch(`/instance/logout/${instanceName}`, { method: 'DELETE' });
             await new Promise(r => setTimeout(r, 1000));
         }
@@ -285,31 +277,85 @@ app.post('/api/whatsapp/reconnect/:id', async (req, res) => {
         const connectResult = await evoFetch(`/instance/connect/${instanceName}`);
         const qr = connectResult?.base64 || connectResult?.code || null;
 
-        res.json({
-            success: true,
-            qrCode: qr,
-            status: qr ? 'qr_ready' : 'connecting',
-            message: qr ? 'Escaneie o QR Code' : 'Reconectando...',
-        });
+        if (qr) {
+            await supabase.from('whatsapp_devices').update({ connection_status: 'qr_ready', qr_code: qr }).eq('id', id);
+        }
+
+        res.json({ success: true, qrCode: qr, status: qr ? 'qr_ready' : 'connecting' });
     } catch (err) {
-        console.error('[RECONNECT] Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
 // ============================================
-// API ROUTES - SEND MESSAGE
+// API: LOGICS (read from Supabase)
+// ============================================
+app.get('/api/logics', async (req, res) => {
+    try {
+        const restaurantId = getRestaurantId(req);
+        let query = supabase.from('whatsapp_logic_configs').select('*');
+        if (restaurantId) query = query.eq('restaurant_id', restaurantId);
+        const { data, error } = await query.order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json((data || []).map(l => ({
+            id: l.id, name: l.name, description: l.description,
+            logicType: l.logic_type, logicJson: l.logic_json,
+            aiPrompt: l.ai_prompt, isActive: l.is_active,
+        })));
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+// ============================================
+// API: CONVERSATIONS (from Supabase)
+// ============================================
+app.get('/api/conversations', async (req, res) => {
+    try {
+        const restaurantId = getRestaurantId(req);
+        const { deviceId } = req.query;
+        let query = supabase.from('whatsapp_conversations').select('*');
+        if (restaurantId) query = query.eq('restaurant_id', restaurantId);
+        if (deviceId) query = query.eq('device_id', deviceId);
+        const { data } = await query.order('last_message_at', { ascending: false });
+        res.json(data || []);
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+app.get('/api/conversations/:id/messages', async (req, res) => {
+    try {
+        const { data } = await supabase.from('whatsapp_messages')
+            .select('*').eq('conversation_id', req.params.id)
+            .order('created_at', { ascending: true });
+        res.json(data || []);
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+// ============================================
+// API: SEND MESSAGE
 // ============================================
 app.post('/api/messages/send', async (req, res) => {
     try {
-        const { instanceName, number, text } = req.body;
+        const { instanceName, number, text, deviceId, restaurantId } = req.body;
         const result = await evoFetch(`/message/sendText/${instanceName}`, {
             method: 'POST',
-            body: JSON.stringify({
-                number: number.replace(/\D/g, ''),
-                text,
-            }),
+            body: JSON.stringify({ number: number.replace(/\D/g, ''), text }),
         });
+
+        // Save to Supabase
+        if (deviceId && restaurantId) {
+            await supabase.from('whatsapp_messages').insert({
+                device_id: deviceId, restaurant_id: restaurantId,
+                phone_number: number, message_content: text,
+                message_type: 'text', direction: 'outgoing',
+                remetente: 'sistema', is_from_bot: false,
+            });
+        }
+
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -317,85 +363,33 @@ app.post('/api/messages/send', async (req, res) => {
 });
 
 // ============================================
-// API ROUTES - CONVERSATIONS
-// ============================================
-app.get('/api/conversations', (req, res) => {
-    const { deviceId } = req.query;
-    let conversations = db.conversations || [];
-    if (deviceId) conversations = conversations.filter(c => c.deviceId === deviceId);
-    res.json(conversations.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt)));
-});
-
-app.get('/api/conversations/:id/messages', (req, res) => {
-    const messages = (db.messages || []).filter(m => m.conversationId === req.params.id)
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    res.json(messages);
-});
-
-app.post('/api/conversations/:id/messages', async (req, res) => {
-    try {
-        const conversation = findById('conversations', req.params.id);
-        if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
-
-        const device = findById('devices', conversation.deviceId);
-        if (!device) return res.status(400).json({ error: 'Device not found' });
-
-        const { content } = req.body;
-        const result = await evoFetch(`/message/sendText/${device.name}`, {
-            method: 'POST',
-            body: JSON.stringify({ number: conversation.contactPhone, text: content }),
-        });
-
-        const msg = insertItem('messages', {
-            id: uuidv4(), conversationId: req.params.id,
-            content, direction: 'outgoing',
-            timestamp: new Date().toISOString(), isFromBot: 0,
-        });
-
-        updateItem('conversations', req.params.id, { lastMessageAt: new Date().toISOString() });
-        res.json(msg);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ============================================
-// API ROUTES - LOGICS
-// ============================================
-app.get('/api/logics', (req, res) => {
-    res.json((db.logics || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-});
-
-app.post('/api/logics', (req, res) => {
-    const { name, description, logicType, logicJson, aiPrompt, isSystemIntegrated } = req.body;
-    const logic = insertItem('logics', {
-        id: uuidv4(), name, description,
-        logicType: logicType || 'json',
-        logicJson: logicJson || '{}', aiPrompt,
-        isActive: 1, isSystemIntegrated: isSystemIntegrated ?? 1,
-        createdAt: new Date().toISOString()
-    });
-    res.json(logic);
-});
-
-app.patch('/api/logics/:id', (req, res) => {
-    const updated = updateItem('logics', req.params.id, req.body);
-    updated ? res.json(updated) : res.status(404).json({ error: 'Logic not found' });
-});
-
-app.delete('/api/logics/:id', (req, res) => {
-    deleteItem('logics', req.params.id);
-    res.json({ success: true });
-});
-
-// ============================================
-// WEBHOOK (receive messages from Evolution)
+// WEBHOOK — receive messages from Evolution
 // ============================================
 app.post('/api/webhook', async (req, res) => {
     try {
         const { event, data, instance } = req.body;
         console.log(`[WEBHOOK] ${event} from ${instance}`);
 
+        // Handle connection status updates
+        if (event === 'connection.update') {
+            const state = data?.state || data?.status;
+            const status = mapStatus({ state });
+            
+            const { data: device } = await supabase.from('whatsapp_devices')
+                .select('id').eq('name', instance).maybeSingle();
+
+            if (device) {
+                const updates = { connection_status: status };
+                if (status === 'connected') {
+                    updates.last_connected_at = new Date().toISOString();
+                    updates.qr_code = null;
+                }
+                await supabase.from('whatsapp_devices').update(updates).eq('id', device.id);
+                console.log(`[WEBHOOK] Device ${instance} -> ${status}`);
+            }
+        }
+
+        // Handle incoming messages
         if (event === 'messages.upsert' && data?.message) {
             const msg = data.message;
             const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '');
@@ -404,49 +398,62 @@ app.post('/api/webhook', async (req, res) => {
             const content = msg.message?.conversation ||
                 msg.message?.extendedTextMessage?.text || '[Media]';
             const contactName = msg.pushName || phone;
-            const deviceName = instance;
 
-            // Find device
-            const device = (db.devices || []).find(d => d.name === deviceName);
+            // Find device in Supabase
+            const { data: device } = await supabase.from('whatsapp_devices')
+                .select('id, restaurant_id, active_logic_id').eq('name', instance).maybeSingle();
+
             if (!device) return res.json({ ok: true });
 
             // Find or create conversation
-            let conv = (db.conversations || []).find(c => c.deviceId === device.id && c.contactPhone === phone);
-            if (!conv) {
-                conv = insertItem('conversations', {
-                    id: uuidv4(), deviceId: device.id,
-                    contactName, contactPhone: phone,
-                    lastMessageAt: new Date().toISOString(),
-                    unreadCount: 1, isPaused: 0,
-                });
+            const { data: existingConv } = await supabase.from('whatsapp_conversations')
+                .select('id, unread_count').eq('device_id', device.id).eq('contact_phone', phone).maybeSingle();
+
+            let convId;
+            if (existingConv) {
+                convId = existingConv.id;
+                await supabase.from('whatsapp_conversations').update({
+                    contact_name: contactName,
+                    last_message_at: new Date().toISOString(),
+                    unread_count: (existingConv.unread_count || 0) + 1,
+                }).eq('id', convId);
             } else {
-                updateItem('conversations', conv.id, {
-                    lastMessageAt: new Date().toISOString(),
-                    unreadCount: (conv.unreadCount || 0) + 1, contactName,
-                });
+                const { data: newConv } = await supabase.from('whatsapp_conversations').insert({
+                    device_id: device.id, restaurant_id: device.restaurant_id,
+                    contact_name: contactName, contact_phone: phone,
+                    last_message_at: new Date().toISOString(), unread_count: 1,
+                }).select('id').single();
+                convId = newConv?.id;
             }
 
-            // Save message
-            insertItem('messages', {
-                id: uuidv4(), conversationId: conv.id,
-                content, direction: 'incoming',
-                timestamp: new Date().toISOString(), isFromBot: 0,
+            // Save incoming message to Supabase
+            await supabase.from('whatsapp_messages').insert({
+                device_id: device.id, restaurant_id: device.restaurant_id,
+                conversation_id: convId, phone_number: phone,
+                message_content: content, message_type: 'text',
+                direction: 'incoming', remetente: contactName,
+                is_from_bot: false,
             });
 
             // Auto-respond with AI if logic is active
-            if (device.activeLogicId) {
-                const logic = (db.logics || []).find(l => l.id === device.activeLogicId && l.isActive);
+            if (device.active_logic_id) {
+                const { data: logic } = await supabase.from('whatsapp_logic_configs')
+                    .select('*').eq('id', device.active_logic_id).eq('is_active', true).maybeSingle();
+
                 if (logic) {
-                    const response = await generateBotResponse(content, logic);
+                    const response = await generateBotResponse(content, logic, device.restaurant_id);
                     if (response) {
-                        await evoFetch(`/message/sendText/${deviceName}`, {
+                        await evoFetch(`/message/sendText/${instance}`, {
                             method: 'POST',
                             body: JSON.stringify({ number: phone, text: response }),
                         });
-                        insertItem('messages', {
-                            id: uuidv4(), conversationId: conv.id,
-                            content: response, direction: 'outgoing',
-                            timestamp: new Date().toISOString(), isFromBot: 1,
+
+                        await supabase.from('whatsapp_messages').insert({
+                            device_id: device.id, restaurant_id: device.restaurant_id,
+                            conversation_id: convId, phone_number: phone,
+                            message_content: response, message_type: 'text',
+                            direction: 'outgoing', remetente: 'bot',
+                            is_from_bot: true, ai_response: response,
                         });
                     }
                 }
@@ -455,30 +462,60 @@ app.post('/api/webhook', async (req, res) => {
 
         res.json({ ok: true });
     } catch (err) {
-        console.error('[WEBHOOK] Error:', err.message);
+        console.error('[WEBHOOK]', err.message);
         res.json({ ok: true });
     }
 });
 
 // ============================================
-// AI BOT RESPONSE
+// AI BOT RESPONSE (with restaurant menu context)
 // ============================================
-async function generateBotResponse(message, logic) {
+async function generateBotResponse(message, logic, restaurantId) {
     try {
-        if (logic.logicType === 'json' || logic.logicType === 'hybrid') {
-            const rules = JSON.parse(logic.logicJson || '{}');
+        // Rule-based matching first
+        if (logic.logic_type === 'json' || logic.logic_type === 'hybrid') {
+            const rules = logic.logic_json || {};
             if (rules.rules) {
                 for (const rule of rules.rules) {
-                    const keywords = rule.keywords || [rule.trigger];
-                    for (const kw of keywords) {
-                        if (message.toLowerCase().includes(kw.toLowerCase())) return rule.response;
+                    const trigger = (rule.trigger || '').toLowerCase();
+                    const msg = message.toLowerCase();
+                    const match =
+                        rule.triggerType === 'exact' ? msg === trigger :
+                        rule.triggerType === 'startsWith' ? msg.startsWith(trigger) :
+                        msg.includes(trigger);
+                    if (match) {
+                        // Handle special actions
+                        let response = rule.response;
+                        if (response.includes('#CARDAPIO') && restaurantId) {
+                            const menu = await getRestaurantMenu(restaurantId);
+                            response = response.replace('#CARDAPIO', menu);
+                        }
+                        return response;
                     }
                 }
-                if (rules.default_reply && logic.logicType === 'json') return rules.default_reply;
+                if (rules.default_reply && logic.logic_type === 'json') {
+                    let reply = rules.default_reply;
+                    if (reply.includes('#CARDAPIO') && restaurantId) {
+                        reply = reply.replace('#CARDAPIO', await getRestaurantMenu(restaurantId));
+                    }
+                    return reply;
+                }
             }
         }
 
-        if ((logic.logicType === 'ai' || logic.logicType === 'hybrid') && GEMINI_API_KEY) {
+        // AI response (Gemini)
+        if ((logic.logic_type === 'ai' || logic.logic_type === 'hybrid') && GEMINI_API_KEY) {
+            let systemPrompt = logic.ai_prompt || 'Você é um assistente de restaurante.';
+
+            // Inject restaurant menu into AI context
+            if (restaurantId) {
+                const menu = await getRestaurantMenu(restaurantId);
+                const { data: restaurant } = await supabase.from('restaurants')
+                    .select('name, phone, address').eq('id', restaurantId).single();
+
+                systemPrompt += `\n\nINFORMAÇÕES DO RESTAURANTE:\nNome: ${restaurant?.name || 'Restaurante'}\nTelefone: ${restaurant?.phone || ''}\nEndereço: ${restaurant?.address || ''}\n\nCARDÁPIO COMPLETO:\n${menu}`;
+            }
+
             const resp = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
                 {
@@ -486,8 +523,8 @@ async function generateBotResponse(message, logic) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [
-                            { role: 'user', parts: [{ text: logic.aiPrompt || 'Você é um assistente.' }] },
-                            { role: 'model', parts: [{ text: 'Entendido!' }] },
+                            { role: 'user', parts: [{ text: systemPrompt }] },
+                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto para atender.' }] },
                             { role: 'user', parts: [{ text: message }] }
                         ],
                         generationConfig: { maxOutputTokens: 512, temperature: 0.7 }
@@ -497,8 +534,43 @@ async function generateBotResponse(message, logic) {
             const data = await resp.json();
             return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
         }
-    } catch (e) { console.error('Bot error:', e); }
+    } catch (e) { console.error('Bot error:', e.message); }
     return null;
+}
+
+// Get restaurant menu from Supabase
+async function getRestaurantMenu(restaurantId) {
+    try {
+        const { data: categories } = await supabase
+            .from('categories')
+            .select('id, name, sort_order')
+            .eq('restaurant_id', restaurantId)
+            .eq('is_active', true)
+            .order('sort_order');
+
+        if (!categories || categories.length === 0) return 'Cardápio não disponível no momento.';
+
+        let menu = '';
+        for (const cat of categories) {
+            const { data: products } = await supabase
+                .from('products')
+                .select('name, description, price, is_available')
+                .eq('category_id', cat.id)
+                .eq('is_available', true)
+                .order('name');
+
+            if (products && products.length > 0) {
+                menu += `\n📋 *${cat.name}*\n`;
+                for (const p of products) {
+                    menu += `  • ${p.name} - R$ ${Number(p.price).toFixed(2)}${p.description ? ` (${p.description})` : ''}\n`;
+                }
+            }
+        }
+
+        return menu || 'Cardápio não disponível no momento.';
+    } catch {
+        return 'Cardápio não disponível no momento.';
+    }
 }
 
 // ============================================
@@ -506,9 +578,9 @@ async function generateBotResponse(message, logic) {
 // ============================================
 app.get('/health', (req, res) => {
     res.json({
-        status: 'ok', type: 'evolution-proxy',
+        status: 'ok', type: 'evolution-proxy-supabase',
         evolutionApi: EVOLUTION_API_URL,
-        database: 'json-file',
+        supabase: SUPABASE_URL,
         geminiAi: GEMINI_API_KEY ? 'configured' : 'not configured',
     });
 });
@@ -517,8 +589,8 @@ app.get('/health', (req, res) => {
 // START
 // ============================================
 app.listen(PORT, () => {
-    console.log(`🚀 WhatsApp Server (Evolution Proxy) running on port ${PORT}`);
+    console.log(`🚀 WhatsApp Server (Evolution + Supabase) running on port ${PORT}`);
     console.log(`🔗 Evolution API: ${EVOLUTION_API_URL}`);
-    console.log(`📦 Database: JSON file (${DB_PATH})`);
+    console.log(`🗄️  Supabase: ${SUPABASE_URL}`);
     console.log(`🤖 Gemini AI: ${GEMINI_API_KEY ? 'Configured' : 'Not configured'}`);
 });
