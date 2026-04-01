@@ -54,10 +54,10 @@ function mapStatus(state) {
 }
 
 // ============================================
-// HELPER: get restaurant_id (from header, query, or env)
+// HELPER: get restaurant_id (from header, query, body, or env)
 // ============================================
 function getRestaurantId(req) {
-    return req.query.restaurantId || req.headers['x-restaurant-id'] || RESTAURANT_ID;
+    return req.query?.restaurantId || req.body?.restaurantId || req.headers?.['x-restaurant-id'] || RESTAURANT_ID;
 }
 
 // ============================================
