@@ -55,7 +55,7 @@ app.post('/api/webhook/lovable', authenticateToken, async (req, res) => {
   
   // Enviar para Lovable backend
   try {
-    await fetch('https://yzvcpfcmfutczrlporjp.supabase.co/functions/v1/whatsapp-webhook', {
+    await fetch('https://npxhdsodvboqxrauwuwy.supabase.co/functions/v1/whatsapp-webhook', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.LOVABLE_API_KEY}`,

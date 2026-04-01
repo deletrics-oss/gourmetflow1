@@ -15,7 +15,7 @@ const corsHeaders = {
  * - Keeta
  * - Agregadores (Anota AI, Hubster)
  * 
- * URL do Webhook: https://yzvcpfcmfutczrlporjp.supabase.co/functions/v1/marketplace-webhook
+ * URL do Webhook: https://npxhdsodvboqxrauwuwy.supabase.co/functions/v1/marketplace-webhook
  */
 
 interface MarketplaceOrder {

@@ -144,7 +144,7 @@ export default function WhatsAppManager() {
           <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="font-semibold text-blue-800 dark:text-blue-200 mb-1 text-sm">🔗 URL do Webhook (copie para seu servidor):</p>
             <code className="text-xs break-all bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded block">
-              {`${window.location.origin.replace('localhost:8080', 'yzvcpfcmfutczrlporjp.supabase.co')}/functions/v1/whatsapp-webhook`}
+              {`${window.location.origin.replace('localhost:8080', 'npxhdsodvboqxrauwuwy.supabase.co')}/functions/v1/whatsapp-webhook`}
             </code>
           </div>
         </AlertDescription>

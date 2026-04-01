@@ -12,9 +12,16 @@ const PORT = process.env.PORT || 3088;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const EVOLUTION_API_URL = (process.env.EVOLUTION_API_URL || 'https://evolution2.deletrics.site').replace(/\/$/, '');
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'chatbot_premium_key_2026';
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yzvcpfcmfutczrlporjp.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://npxhdsodvboqxrauwuwy.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const RESTAURANT_ID = process.env.RESTAURANT_ID || null;
+
+// ============================================
+// LOGGER — prefixo [GourmetFlow] em todos os logs
+// ============================================
+const LOG_PREFIX = '[GourmetFlow]';
+function gLog(...args) { console.log(LOG_PREFIX, ...args); }
+function gErr(...args) { console.error(LOG_PREFIX, '❌', ...args); }
 
 // ============================================
 // SUPABASE CLIENT
@@ -364,19 +371,22 @@ app.post('/api/messages/send', async (req, res) => {
 
 // ============================================
 // WEBHOOK — receive messages from Evolution
+// Aceita AMBAS as rotas: /api/webhook e /api/webhook/evolution
 // ============================================
-app.post('/api/webhook', async (req, res) => {
+async function handleEvolutionWebhook(req, res) {
     try {
         const { event, data, instance } = req.body;
-        console.log(`[WEBHOOK] ${event} from ${instance}`);
+        gLog(`📩 WEBHOOK recebido: evento="${event}" instancia="${instance}"`);
 
         // Handle connection status updates
         if (event === 'connection.update') {
             const state = data?.state || data?.status;
             const status = mapStatus({ state });
             
-            const { data: device } = await supabase.from('whatsapp_devices')
+            const { data: device, error: devErr } = await supabase.from('whatsapp_devices')
                 .select('id').eq('name', instance).maybeSingle();
+
+            if (devErr) gErr('Erro ao buscar device:', devErr.message);
 
             if (device) {
                 const updates = { connection_status: status };
@@ -384,8 +394,11 @@ app.post('/api/webhook', async (req, res) => {
                     updates.last_connected_at = new Date().toISOString();
                     updates.qr_code = null;
                 }
-                await supabase.from('whatsapp_devices').update(updates).eq('id', device.id);
-                console.log(`[WEBHOOK] Device ${instance} -> ${status}`);
+                const { error: updErr } = await supabase.from('whatsapp_devices').update(updates).eq('id', device.id);
+                if (updErr) gErr('Erro ao atualizar device:', updErr.message);
+                gLog(`🔌 Device "${instance}" -> ${status} (salvo no Supabase ✅)`);
+            } else {
+                gLog(`⚠️ Device "${instance}" não encontrado no Supabase — ignorando connection.update`);
             }
         }
 
@@ -393,17 +406,28 @@ app.post('/api/webhook', async (req, res) => {
         if (event === 'messages.upsert' && data?.message) {
             const msg = data.message;
             const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '');
-            if (!phone || phone.includes('@g.us') || msg.key?.fromMe) return res.json({ ok: true });
+            if (!phone || phone.includes('@g.us') || msg.key?.fromMe) {
+                gLog(`⏭️ Mensagem ignorada (grupo/fromMe/inválido) de ${msg.key?.remoteJid}`);
+                return res.json({ ok: true });
+            }
 
             const content = msg.message?.conversation ||
                 msg.message?.extendedTextMessage?.text || '[Media]';
             const contactName = msg.pushName || phone;
 
+            gLog(`💬 Mensagem recebida de ${contactName} (${phone}): "${content.substring(0, 80)}${content.length > 80 ? '...' : ''}"`);
+
             // Find device in Supabase
-            const { data: device } = await supabase.from('whatsapp_devices')
+            const { data: device, error: devErr } = await supabase.from('whatsapp_devices')
                 .select('id, restaurant_id, active_logic_id').eq('name', instance).maybeSingle();
 
-            if (!device) return res.json({ ok: true });
+            if (devErr) gErr('Erro ao buscar device:', devErr.message);
+            if (!device) {
+                gLog(`⚠️ Device "${instance}" não encontrado no Supabase — mensagem não processada`);
+                return res.json({ ok: true });
+            }
+
+            gLog(`📱 Device encontrado: id=${device.id}, restaurant_id=${device.restaurant_id}`);
 
             // Find or create conversation
             const { data: existingConv } = await supabase.from('whatsapp_conversations')
@@ -417,17 +441,20 @@ app.post('/api/webhook', async (req, res) => {
                     last_message_at: new Date().toISOString(),
                     unread_count: (existingConv.unread_count || 0) + 1,
                 }).eq('id', convId);
+                gLog(`💬 Conversa existente atualizada: ${convId}`);
             } else {
-                const { data: newConv } = await supabase.from('whatsapp_conversations').insert({
+                const { data: newConv, error: convErr } = await supabase.from('whatsapp_conversations').insert({
                     device_id: device.id, restaurant_id: device.restaurant_id,
                     contact_name: contactName, contact_phone: phone,
                     last_message_at: new Date().toISOString(), unread_count: 1,
                 }).select('id').single();
+                if (convErr) gErr('Erro ao criar conversa:', convErr.message);
                 convId = newConv?.id;
+                gLog(`💬 Nova conversa criada: ${convId}`);
             }
 
             // Save incoming message to Supabase
-            await supabase.from('whatsapp_messages').insert({
+            const { error: msgErr } = await supabase.from('whatsapp_messages').insert({
                 device_id: device.id, restaurant_id: device.restaurant_id,
                 conversation_id: convId, phone_number: phone,
                 message_content: content, message_type: 'text',
@@ -435,14 +462,22 @@ app.post('/api/webhook', async (req, res) => {
                 is_from_bot: false,
             });
 
+            if (msgErr) {
+                gErr(`Erro ao salvar mensagem no Supabase:`, msgErr.message);
+            } else {
+                gLog(`✅ Mensagem salva no Supabase com sucesso! (phone=${phone}, conv=${convId})`);
+            }
+
             // Auto-respond with AI if logic is active
             if (device.active_logic_id) {
+                gLog(`🤖 Lógica ativa encontrada: ${device.active_logic_id} — gerando resposta AI...`);
                 const { data: logic } = await supabase.from('whatsapp_logic_configs')
                     .select('*').eq('id', device.active_logic_id).eq('is_active', true).maybeSingle();
 
                 if (logic) {
                     const response = await generateBotResponse(content, logic, device.restaurant_id);
                     if (response) {
+                        gLog(`🤖 Resposta AI gerada: "${response.substring(0, 80)}${response.length > 80 ? '...' : ''}"`);
                         await evoFetch(`/message/sendText/${instance}`, {
                             method: 'POST',
                             body: JSON.stringify({ number: phone, text: response }),
@@ -455,17 +490,29 @@ app.post('/api/webhook', async (req, res) => {
                             direction: 'outgoing', remetente: 'bot',
                             is_from_bot: true, ai_response: response,
                         });
+                        gLog(`✅ Resposta AI enviada e salva no Supabase!`);
+                    } else {
+                        gLog(`⚠️ AI não gerou resposta para esta mensagem`);
                     }
+                } else {
+                    gLog(`⚠️ Lógica ${device.active_logic_id} não encontrada ou inativa`);
                 }
+            } else {
+                gLog(`ℹ️ Nenhuma lógica ativa para este device — mensagem apenas salva`);
             }
         }
 
         res.json({ ok: true });
     } catch (err) {
-        console.error('[WEBHOOK]', err.message);
+        gErr('WEBHOOK ERRO:', err.message, err.stack);
         res.json({ ok: true });
     }
-});
+}
+
+// Rota principal
+app.post('/api/webhook', handleEvolutionWebhook);
+// Alias — para quem configurou webhook como /api/webhook/evolution
+app.post('/api/webhook/evolution', handleEvolutionWebhook);
 
 // ============================================
 // AI BOT RESPONSE (with restaurant menu context)
@@ -574,23 +621,67 @@ async function getRestaurantMenu(restaurantId) {
 }
 
 // ============================================
-// HEALTH CHECK
+// HEALTH CHECK — verifica conexão com Supabase
 // ============================================
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    let supabaseStatus = 'unknown';
+    let supabaseError = null;
+    let restaurantCount = 0;
+    try {
+        const { data, error, count } = await supabase
+            .from('restaurants')
+            .select('id', { count: 'exact', head: true });
+        if (error) {
+            supabaseStatus = 'error';
+            supabaseError = error.message;
+        } else {
+            supabaseStatus = 'connected';
+            restaurantCount = count || 0;
+        }
+    } catch (e) {
+        supabaseStatus = 'unreachable';
+        supabaseError = e.message;
+    }
+
     res.json({
-        status: 'ok', type: 'evolution-proxy-supabase',
+        status: supabaseStatus === 'connected' ? 'ok' : 'degraded',
+        type: 'gourmetflow-whatsapp-server',
         evolutionApi: EVOLUTION_API_URL,
-        supabase: SUPABASE_URL,
+        supabase: {
+            url: SUPABASE_URL,
+            status: supabaseStatus,
+            error: supabaseError,
+            restaurants: restaurantCount,
+            hasServiceKey: !!SUPABASE_SERVICE_KEY,
+        },
         geminiAi: GEMINI_API_KEY ? 'configured' : 'not configured',
+        timestamp: new Date().toISOString(),
     });
 });
 
 // ============================================
 // START
 // ============================================
-app.listen(PORT, () => {
-    console.log(`🚀 WhatsApp Server (Evolution + Supabase) running on port ${PORT}`);
-    console.log(`🔗 Evolution API: ${EVOLUTION_API_URL}`);
-    console.log(`🗄️  Supabase: ${SUPABASE_URL}`);
-    console.log(`🤖 Gemini AI: ${GEMINI_API_KEY ? 'Configured' : 'Not configured'}`);
+app.listen(PORT, async () => {
+    gLog('========================================');
+    gLog('🚀 GourmetFlow WhatsApp Server iniciado!');
+    gLog(`🔗 Evolution API: ${EVOLUTION_API_URL}`);
+    gLog(`🗄️  Supabase URL: ${SUPABASE_URL}`);
+    gLog(`🔑 Supabase Key: ${SUPABASE_SERVICE_KEY ? '✅ configurada' : '❌ NÃO CONFIGURADA'}`);
+    gLog(`🤖 Gemini AI: ${GEMINI_API_KEY ? '✅ configurado' : '❌ não configurado'}`);
+    gLog(`📡 Porta: ${PORT}`);
+    gLog('========================================');
+
+    // Verificar conexão com Supabase ao iniciar
+    try {
+        const { error } = await supabase.from('restaurants').select('id').limit(1);
+        if (error) {
+            gErr(`❌ FALHA na conexão com Supabase: ${error.message}`);
+            gErr('Verifique SUPABASE_URL e SUPABASE_SERVICE_KEY no .env');
+        } else {
+            gLog('✅ Conexão com Supabase verificada com sucesso!');
+        }
+    } catch (e) {
+        gErr(`❌ Supabase inacessível: ${e.message}`);
+    }
 });
