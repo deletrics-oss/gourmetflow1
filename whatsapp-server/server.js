@@ -117,86 +117,69 @@ async function setEvolutionWebhook(instanceName) {
 // API: DEVICES
 // ============================================
 
-// GET /api/devices — list instances, sync to Supabase
+// GET /api/devices — list instances, sync status from Evolution to Supabase
 app.get('/api/devices', async (req, res) => {
     try {
         const restaurantId = getRestaurantId(req);
-        
-        // Fetch instances from Evolution API
-        const instances = await evoFetch('/instance/fetchInstances');
-        
-        if (!Array.isArray(instances) || instances.length === 0) {
-            // Fallback: return from Supabase
-            if (restaurantId) {
-                const { data } = await supabase.from('whatsapp_devices').select('*').eq('restaurant_id', restaurantId);
-                return res.json((data || []).map(d => ({
-                    id: d.id, name: d.name,
-                    connectionStatus: d.connection_status || 'disconnected',
-                    phoneNumber: d.phone_number, qrCode: d.qr_code,
-                    activeLogicId: d.active_logic_id,
-                    integration: 'EVOLUTION',
-                })));
-            }
+        if (!restaurantId) return res.json([]);
+
+        // 1. Get devices that BELONG TO THIS RESTAURANT from Supabase
+        const { data: dbDevices, error } = await supabase
+            .from('whatsapp_devices')
+            .select('*')
+            .eq('restaurant_id', restaurantId);
+
+        if (error || !dbDevices) {
+            gErr('[GET /api/devices] Erro Supabase:', error?.message);
             return res.json([]);
         }
 
         const devices = [];
-        for (const inst of instances) {
-            const name = inst.instance?.instanceName || inst.instanceName || 'unknown';
-            const instanceId = inst.instance?.instanceId || inst.instanceId || name;
-            const state = inst.instance?.state || inst.instance?.status || 'disconnected';
-            const phone = inst.instance?.owner?.replace('@s.whatsapp.net', '') || null;
-            const status = mapStatus(state);
 
-            // Sync to Supabase: upsert by name
-            if (restaurantId) {
-                const { data: existing } = await supabase
-                    .from('whatsapp_devices')
-                    .select('id')
-                    .eq('name', name)
-                    .eq('restaurant_id', restaurantId)
-                    .maybeSingle();
+        // 2. For each device, optionally check real-time status from Evolution API
+        for (const d of dbDevices) {
+            let status = d.connection_status || 'disconnected';
+            let phone = d.phone_number;
 
-                if (existing) {
-                    await supabase.from('whatsapp_devices').update({
-                        connection_status: status,
-                        phone_number: phone,
-                        ...(status === 'connected' ? { last_connected_at: new Date().toISOString() } : {}),
-                    }).eq('id', existing.id);
+            try {
+                // Fetch specific instance state to ensure 100% accurate frontend status
+                const evoState = await evoFetch(`/instance/connectionState/${d.name}`);
+                if (evoState && evoState.instance) {
+                    const realState = evoState.instance.state || evoState.instance.status;
+                    status = mapStatus(realState);
+                    
+                    if (status === 'connected' && evoState.instance.owner) {
+                        phone = evoState.instance.owner.replace('@s.whatsapp.net', '');
+                    }
 
-                    devices.push({
-                        id: existing.id, name, connectionStatus: status,
-                        phoneNumber: phone, qrCode: null,
-                        activeLogicId: null, integration: 'EVOLUTION',
-                    });
-
-                    // Fetch active_logic_id
-                    const { data: full } = await supabase.from('whatsapp_devices').select('active_logic_id').eq('id', existing.id).single();
-                    if (full) devices[devices.length - 1].activeLogicId = full.active_logic_id;
-                } else {
-                    const newId = uuidv4();
-                    await supabase.from('whatsapp_devices').insert({
-                        id: newId, name, connection_status: status,
-                        phone_number: phone, restaurant_id: restaurantId,
-                    });
-                    devices.push({
-                        id: newId, name, connectionStatus: status,
-                        phoneNumber: phone, qrCode: null,
-                        activeLogicId: null, integration: 'EVOLUTION',
-                    });
+                    // Update Supabase if out of sync
+                    if (status !== d.connection_status || phone !== d.phone_number) {
+                        await supabase.from('whatsapp_devices').update({
+                            connection_status: status,
+                            phone_number: phone,
+                            ...(status === 'connected' ? { last_connected_at: new Date().toISOString() } : {})
+                        }).eq('id', d.id);
+                    }
                 }
-            } else {
-                devices.push({
-                    id: instanceId, name, connectionStatus: status,
-                    phoneNumber: phone, qrCode: null,
-                    activeLogicId: null, integration: 'EVOLUTION',
-                });
+            } catch (err) {
+                // Instance might be offline or deleted in Evolution
+                gLog(`⚠️ Não foi possível checar status de "${d.name}" na Evolution.`);
             }
+
+            devices.push({
+                id: d.id, 
+                name: d.name,
+                connectionStatus: status,
+                phoneNumber: phone, 
+                qrCode: d.qr_code,
+                activeLogicId: d.active_logic_id,
+                integration: 'EVOLUTION',
+            });
         }
 
         res.json(devices);
     } catch (err) {
-        console.error('[GET /api/devices]', err.message);
+        gErr('[GET /api/devices] Erro Geral:', err.message);
         res.json([]);
     }
 });
