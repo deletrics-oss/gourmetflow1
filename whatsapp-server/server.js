@@ -463,17 +463,26 @@ async function handleEvolutionWebhook(req, res) {
         }
 
         // Handle incoming messages
-        if (event === 'messages.upsert' && data?.message) {
-            const msg = data.message;
-            const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '');
-            if (!phone || phone.includes('@g.us') || msg.key?.fromMe) {
-                gLog(`⏭️ Mensagem ignorada (grupo/fromMe/inválido) de ${msg.key?.remoteJid}`);
+        if (event === 'messages.upsert' && data) {
+            // Support both data={key, message} and data={message: {key, message}} structures (v1/v2 variations)
+            const msgObj = data.messages?.[0] || data.message || data;
+            const key = msgObj.key || data.key;
+            
+            if (!key) {
+                gLog(`⏭️ Payload sem .key ignorado`);
                 return res.json({ ok: true });
             }
 
-            const content = msg.message?.conversation ||
-                msg.message?.extendedTextMessage?.text || '[Media]';
-            const contactName = msg.pushName || phone;
+            const phone = key?.remoteJid?.replace('@s.whatsapp.net', '');
+            if (!phone || phone.includes('@g.us') || key?.fromMe) {
+                gLog(`⏭️ Mensagem ignorada (grupo/fromMe/inválido) de ${key?.remoteJid}`);
+                return res.json({ ok: true });
+            }
+
+            const actualMessage = msgObj.message || data.message || {};
+            const content = actualMessage.conversation ||
+                actualMessage.extendedTextMessage?.text || '[Media]';
+            const contactName = msgObj.pushName || data.pushName || phone;
 
             gLog(`💬 Mensagem recebida de ${contactName} (${phone}): "${content.substring(0, 80)}${content.length > 80 ? '...' : ''}"`);
 
