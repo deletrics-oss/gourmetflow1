@@ -464,6 +464,9 @@ async function handleEvolutionWebhook(req, res) {
 
         // Handle incoming messages
         if (event === 'messages.upsert' && data) {
+            // Log exactly what Evolution is sending
+            gLog(`[DEBUG] Raw payload: ` + JSON.stringify(data));
+
             // Support both data={key, message} and data={message: {key, message}} structures (v1/v2 variations)
             const msgObj = data.messages?.[0] || data.message || data;
             const key = msgObj.key || data.key;
