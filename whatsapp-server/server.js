@@ -15,6 +15,7 @@ const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'chatbot_premium_key_
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://npxhdsodvboqxrauwuwy.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const RESTAURANT_ID = process.env.RESTAURANT_ID || null;
+const EVOLUTION_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || 'http://localhost:3088/api/webhook/evolution';
 
 // ============================================
 // LOGGER — prefixo [GourmetFlow] em todos os logs
@@ -57,6 +58,38 @@ function mapStatus(state) {
 // ============================================
 function getRestaurantId(req) {
     return req.query.restaurantId || req.headers['x-restaurant-id'] || RESTAURANT_ID;
+}
+
+// ============================================
+// HELPER: set webhook for instance
+// ============================================
+async function setEvolutionWebhook(instanceName) {
+    if (!EVOLUTION_WEBHOOK_URL || EVOLUTION_WEBHOOK_URL.includes('localhost')) {
+        gLog(`⚠️ Ignorando configuração de webhook para "${instanceName}" (EVOLUTION_WEBHOOK_URL não configurada ou local)`);
+        return false;
+    }
+    
+    gLog(`🔗 Configurando webhook para instância "${instanceName}" -> ${EVOLUTION_WEBHOOK_URL}`);
+    const result = await evoFetch(`/webhook/set/${instanceName}`, {
+        method: 'POST',
+        body: JSON.stringify({
+            url: EVOLUTION_WEBHOOK_URL,
+            webhook_by_events: false,
+            webhook_base64: false,
+            events: [
+                "MESSAGES_UPSERT",
+                "CONNECTION_UPDATE"
+            ]
+        })
+    });
+    
+    if (result && !result.error) {
+        gLog(`✅ Webhook configurado com sucesso para "${instanceName}"!`);
+        return true;
+    } else {
+        gErr(`❌ Falha ao configurar webhook para "${instanceName}":`, result);
+        return false;
+    }
 }
 
 // ============================================
@@ -189,6 +222,9 @@ app.post('/api/devices', async (req, res) => {
             }).eq('id', newId);
         }
 
+        // Configure webhook automatically
+        await setEvolutionWebhook(instanceName);
+
         res.json({ id: newId, name: instanceName, connectionStatus: finalQr ? 'qr_ready' : 'connecting', qrCode: finalQr });
     } catch (err) {
         console.error('[POST /api/devices]', err.message);
@@ -226,6 +262,9 @@ app.post('/api/devices/:id', async (req, res) => {
                 connection_status: 'qr_ready', qr_code: qr,
             }).eq('id', id);
         }
+
+        // Ensure webhook is set when reconnecting
+        await setEvolutionWebhook(instanceName);
 
         res.json({ connectionStatus: qr ? 'qr_ready' : currentState, qrCode: qr, message: qr ? 'Escaneie o QR Code' : 'Reconectando...' });
     } catch (err) {
@@ -647,6 +686,7 @@ app.get('/health', async (req, res) => {
         status: supabaseStatus === 'connected' ? 'ok' : 'degraded',
         type: 'gourmetflow-whatsapp-server',
         evolutionApi: EVOLUTION_API_URL,
+        evolutionWebhook: EVOLUTION_WEBHOOK_URL,
         supabase: {
             url: SUPABASE_URL,
             status: supabaseStatus,
