@@ -65,17 +65,19 @@ function getRestaurantId(req) {
 // ============================================
 async function setEvolutionWebhook(instanceName) {
     if (!EVOLUTION_WEBHOOK_URL || EVOLUTION_WEBHOOK_URL.includes('localhost')) {
-        gLog(`⚠️ Ignorando configuração de webhook para "${instanceName}" (EVOLUTION_WEBHOOK_URL não configurada ou local)`);
+        gLog(`⚠️ Ignorando webhook para "${instanceName}" (EVOLUTION_WEBHOOK_URL não configurada ou local)`);
         return false;
     }
+    if (instanceName === 'unknown') return false;
     
     gLog(`🔗 Configurando webhook para instância "${instanceName}" -> ${EVOLUTION_WEBHOOK_URL}`);
     const result = await evoFetch(`/webhook/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify({
+            enabled: true,
             url: EVOLUTION_WEBHOOK_URL,
-            webhook_by_events: false,
-            webhook_base64: false,
+            webhookByEvents: false,
+            webhookBase64: false,
             events: [
                 "MESSAGES_UPSERT",
                 "CONNECTION_UPDATE"
@@ -87,7 +89,26 @@ async function setEvolutionWebhook(instanceName) {
         gLog(`✅ Webhook configurado com sucesso para "${instanceName}"!`);
         return true;
     } else {
-        gErr(`❌ Falha ao configurar webhook para "${instanceName}":`, result);
+        // Tentar formato alternativo da Evolution V2
+        if (result?.status === 400 || result?.error === 'Bad Request') {
+            const v2Result = await evoFetch(`/webhook/set/${instanceName}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    webhook: {
+                        enabled: true,
+                        url: EVOLUTION_WEBHOOK_URL,
+                        webhookByEvents: false,
+                        webhookBase64: false,
+                        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
+                    }
+                })
+            });
+            if (v2Result && !v2Result.error) {
+                gLog(`✅ Webhook (v2) configurado com sucesso para "${instanceName}"!`);
+                return true;
+            }
+        }
+        gErr(`❌ Falha ao configurar webhook para "${instanceName}":`, JSON.stringify(result));
         return false;
     }
 }
