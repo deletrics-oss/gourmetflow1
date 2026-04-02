@@ -189,6 +189,11 @@ app.post('/api/devices', async (req, res) => {
     try {
         const { name } = req.body;
         const restaurantId = getRestaurantId(req);
+        if (!restaurantId) {
+            console.error('[POST /api/devices] FATAL: restaurantId is undefined! Skipping Evolution API creation to prevent orphaned ghost devices. Check frontend useRestaurant() hooks or Auth session.');
+            return res.status(400).json({ error: 'restaurantId é obrigatório. Seu usuário pode não estar vinculado corretamente a um restaurante no novo Supabase.' });
+        }
+
         const instanceName = (name || 'device-' + Date.now()).toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
         const result = await evoFetch('/instance/create', {
