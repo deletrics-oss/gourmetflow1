@@ -29,7 +29,7 @@ export const useRestaurant = () => {
   const loadRestaurant = async () => {
     try {
       setLoading(true);
-      
+      console.log("[useRestaurant] Loading for user:", user?.id);
       // Buscar restaurante do usuário
       const { data: userRestaurant, error } = await supabase
         .from('user_restaurants')
@@ -47,6 +47,8 @@ export const useRestaurant = () => {
         .eq('user_id', user?.id)
         .eq('is_active', true)
         .single();
+
+      console.log("[useRestaurant] Query result:", { userRestaurant, error });
 
       if (error) throw error;
 

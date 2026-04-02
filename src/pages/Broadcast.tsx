@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Slider } from "@/components/ui/slider";
-import { Send, Users, Sparkles, CheckCircle, XCircle, Clock, Play, Pause, Trash2, Copy, Search } from "lucide-react";
+import { Send, Users, Sparkles, CheckCircle, XCircle, Clock, Play, Pause, Trash2, Copy, Search, Edit, LayoutTemplate, MessageSquarePlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface Contact {
     id: string;
@@ -26,6 +29,7 @@ interface Contact {
 }
 
 export default function BroadcastPage() {
+    const [searchParams] = useSearchParams();
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
     const [selectedDevice, setSelectedDevice] = useState<string>("");
@@ -38,121 +42,72 @@ export default function BroadcastPage() {
     const [currentInputUrl, setCurrentInputUrl] = useState("");
     const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
     const [selectAll, setSelectAll] = useState(false);
-    const [delay, setDelay] = useState(20);
+    const [delay, setDelay] = useState(30);
     const [searchTerm, setSearchTerm] = useState("");
     const [includeGroups, setIncludeGroups] = useState(false);
-    const [displayLimit, setDisplayLimit] = useState(50);
     const [onlyRegisteredClients, setOnlyRegisteredClients] = useState(false);
     const [scheduledFor, setScheduledFor] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    const { restaurantId } = useRestaurant();
 
     // Mass Actions State
     const [selectedBroadcasts, setSelectedBroadcasts] = useState<string[]>([]);
 
     const { data: devices } = useQuery<any[]>({
-        queryKey: ['/api/devices'],
-        queryFn: () => fetch('/api/devices').then(r => r.json()),
+        queryKey: ['/api/devices', restaurantId],
+        queryFn: () => apiRequest('GET', '/api/devices', undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
+        enabled: !!restaurantId,
     });
 
-    // Auto-select first device available
     useEffect(() => {
         if (devices && devices.length > 0 && !selectedDevice) {
-            // Prefer connected devices
             const connected = devices.find((d: any) => d.connectionStatus === 'connected');
             setSelectedDevice(connected ? connected.id : devices[0].id);
         }
     }, [devices, selectedDevice]);
 
     const { data: broadcasts, isLoading: loadingBroadcasts } = useQuery<any[]>({
-        queryKey: ['/api/broadcasts'],
-        queryFn: () => fetch('/api/broadcasts').then(r => r.json()),
+        queryKey: ['/api/broadcasts', restaurantId],
+        queryFn: () => apiRequest('GET', '/api/broadcasts', undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
         refetchInterval: 5000,
+        enabled: !!restaurantId,
     });
 
     const { data: contacts, isLoading: loadingContacts } = useQuery<Contact[]>({
-        queryKey: ['/api/contacts', includeGroups, onlyRegisteredClients],
+        queryKey: ['/api/contacts', includeGroups, onlyRegisteredClients, selectedDevice, restaurantId],
         queryFn: async () => {
-            if (onlyRegisteredClients) {
-                const res = await fetch(`/api/clients?limit=1000`);
-                if (!res.ok) return [];
-                const data = await res.json();
-                return data.data.map((c: any) => ({
-                    id: c.id,
-                    name: c.name,
-                    number: c.phone,
-                    isGroup: false
-                }));
-            }
-            // Use /api/contacts like Clientes page - works without deviceId
-            const res = await fetch(`/api/contacts?limit=500`);
-            if (!res.ok) return [];
-            const data = await res.json();
-            return (data.contacts || []).map((c: any) => ({
+            const res = await apiRequest('GET', `/api/contacts?limit=1000&includeGroups=${includeGroups}`, undefined, { headers: { 'x-restaurant-id': restaurantId || '' } });
+            return (res.contacts || []).map((c: any) => ({
                 id: c.id,
                 name: c.name,
                 number: c.phone,
-                isGroup: false
+                isGroup: c.isGroup
             }));
         },
-        enabled: true,
-    });
-
-    const { data: templates } = useQuery<any[]>({
-        queryKey: ['/api/templates'],
-        queryFn: () => fetch('/api/templates').then(r => r.json()),
-    });
-
-    const createTemplateMutation = useMutation({
-        mutationFn: async () => {
-            return await apiRequest("POST", "/api/templates", {
-                name: broadcastName || `Modelo ${new Date().toLocaleString()}`,
-                content: message,
-                category: "broadcast",
-            });
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
-            toast({ title: "Modelo salvo com sucesso!" });
-        },
+        enabled: !!selectedDevice && !!restaurantId,
     });
 
     const generateAIMutation = useMutation({
         mutationFn: async (prompt: string) => {
-            // apiRequest already returns parsed JSON, no need for .json()
-            const data = await apiRequest("POST", "/api/ai/generate-broadcast", {
-                prompt,
-                context: aiContext
-            });
-            return data;
+            return await apiRequest("POST", "/api/ai/generate-broadcast", { prompt, context: aiContext, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } });
         },
         onSuccess: (data: any) => {
             setMessage(data.message);
             setIsAIDialogOpen(false);
-            toast({ title: "Mensagem gerada!", description: "A IA criou sua mensagem com sucesso" });
+            toast({ title: "Mensagem gerada com sucesso! ✨" });
         },
     });
 
     const createBroadcastMutation = useMutation({
         mutationFn: async (data: any) => {
-            console.log("Sending broadcast data:", data);
-            const response = await apiRequest("POST", "/api/broadcasts", data);
-            console.log("Broadcast response:", response);
-            return response;
+            return await apiRequest("POST", "/api/broadcasts", { ...data, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/broadcasts'] });
             setIsCreateDialogOpen(false);
             resetForm();
             toast({ title: "Disparo criado!", description: "Pronto para iniciar o envio" });
-        },
-        onError: (error: any) => {
-            console.error('Broadcast creation error:', error);
-            toast({
-                title: "Erro ao criar disparo",
-                description: error?.message || "Verifique o console para mais detalhes",
-                variant: "destructive"
-            });
         },
     });
 
@@ -162,7 +117,7 @@ export default function BroadcastPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/broadcasts'] });
-            toast({ title: "Disparo iniciado!", description: "Mensagens sendo enviadas..." });
+            toast({ title: "Disparo iniciado!" });
         },
     });
 
@@ -172,6 +127,7 @@ export default function BroadcastPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/broadcasts'] });
+            toast({ title: "Disparo pausado" });
         },
     });
 
@@ -181,111 +137,29 @@ export default function BroadcastPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/broadcasts'] });
-            toast({ title: "Disparo excluído" });
-        },
-    });
-
-    const massDeleteMutation = useMutation({
-        mutationFn: async (ids: string[]) => {
-            await Promise.all(ids.map(id => apiRequest("DELETE", `/api/broadcasts/${id}`, {})));
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['/api/broadcasts'] });
-            setSelectedBroadcasts([]);
-            toast({ title: "Disparos excluídos com sucesso" });
+            toast({ title: "Disparo removido" });
         },
     });
 
     const resetForm = () => {
         setBroadcastName("");
         setMessage("");
-        setSelectedDevice("");
         setSelectedContacts([]);
         setSelectAll(false);
         setMediaType("none");
         setMediaUrls([]);
-        setCurrentInputUrl("");
         setScheduledFor("");
-    };
-
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setMediaUrls(prev => [...prev, reader.result as string]);
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-        if (e.target) e.target.value = '';
-    };
-
-    const handleAddUrl = () => {
-        if (currentInputUrl) {
-            setMediaUrls(prev => [...prev, currentInputUrl]);
-            setCurrentInputUrl("");
-        }
-    };
-
-    const handleRemoveMedia = (index: number) => {
-        setMediaUrls(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const filteredContacts = contacts?.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.number.includes(searchTerm)
-    );
-
-    const handleSelectAll = (checked: boolean) => {
-        setSelectAll(checked);
-        if (checked && filteredContacts) {
-            const newIds = filteredContacts.map(c => c.number);
-            setSelectedContacts(prev => {
-                const unique = new Set([...prev, ...newIds]);
-                return Array.from(unique);
-            });
-        } else {
-            if (searchTerm && filteredContacts) {
-                const visibleIds = filteredContacts.map(c => c.number);
-                setSelectedContacts(prev => prev.filter(id => !visibleIds.includes(id)));
-            } else {
-                setSelectedContacts([]);
-            }
-        }
-    };
-
-    const handleContactToggle = (phone: string, checked: boolean) => {
-        if (checked) {
-            setSelectedContacts(prev => {
-                if (prev.includes(phone)) return prev;
-                return [...prev, phone];
-            });
-        } else {
-            setSelectedContacts(prev => prev.filter(p => p !== phone));
-            setSelectAll(false);
-        }
     };
 
     const handleCreateBroadcast = () => {
         if (!broadcastName || !selectedDevice || !message || selectedContacts.length === 0) {
-            toast({
-                title: "Campos obrigatórios",
-                description: "Preencha todos os campos e selecione pelo menos um contato",
-                variant: "destructive",
-            });
+            toast({ title: "Dados incompletos", description: "Preencha todos os campos", variant: "destructive" });
             return;
         }
 
-        // Transform selected contacts to proper format
-        const contactsPayload = selectedContacts.map(phone => {
-            const contact = contacts?.find(c => c.number === phone);
-            return {
-                number: phone,
-                phone: phone,
-                name: contact?.name || phone
-            };
+        const contactsPayload = selectedContacts.map(number => {
+            const c = contacts?.find(ct => ct.number === number);
+            return { phone: number, name: c?.name || number };
         });
 
         createBroadcastMutation.mutate({
@@ -293,498 +167,291 @@ export default function BroadcastPage() {
             deviceId: selectedDevice,
             message,
             contacts: contactsPayload,
-            mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
             delay,
-            scheduledFor: scheduledFor || undefined
+            scheduledFor,
+            mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined
         });
     };
 
-    const handleToggleSelect = (id: string, checked: boolean) => {
-        if (checked) {
-            setSelectedBroadcasts(prev => [...prev, id]);
-        } else {
-            setSelectedBroadcasts(prev => prev.filter(i => i !== id));
+    const getStatusInfo = (status: string) => {
+        switch (status) {
+            case 'running': return { icon: <Play className="w-4 h-4" />, label: "Enviando", color: "text-blue-500", bg: "bg-blue-500/10" };
+            case 'completed': return { icon: <CheckCircle className="w-4 h-4" />, label: "Concluído", color: "text-green-500", bg: "bg-green-500/10" };
+            case 'paused': return { icon: <Pause className="w-4 h-4" />, label: "Pausado", color: "text-yellow-500", bg: "bg-yellow-500/10" };
+            case 'failed': return { icon: <XCircle className="w-4 h-4" />, label: "Erro", color: "text-red-500", bg: "bg-red-500/10" };
+            default: return { icon: <Clock className="w-4 h-4" />, label: "Aguardando", color: "text-gray-500", bg: "bg-gray-500/10" };
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        const statusMap: any = {
-            pending: { label: "Aguardando", variant: "secondary", icon: Clock },
-            scheduled: { label: "Agendado", variant: "outline", icon: Clock },
-            running: { label: "Enviando", variant: "default", icon: Send },
-            paused: { label: "Pausado", variant: "secondary", icon: Pause },
-            completed: { label: "Concluído", variant: "default", icon: CheckCircle },
-            failed: { label: "Falhou", variant: "destructive", icon: XCircle },
-        };
-        return statusMap[status] || statusMap.pending;
-    };
-
-    const connectedDevices = devices?.filter(d => d.connectionStatus === 'connected') || [];
+    const filteredContacts = contacts?.filter(c => 
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c.number.includes(searchTerm)
+    );
 
     return (
-        <div className="p-6 md:p-8 space-y-8">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold">Disparo em Massa</h1>
-                    <p className="text-muted-foreground mt-1">Envie mensagens para múltiplos contatos</p>
+                    <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                        Disparo Premium
+                    </h1>
+                    <p className="text-muted-foreground mt-2 text-lg">
+                        Campanhas de marketing e avisos em massa com inteligência artificial.
+                    </p>
                 </div>
 
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Send className="w-4 h-4 mr-2" />
-                            Novo Disparo
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>Criar Disparo em Massa</DialogTitle>
-                            <DialogDescription>
-                                Envie mensagens para múltiplos contatos do WhatsApp
-                            </DialogDescription>
-                        </DialogHeader>
+                <div className="flex gap-3">
+                    <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="h-12 px-6 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90 shadow-lg">
+                                <MessageSquarePlus className="w-5 h-5 mr-2" />
+                                Novo Disparo
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto premium-scrollbar">
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl font-bold">Criar Nova Campanha</DialogTitle>
+                                <DialogDescription>Configure os detalhes do seu disparo em massa.</DialogDescription>
+                            </DialogHeader>
 
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="broadcast-name">Nome do Disparo</Label>
-                                <Input
-                                    id="broadcast-name"
-                                    placeholder="Ex: Promoção Black Friday"
-                                    value={broadcastName}
-                                    onChange={(e) => setBroadcastName(e.target.value)}
-                                />
-                            </div>
-
-                            {/* Templates Section */}
-                            <div className="flex gap-2 items-end p-3 bg-muted/30 rounded-md border">
-                                <div className="flex-1 space-y-2">
-                                    <Label className="text-xs text-muted-foreground">Carregar Modelo (Template)</Label>
-                                    <Select onValueChange={(val) => {
-                                        const t = templates?.find((t: any) => t.id === val);
-                                        if (t) {
-                                            setMessage(t.content);
-                                        }
-                                    }}>
-                                        <SelectTrigger className="h-8 text-sm">
-                                            <SelectValue placeholder="Selecione um modelo..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {templates?.map((t: any) => (
-                                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            <div className="space-y-6 py-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold">Nome da Campanha</Label>
+                                    <Input 
+                                        placeholder="Ex: Promoção de Natal 2026" 
+                                        value={broadcastName}
+                                        onChange={e => setBroadcastName(e.target.value)}
+                                        className="h-11"
+                                    />
                                 </div>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => createTemplateMutation.mutate()}
-                                    disabled={!message || createTemplateMutation.isPending}
-                                >
-                                    Salvar Modelo
-                                </Button>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="device-select">Dispositivo WhatsApp</Label>
-                                <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                                    <SelectTrigger id="device-select">
-                                        <SelectValue placeholder="Selecione um dispositivo conectado" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {connectedDevices.length === 0 ? (
-                                            <SelectItem value="none" disabled>Nenhum dispositivo conectado</SelectItem>
-                                        ) : (
-                                            connectedDevices.map((device) => (
-                                                <SelectItem key={device.id} value={device.id}>
-                                                    {device.name} - {device.phoneNumber}
-                                                </SelectItem>
-                                            ))
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="message">Mensagem</Label>
-                                    <Button variant="outline" size="sm" onClick={() => setIsAIDialogOpen(true)}>
-                                        <Sparkles className="w-3 h-3 mr-1" />
-                                        IA
-                                    </Button>
-                                </div>
-                                <Textarea
-                                    id="message"
-                                    placeholder="Digite a mensagem..."
-                                    value={message}
-                                    onChange={(e) => setMessage(e.target.value)}
-                                    rows={3}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Agendar Para (Opcional)</Label>
-                                <Input
-                                    type="datetime-local"
-                                    value={scheduledFor}
-                                    min={new Date().toISOString().slice(0, 16)}
-                                    onChange={(e) => setScheduledFor(e.target.value)}
-                                    className="block w-full"
-                                />
-                                <p className="text-xs text-muted-foreground">Deixe em branco para enviar agora.</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Mídia (Opcional)</Label>
-                                <Select value={mediaType} onValueChange={(v: any) => setMediaType(v)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione o tipo de mídia" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Nenhuma</SelectItem>
-                                        <SelectItem value="image">Imagem</SelectItem>
-                                        <SelectItem value="video">Vídeo</SelectItem>
-                                    </SelectContent>
-                                </Select>
-
-                                {mediaType !== 'none' && (
-                                    <div className="space-y-4 mt-2 p-4 border rounded-md bg-muted/20">
-                                        <div className="flex gap-2">
-                                            <Input
-                                                placeholder="https://..."
-                                                value={currentInputUrl}
-                                                onChange={(e) => setCurrentInputUrl(e.target.value)}
-                                            />
-                                            <Button variant="secondary" onClick={handleAddUrl} disabled={!currentInputUrl}>
-                                                Add URL
-                                            </Button>
-                                            <input
-                                                type="file"
-                                                ref={fileInputRef}
-                                                className="hidden"
-                                                accept={mediaType === 'image' ? "image/*" : "video/*"}
-                                                multiple
-                                                onChange={handleFileUpload}
-                                            />
-                                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                                Upload
-                                            </Button>
-                                        </div>
-
-                                        {mediaUrls.length > 0 && (
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {mediaUrls.map((url, index) => (
-                                                    <div key={index} className="relative group">
-                                                        {mediaType === 'image' ? (
-                                                            <img src={url} alt="" className="w-full h-20 object-cover rounded" />
-                                                        ) : (
-                                                            <video src={url} className="w-full h-20 object-cover rounded" />
-                                                        )}
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="icon"
-                                                            className="absolute top-1 right-1 w-5 h-5 opacity-0 group-hover:opacity-100"
-                                                            onClick={() => handleRemoveMedia(index)}
-                                                        >
-                                                            <XCircle className="w-3 h-3" />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {selectedDevice && (
-                                <>
-                                    <div className="space-y-4 p-4 border rounded-md bg-muted/10">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                    id="only-clients"
-                                                    checked={onlyRegisteredClients}
-                                                    onCheckedChange={(checked) => setOnlyRegisteredClients(checked as boolean)}
-                                                />
-                                                <Label htmlFor="only-clients" className="cursor-pointer">
-                                                    Somente Clientes Cadastrados
-                                                </Label>
-                                            </div>
-                                            <Label>Intervalo entre mensagens</Label>
-                                            <span className="text-sm font-medium">{delay}s</span>
-                                        </div>
-                                        <Slider
-                                            value={[delay]}
-                                            onValueChange={(vals) => setDelay(vals[0])}
-                                            min={10}
-                                            max={120}
-                                            step={5}
-                                        />
-                                    </div>
-
+                                <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label>Contatos ({selectedContacts.length} selecionados)</Label>
-                                            <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                    id="include-groups"
-                                                    checked={includeGroups}
-                                                    onCheckedChange={(checked) => setIncludeGroups(checked as boolean)}
-                                                />
-                                                <Label htmlFor="include-groups" className="text-sm">Incluir Grupos</Label>
-                                                <div className="relative w-48">
-                                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                                    <Input
-                                                        placeholder="Buscar..."
-                                                        value={searchTerm}
-                                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                                        className="pl-8 h-9"
-                                                    />
-                                                </div>
+                                        <Label className="text-sm font-semibold">Instância de Envio</Label>
+                                        <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                                            <SelectTrigger className="h-11">
+                                                <SelectValue placeholder="Selecione o dispositivo" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {devices?.map(d => (
+                                                    <SelectItem key={d.id} value={d.id}>
+                                                        {d.name} ({d.phoneNumber})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-semibold">Intervalo (Segundos)</Label>
+                                        <div className="pt-2">
+                                            <Slider 
+                                                value={[delay]} 
+                                                onValueChange={v => setDelay(v[0])} 
+                                                min={10} max={120} step={5} 
+                                            />
+                                            <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                                                <span>Rápido (10s)</span>
+                                                <span className="font-bold text-primary">{delay}s</span>
+                                                <span>Seguro (120s)</span>
                                             </div>
-                                        </div>
-                                        <div className="border rounded-md p-2 h-60 overflow-y-auto space-y-2">
-                                            <div className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded-md">
-                                                <Checkbox
-                                                    id="select-all"
-                                                    checked={selectAll}
-                                                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
-                                                />
-                                                <Label htmlFor="select-all" className="cursor-pointer font-medium">
-                                                    Selecionar Todos
-                                                </Label>
-                                            </div>
-
-                                            {loadingContacts ? (
-                                                [1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)
-                                            ) : filteredContacts && filteredContacts.length > 0 ? (
-                                                <>
-                                                    {filteredContacts.slice(0, displayLimit).map((contact) => (
-                                                        <div key={contact.id} className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded-md">
-                                                            <Checkbox
-                                                                id={contact.id}
-                                                                checked={selectedContacts.includes(contact.number)}
-                                                                onCheckedChange={(checked) => handleContactToggle(contact.number, checked as boolean)}
-                                                            />
-                                                            <Label htmlFor={contact.id} className="flex-1 cursor-pointer text-sm">
-                                                                {contact.name}
-                                                                <span className="block text-xs text-muted-foreground">{contact.number}</span>
-                                                            </Label>
-                                                            {contact.isGroup && <Badge variant="secondary">Grupo</Badge>}
-                                                        </div>
-                                                    ))}
-                                                    {filteredContacts.length > displayLimit && (
-                                                        <Button variant="ghost" size="sm" onClick={() => setDisplayLimit(prev => prev + 50)} className="w-full">
-                                                            Carregar mais ({filteredContacts.length - displayLimit} restantes)
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <div className="text-center py-8 text-muted-foreground">
-                                                    {selectedDevice ? "Nenhum contato encontrado" : "Selecione um dispositivo"}
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-                                </>
-                            )}
-                        </div>
+                                </div>
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => { setIsCreateDialogOpen(false); resetForm(); }}>
-                                Cancelar
-                            </Button>
-                            <Button
-                                onClick={handleCreateBroadcast}
-                                disabled={createBroadcastMutation.isPending || !broadcastName || !selectedDevice || !message || selectedContacts.length === 0}
-                            >
-                                {createBroadcastMutation.isPending ? "Criando..." : "Criar Disparo"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-sm font-semibold">Mensagem</Label>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                            onClick={() => setIsAIDialogOpen(true)}
+                                        >
+                                            <Sparkles className="w-4 h-4 mr-1" />
+                                            Gerar com IA
+                                        </Button>
+                                    </div>
+                                    <Textarea 
+                                        placeholder="Olá {nome}, temos uma novidade..." 
+                                        value={message}
+                                        onChange={e => setMessage(e.target.value)}
+                                        className="min-h-[120px] resize-none focus:ring-purple-500"
+                                    />
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Use {"{nome}"} para personalizar com o nome do contato.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-sm font-semibold">Destinatários ({selectedContacts.length})</Label>
+                                        <div className="relative w-48">
+                                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input 
+                                                placeholder="Buscar..." 
+                                                value={searchTerm}
+                                                onChange={e => setSearchTerm(e.target.value)}
+                                                className="pl-8 h-9 text-xs"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="border rounded-xl p-0 overflow-hidden bg-muted/5">
+                                        <div className="flex items-center gap-2 p-3 bg-muted/20 border-b">
+                                            <Checkbox 
+                                                checked={selectAll} 
+                                                onCheckedChange={(v) => {
+                                                    setSelectAll(!!v);
+                                                    if (v && filteredContacts) {
+                                                        setSelectedContacts(filteredContacts.map(c => c.number));
+                                                    } else {
+                                                        setSelectedContacts([]);
+                                                    }
+                                                }}
+                                            />
+                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selecionar Todos</span>
+                                        </div>
+                                        <div className="h-48 overflow-y-auto px-1 py-1 premium-scrollbar">
+                                            {loadingContacts ? (
+                                                <div className="p-4 space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+                                            ) : filteredContacts?.map(c => (
+                                                <div key={c.id} className="flex items-center gap-3 p-2 hover:bg-muted/30 rounded-lg transition-colors group">
+                                                    <Checkbox 
+                                                        checked={selectedContacts.includes(c.number)}
+                                                        onCheckedChange={(v) => {
+                                                            if (v) setSelectedContacts(prev => [...prev, c.number]);
+                                                            else setSelectedContacts(prev => prev.filter(n => n !== c.number));
+                                                        }}
+                                                    />
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium">{c.name}</p>
+                                                        <p className="text-[10px] text-muted-foreground">{c.number}</p>
+                                                    </div>
+                                                    {c.isGroup && <Badge variant="outline" className="text-[9px]">Grupo</Badge>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <DialogFooter className="bg-muted/10 -mx-6 -mb-6 p-6 border-t">
+                                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
+                                <Button 
+                                    onClick={handleCreateBroadcast}
+                                    disabled={createBroadcastMutation.isPending}
+                                    className="bg-primary hover:bg-primary/90"
+                                >
+                                    {createBroadcastMutation.isPending ? "Criando..." : "Finalizar e Criar"}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
-            {/* AI Dialog */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {loadingBroadcasts ? (
+                    [1, 2, 3].map(i => <Card key={i}><CardContent className="h-48"><Skeleton className="h-full w-full" /></CardContent></Card>)
+                ) : broadcasts?.map(b => {
+                    const info = getStatusInfo(b.status);
+                    const progress = b.totalContacts > 0 ? (b.sentCount / b.totalContacts) * 100 : 0;
+                    
+                    return (
+                        <Card key={b.id} className="group hover:shadow-xl transition-all duration-300 border-muted/40 overflow-hidden">
+                            <div className={cn("h-1.5 w-full", b.status === 'running' ? "bg-blue-500 animate-pulse" : info.color.replace('text', 'bg'))} />
+                            <CardHeader className="pb-2">
+                                <div className="flex justify-between items-start">
+                                    <Badge variant="outline" className={cn("flex items-center gap-1.5", info.color, info.bg, "border-transparent px-2 py-0.5")}>
+                                        {info.icon} {info.label}
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground">{new Date(b.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <CardTitle className="text-xl font-bold mt-3 group-hover:text-primary transition-colors">{b.name}</CardTitle>
+                                <p className="text-xs text-muted-foreground line-clamp-1">{b.message}</p>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[11px] font-medium">
+                                        <span>Progresso de Envio</span>
+                                        <span>{b.sentCount} / {b.totalContacts}</span>
+                                    </div>
+                                    <Progress value={progress} className="h-1.5" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-center py-2 bg-muted/20 rounded-xl">
+                                    <div>
+                                        <p className="text-lg font-black text-green-500">{b.sentCount}</p>
+                                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Sucesso</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black text-red-500">{b.failedCount}</p>
+                                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Falhas</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {b.status === 'pending' || b.status === 'paused' ? (
+                                        <Button variant="default" size="sm" className="flex-1" onClick={() => startBroadcastMutation.mutate(b.id)}>
+                                            <Play className="w-4 h-4 mr-2" /> Iniciar
+                                        </Button>
+                                    ) : b.status === 'running' ? (
+                                        <Button variant="outline" size="sm" className="flex-1" onClick={() => pauseBroadcastMutation.mutate(b.id)}>
+                                            <Pause className="w-4 h-4 mr-2" /> Pausar
+                                        </Button>
+                                    ) : null}
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-red-50" onClick={() => deleteBroadcastMutation.mutate(b.id)}>
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
+
+            {/* AI Generator Dialog */}
             <Dialog open={isAIDialogOpen} onOpenChange={setIsAIDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-primary" />
-                            Gerar Mensagem com IA
+                            <Sparkles className="w-5 h-5 text-purple-500" />
+                            Redator Inteligente
                         </DialogTitle>
+                        <DialogDescription>Use a inteligência artificial para criar mensagens persuasivas.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Contexto (Opcional)</Label>
-                            <Textarea
-                                placeholder="Ex: Lista de produtos..."
-                                value={aiContext}
-                                onChange={(e) => setAiContext(e.target.value)}
-                                rows={3}
+                            <Label className="text-xs font-bold uppercase">Objetivo da Campanha</Label>
+                            <Textarea 
+                                placeholder="Ex: Aviso de feriado e promoção de pizza brotinho..."
+                                value={aiPrompt}
+                                onChange={e => setAIPrompt(e.target.value)}
+                                className="h-24"
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Instrução</Label>
-                            <Textarea
-                                placeholder="Ex: Crie uma mensagem de oferta"
-                                value={aiPrompt}
-                                onChange={(e) => setAIPrompt(e.target.value)}
-                                rows={3}
+                            <Label className="text-xs font-bold uppercase">Contexto Extra (Preços, Datas)</Label>
+                            <Textarea 
+                                placeholder="Opcional. Ex: Válido apenas para hoje, 5 de Abril."
+                                value={aiContext}
+                                onChange={e => setAiContext(e.target.value)}
+                                className="h-20"
                             />
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAIDialogOpen(false)}>Cancelar</Button>
-                        <Button
+                        <Button 
+                            className="bg-purple-600 hover:bg-purple-700"
                             onClick={() => generateAIMutation.mutate(aiPrompt)}
                             disabled={generateAIMutation.isPending || !aiPrompt}
                         >
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            {generateAIMutation.isPending ? "Gerando..." : "Gerar"}
+                            {generateAIMutation.isPending ? "Processando..." : "Gerar Mensagem ✨"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            {/* Broadcasts List */}
-            {loadingBroadcasts ? (
-                <div className="space-y-4">
-                    {[1, 2].map(i => <Card key={i}><Skeleton className="h-40 w-full" /></Card>)}
-                </div>
-            ) : broadcasts && broadcasts.length > 0 ? (
-                <div className="space-y-4">
-                    {selectedBroadcasts.length > 0 && (
-                        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                            <span className="text-sm text-muted-foreground">
-                                {selectedBroadcasts.length} disparo(s) selecionado(s)
-                            </span>
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => massDeleteMutation.mutate(selectedBroadcasts)}
-                                disabled={massDeleteMutation.isPending}
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Excluir Selecionados
-                            </Button>
-                        </div>
-                    )}
-
-                    {broadcasts.map((broadcast) => {
-                        const statusInfo = getStatusBadge(broadcast.status);
-                        const progress = broadcast.totalContacts > 0 ? Math.round((broadcast.sentCount / broadcast.totalContacts) * 100) : 0;
-                        const isSelected = selectedBroadcasts.includes(broadcast.id);
-
-                        return (
-                            <Card key={broadcast.id} className={isSelected ? "border-primary" : ""}>
-                                <CardHeader>
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <Checkbox
-                                                checked={isSelected}
-                                                onCheckedChange={(checked) => handleToggleSelect(broadcast.id, checked as boolean)}
-                                            />
-                                            <CardTitle className="text-xl">{broadcast.name}</CardTitle>
-                                            <Badge variant={statusInfo.variant as any}>
-                                                {statusInfo.icon && <statusInfo.icon className="w-3 h-3 mr-1" />}
-                                                {statusInfo.label}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="bg-muted p-3 rounded-md">
-                                        <p className="text-sm whitespace-pre-wrap">{broadcast.message}</p>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-muted-foreground">Progresso</span>
-                                            <span className="font-medium">{broadcast.sentCount} / {broadcast.totalContacts}</span>
-                                        </div>
-                                        <Progress value={progress} className="h-2" />
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-4 text-center">
-                                        <div>
-                                            <p className="text-2xl font-bold text-primary">{broadcast.totalContacts}</p>
-                                            <p className="text-xs text-muted-foreground">Total</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-2xl font-bold text-green-500">{broadcast.sentCount}</p>
-                                            <p className="text-xs text-muted-foreground">Enviadas</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-2xl font-bold text-destructive">{broadcast.failedCount}</p>
-                                            <p className="text-xs text-muted-foreground">Falhas</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                        {broadcast.status === 'pending' && (
-                                            <Button size="sm" onClick={() => startBroadcastMutation.mutate(broadcast.id)}>
-                                                <Play className="w-4 h-4 mr-2" />Iniciar
-                                            </Button>
-                                        )}
-                                        {((broadcast.status === 'scheduled' || broadcast.status === 'pending') && broadcast.scheduledFor) && (
-                                            <div className="text-sm text-muted-foreground flex items-center">
-                                                <Clock className="w-4 h-4 mr-1" />
-                                                Agendado para: {new Date(broadcast.scheduledFor).toLocaleString()}
-                                            </div>
-                                        )}
-                                        {broadcast.status === 'running' && (
-                                            <Button variant="outline" size="sm" onClick={() => pauseBroadcastMutation.mutate(broadcast.id)}>
-                                                <Pause className="w-4 h-4 mr-2" />Pausar
-                                            </Button>
-                                        )}
-                                        <Button variant="outline" size="sm" onClick={() => {
-                                            resetForm();
-                                            setBroadcastName(`${broadcast.name} (Reenvio)`);
-                                            setMessage(broadcast.message);
-                                            setSelectedDevice(broadcast.deviceId);
-                                            // Load media URLs from original broadcast
-                                            if (broadcast.mediaUrls) {
-                                                try {
-                                                    const urls = Array.isArray(broadcast.mediaUrls)
-                                                        ? broadcast.mediaUrls
-                                                        : JSON.parse(broadcast.mediaUrls);
-                                                    setMediaUrls(urls.filter((u: string) => u));
-                                                    if (urls.length > 0) {
-                                                        setMediaType(urls[0]?.includes('video') ? 'video' : 'image');
-                                                    }
-                                                } catch {
-                                                    if (typeof broadcast.mediaUrls === 'string' && broadcast.mediaUrls) {
-                                                        setMediaUrls([broadcast.mediaUrls]);
-                                                        setMediaType('image');
-                                                    }
-                                                }
-                                            }
-                                            setIsCreateDialogOpen(true);
-                                        }}>
-                                            <Copy className="w-4 h-4 mr-2" />Reenviar
-                                        </Button>
-                                        <Button variant="destructive" size="sm" onClick={() => deleteBroadcastMutation.mutate(broadcast.id)} disabled={broadcast.status === 'running'}>
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
-            ) : (
-                <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-16">
-                        <Send className="w-16 h-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Nenhum disparo criado</h3>
-                        <p className="text-sm text-muted-foreground text-center mb-6">Crie seu primeiro disparo para enviar mensagens</p>
-                        <Button onClick={() => setIsCreateDialogOpen(true)}>
-                            <Send className="w-4 h-4 mr-2" />Criar Disparo
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
         </div>
     );
 }

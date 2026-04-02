@@ -17,7 +17,8 @@ export const queryClient = new QueryClient({
 export async function apiRequest(
     methodOrUrl: string,
     urlOrOptions?: string | RequestInit,
-    body?: any
+    body?: any,
+    extraOptions: RequestInit = {}
 ): Promise<any> {
     // In production (non-localhost), use relative path through Nginx proxy
     // In development (localhost), use direct connection to WhatsApp server
@@ -27,7 +28,7 @@ export async function apiRequest(
         : (import.meta.env.VITE_WHATSAPP_SERVER_URL || 'http://localhost:3088');
 
     let url: string;
-    let options: RequestInit = {};
+    let options: RequestInit = { ...extraOptions };
 
     // Detect which format is being used
     if (typeof urlOrOptions === 'string') {
@@ -40,15 +41,15 @@ export async function apiRequest(
     } else {
         // 2-argument format: apiRequest(url, options)
         url = methodOrUrl;
-        options = urlOrOptions || {};
+        options = { ...options, ...(urlOrOptions || {}) };
     }
 
     const response = await fetch(`${baseUrl}${url}`, {
+        ...options,
         headers: {
             'Content-Type': 'application/json',
             ...options.headers,
         },
-        ...options,
     });
 
     if (!response.ok) {

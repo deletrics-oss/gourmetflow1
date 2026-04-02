@@ -10,25 +10,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function LogicEditPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { restaurantId } = useRestaurant();
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [logicType, setLogicType] = useState<'json' | 'ai' | 'hybrid' | 'ai_scheduling'>('json');
     const [logicJsonStr, setLogicJsonStr] = useState("{}");
     const [aiPrompt, setAiPrompt] = useState("");
+    const [knowledgeBase, setKnowledgeBase] = useState("");
     const [jsonError, setJsonError] = useState<string | null>(null);
     const [isSystemIntegrated, setIsSystemIntegrated] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Fetch existing logic
     const { data: logic, isLoading } = useQuery({
-        queryKey: [`/api/logics/${id}`],
-        queryFn: () => apiRequest("GET", `/api/logics/${id}`),
+        queryKey: [`/api/logics/${id}`, restaurantId],
+        queryFn: () => apiRequest("GET", `/api/logics/${id}`, undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
+        enabled: !!id && !!restaurantId,
     });
 
     useEffect(() => {
@@ -37,6 +41,7 @@ export default function LogicEditPage() {
             setDescription(logic.description || "");
             setLogicType(logic.logicType);
             setAiPrompt(logic.aiPrompt || "");
+            setKnowledgeBase(logic.knowledgeBase || "");
 
             try {
                 const parsed = typeof logic.logicJson === 'string'
@@ -53,7 +58,7 @@ export default function LogicEditPage() {
     // Update Mutation
     const updateLogicMutation = useMutation({
         mutationFn: async (data: any) => {
-            return await apiRequest("PATCH", `/api/logics/${id}`, data);
+            return await apiRequest("PATCH", `/api/logics/${id}`, { ...data, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/logics'] });
@@ -71,8 +76,11 @@ export default function LogicEditPage() {
         try {
             const response = await fetch('/api/logics/generate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description, logicType })
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-restaurant-id': restaurantId || ''
+                },
+                body: JSON.stringify({ description, logicType, restaurantId })
             });
 
             if (!response.ok) {
@@ -123,6 +131,7 @@ export default function LogicEditPage() {
             logicType,
             logicJson: parsedJson,
             aiPrompt,
+            knowledgeBase,
             isSystemIntegrated: isSystemIntegrated ? 1 : 0,
         });
     };
@@ -277,6 +286,19 @@ export default function LogicEditPage() {
                                     placeholder="Você é um assistente..."
                                 />
                                 <p className="text-sm text-muted-foreground">Instruções para o comportamento da IA.</p>
+                            </div>
+                        )}
+
+                        {(logicType === 'ai' || logicType === 'hybrid') && (
+                            <div className="space-y-2">
+                                <Label>Base de Conhecimento (Contexto extra)</Label>
+                                <Textarea
+                                    value={knowledgeBase}
+                                    onChange={e => setKnowledgeBase(e.target.value)}
+                                    className="min-h-[150px]"
+                                    placeholder="Adicione informações que não estão no cardápio..."
+                                />
+                                <p className="text-sm text-muted-foreground">Isso ajuda a IA a responder perguntas específicas sobre o negócio.</p>
                             </div>
                         )}
 

@@ -12,30 +12,34 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 export default function LogicsPage() {
     const [searchParams] = useSearchParams();
     const typeFilter = searchParams.get('type');
+    const { restaurantId } = useRestaurant();
 
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newLogicName, setNewLogicName] = useState("");
     const [newLogicDescription, setNewLogicDescription] = useState("");
     const [newLogicType, setNewLogicType] = useState<'json' | 'ai' | 'hybrid' | 'ai_scheduling'>('json');
     const [aiPrompt, setAiPrompt] = useState("");
+    const [knowledgeBase, setKnowledgeBase] = useState(""); // Adicionado
     const [uploadedJson, setUploadedJson] = useState<any>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const { toast } = useToast();
 
     const { data: logics, isLoading } = useQuery<any[]>({
-        queryKey: ['/api/logics'],
-        queryFn: () => apiRequest('GET', '/api/logics'),
+        queryKey: ['/api/logics', restaurantId],
+        queryFn: () => apiRequest('GET', '/api/logics', undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
+        enabled: !!restaurantId,
     });
 
     const createLogicMutation = useMutation({
-        mutationFn: async (data: { name: string; description: string; logicJson: any; logicType: 'json' | 'ai' | 'hybrid' | 'ai_scheduling'; aiPrompt?: string }) => {
-            return await apiRequest("POST", "/api/logics", data);
+        mutationFn: async (data: { name: string; description: string; logicJson: any; logicType: 'json' | 'ai' | 'hybrid' | 'ai_scheduling'; aiPrompt?: string; knowledgeBase?: string }) => {
+            return await apiRequest("POST", "/api/logics", { ...data, restaurantId });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/logics'] });
@@ -54,7 +58,7 @@ export default function LogicsPage() {
 
     const deleteLogicMutation = useMutation({
         mutationFn: async (id: string) => {
-            return await apiRequest("DELETE", `/api/logics/${id}`, {});
+            return await apiRequest("DELETE", `/api/logics/${id}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/logics'] });
@@ -69,7 +73,7 @@ export default function LogicsPage() {
     const bulkDeleteMutation = useMutation({
         mutationFn: async (ids: string[]) => {
             for (const id of ids) {
-                await apiRequest("DELETE", `/api/logics/${id}`, {});
+                await apiRequest("DELETE", `/api/logics/${id}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } });
             }
         },
         onSuccess: () => {
@@ -89,7 +93,9 @@ export default function LogicsPage() {
                 description: logic.description,
                 logicType: logic.logicType,
                 logicJson: logic.logicJson,
-                aiPrompt: logic.aiPrompt
+                aiPrompt: logic.aiPrompt,
+                knowledgeBase: logic.knowledgeBase,
+                restaurantId: restaurantId
             };
             return await apiRequest("POST", "/api/logics", cloneData);
         },
@@ -121,6 +127,7 @@ export default function LogicsPage() {
         setNewLogicDescription("");
         setNewLogicType('json');
         setAiPrompt("");
+        setKnowledgeBase("");
         setUploadedJson(null);
     };
 
@@ -383,6 +390,22 @@ DIRETRIZES DE APRENDIZADO (PADRÃO):
                                         />
                                     </div>
                                 )}
+
+                                {(newLogicType === 'ai' || newLogicType === 'hybrid') && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="knowledge-base">Base de Conhecimento (Contexto)</Label>
+                                        <Textarea
+                                            id="knowledge-base"
+                                            placeholder="Adicione informações extras sobre o restaurante, horários de pico, promoções especiais, etc..."
+                                            value={knowledgeBase}
+                                            onChange={(e) => setKnowledgeBase(e.target.value)}
+                                            rows={4}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            💡 Isso ajudará a IA a responder perguntas específicas que não estão no cardápio.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             <DialogFooter>
@@ -396,6 +419,7 @@ DIRETRIZES DE APRENDIZADO (PADRÃO):
                                         logicJson: uploadedJson || {},
                                         logicType: newLogicType,
                                         aiPrompt: (newLogicType === 'ai' || newLogicType === 'hybrid' || newLogicType === 'ai_scheduling') ? aiPrompt : undefined,
+                                        knowledgeBase: (newLogicType === 'ai' || newLogicType === 'hybrid') ? knowledgeBase : undefined,
                                     })}
                                     disabled={!newLogicName || createLogicMutation.isPending}
                                 >

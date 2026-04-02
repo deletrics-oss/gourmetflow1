@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface Device {
   id: string;
@@ -27,16 +28,18 @@ function DevicesPageComponent() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState("");
   const { toast } = useToast();
+  const { restaurantId } = useRestaurant();
 
   const { data: devices = [], isLoading, isRefetching, refetch } = useQuery<Device[]>({
-    queryKey: ['/api/devices'],
-    queryFn: () => apiRequest('GET', '/api/devices'),
+    queryKey: ['/api/devices', restaurantId],
+    queryFn: () => apiRequest('GET', '/api/devices', undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     refetchInterval: 15000,
+    enabled: !!restaurantId,
   });
 
 
   const addDeviceMutation = useMutation({
-    mutationFn: (name: string) => apiRequest('POST', '/api/devices', { name }),
+    mutationFn: (name: string) => apiRequest('POST', '/api/devices', { name, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
       setIsAddDialogOpen(false);
@@ -49,7 +52,7 @@ function DevicesPageComponent() {
   });
 
   const deleteDeviceMutation = useMutation({
-    mutationFn: (deviceId: string) => apiRequest('DELETE', `/api/devices/${deviceId}`),
+    mutationFn: (deviceId: string) => apiRequest('DELETE', `/api/devices/${deviceId}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
       toast({ title: "Dispositivo removido" });
@@ -60,7 +63,7 @@ function DevicesPageComponent() {
   });
 
   const reconnectMutation = useMutation({
-    mutationFn: (deviceId: string) => apiRequest('POST', `/api/whatsapp/reconnect/${deviceId}`, {}),
+    mutationFn: (deviceId: string) => apiRequest('POST', `/api/whatsapp/reconnect/${deviceId}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
       toast({ title: "Reconectando...", description: "Tentando restaurar sessão" });
@@ -68,7 +71,7 @@ function DevicesPageComponent() {
   });
 
   const clearSessionMutation = useMutation({
-    mutationFn: (deviceId: string) => apiRequest('POST', `/api/whatsapp/reconnect/${deviceId}`, { forceReset: true }),
+    mutationFn: (deviceId: string) => apiRequest('POST', `/api/whatsapp/reconnect/${deviceId}`, { forceReset: true, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
       toast({ title: "Sessão limpa!", description: "Escaneie o novo QR Code" });
@@ -79,13 +82,14 @@ function DevicesPageComponent() {
   });
 
   const { data: logics } = useQuery<any[]>({
-    queryKey: ['/api/logics'],
-    queryFn: () => apiRequest('GET', '/api/logics'),
+    queryKey: ['/api/logics', restaurantId],
+    queryFn: () => apiRequest('GET', '/api/logics', undefined, { headers: { 'x-restaurant-id': restaurantId || '' } }),
+    enabled: !!restaurantId,
   });
 
   const updateLogicMutation = useMutation({
     mutationFn: ({ deviceId, logicId }: { deviceId: string; logicId: string }) =>
-      apiRequest('PATCH', `/api/devices/${deviceId}/logic`, { logicId }),
+      apiRequest('PATCH', `/api/devices/${deviceId}/logic`, { logicId, restaurantId }, { headers: { 'x-restaurant-id': restaurantId || '' } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
       toast({ title: "Lógica atualizada!", description: "Bot configurado com sucesso" });

@@ -366,10 +366,237 @@ app.get('/api/logics', async (req, res) => {
         res.json((data || []).map(l => ({
             id: l.id, name: l.name, description: l.description,
             logicType: l.logic_type, logicJson: l.logic_json,
-            aiPrompt: l.ai_prompt, isActive: l.is_active,
+            aiPrompt: l.ai_prompt, 
+            knowledgeBase: l.knowledge_base, // Adicionado knowledgeBase
+            isActive: l.is_active,
         })));
     } catch (err) {
         res.json([]);
+    }
+});
+
+// POST /api/logics
+app.post('/api/logics', async (req, res) => {
+    try {
+        const restaurantId = getRestaurantId(req);
+        const { name, description, logicType, logicJson, aiPrompt, knowledgeBase } = req.body;
+        
+        const { data, error } = await supabase.from('whatsapp_logic_configs').insert({
+            restaurant_id: restaurantId,
+            name,
+            description,
+            logic_type: logicType,
+            logic_json: logicJson,
+            ai_prompt: aiPrompt,
+            knowledge_base: knowledgeBase,
+            is_active: true
+        }).select().single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error('[POST /api/logics] ERRO:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PATCH /api/logics/:id
+app.patch('/api/logics/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, logicType, logicJson, aiPrompt, knowledgeBase, isActive } = req.body;
+        
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (description !== undefined) updates.description = description;
+        if (logicType !== undefined) updates.logic_type = logicType;
+        if (logicJson !== undefined) updates.logic_json = logicJson;
+        if (aiPrompt !== undefined) updates.ai_prompt = aiPrompt;
+        if (knowledgeBase !== undefined) updates.knowledge_base = knowledgeBase;
+        if (isActive !== undefined) updates.is_active = isActive;
+
+        const { data, error } = await supabase.from('whatsapp_logic_configs')
+            .update(updates).eq('id', id).select().single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error('[PATCH /api/logics/:id] ERRO:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/logics/:id
+app.delete('/api/logics/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { error } = await supabase.from('whatsapp_logic_configs').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[DELETE /api/logics/:id] ERRO:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================
+// API: BROADCASTS (Disparo em Massa)
+// ============================================
+const activeBroadcasts = new Set();
+
+async function processBroadcast(broadcastId) {
+    if (activeBroadcasts.has(broadcastId)) return;
+    activeBroadcasts.add(broadcastId);
+
+    try {
+        console.log(`[BROADCAST] Iniciando processamento do ID: ${broadcastId}`);
+        
+        while (activeBroadcasts.has(broadcastId)) {
+            // 1. Pegar próximo contato pendente
+            const { data: contacts, error: contactError } = await supabase
+                .from('whatsapp_broadcast_contacts')
+                .select('*')
+                .eq('broadcast_id', broadcastId)
+                .eq('status', 'pending')
+                .limit(1);
+
+            if (contactError || !contacts || contacts.length === 0) {
+                console.log(`[BROADCAST] Fim do processamento para ID: ${broadcastId}`);
+                await supabase.from('whatsapp_broadcasts').update({ status: 'completed' }).eq('id', broadcastId);
+                activeBroadcasts.delete(broadcastId);
+                break;
+            }
+
+            const contact = contacts[0];
+            const { data: broadcast } = await supabase.from('whatsapp_broadcasts').select('*').eq('id', broadcastId).single();
+
+            if (!broadcast || broadcast.status === 'paused') {
+                activeBroadcasts.delete(broadcastId);
+                break;
+            }
+
+            try {
+                // 2. Enviar mensagem via Evolution API
+                const evolutionUrl = process.env.EVOLUTION_API_URL;
+                const apiKey = process.env.EVOLUTION_API_KEY;
+                const instance = broadcast.device_id; // Assumindo que deviceId é o nome da instância
+
+                const payload = {
+                    number: contact.phone,
+                    text: broadcast.message
+                };
+
+                const response = await fetch(`${evolutionUrl}/message/sendText/${instance}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': apiKey
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    await supabase.from('whatsapp_broadcast_contacts').update({ status: 'sent', sent_at: new Date() }).eq('id', contact.id);
+                    await supabase.rpc('increment_broadcast_sent', { b_id: broadcastId });
+                } else {
+                    throw new Error(await response.text());
+                }
+            } catch (err) {
+                console.error(`[BROADCAST] Erro ao enviar para ${contact.phone}:`, err.message);
+                await supabase.from('whatsapp_broadcast_contacts').update({ status: 'failed', error: err.message }).eq('id', contact.id);
+                await supabase.rpc('increment_broadcast_failed', { b_id: broadcastId });
+            }
+
+            // 3. Aguardar delay
+            await new Promise(resolve => setTimeout(resolve, (broadcast.delay || 20) * 1000));
+        }
+    } catch (err) {
+        console.error(`[BROADCAST FATAL] Erro no loop:`, err.message);
+    } finally {
+        activeBroadcasts.delete(broadcastId);
+    }
+}
+
+app.get('/api/broadcasts', async (req, res) => {
+    try {
+        const restaurantId = getRestaurantId(req);
+        const { data, error } = await supabase.from('whatsapp_broadcasts')
+            .select('*').eq('restaurant_id', restaurantId).order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json(data.map(b => ({
+            id: b.id, name: b.name, message: b.message, status: b.status,
+            totalContacts: b.total_contacts, sentCount: b.sent_count, failedCount: b.failed_count,
+            deviceId: b.device_id, delay: b.delay, created_at: b.created_at
+        })));
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+app.post('/api/broadcasts', async (req, res) => {
+    try {
+        const restaurantId = getRestaurantId(req);
+        const { name, deviceId, message, contacts, delay, scheduledFor, mediaUrls } = req.body;
+
+        const { data: broadcast, error } = await supabase.from('whatsapp_broadcasts').insert({
+            restaurant_id: restaurantId,
+            name,
+            device_id: deviceId,
+            message,
+            total_contacts: contacts.length,
+            delay: delay || 20,
+            status: scheduledFor ? 'scheduled' : 'pending',
+            scheduled_for: scheduledFor,
+            media_urls: mediaUrls
+        }).select().single();
+
+        if (error) throw error;
+
+        const contactsPayload = contacts.map(c => ({
+            broadcast_id: broadcast.id,
+            phone: c.phone,
+            name: c.name,
+            status: 'pending'
+        }));
+
+        await supabase.from('whatsapp_broadcast_contacts').insert(contactsPayload);
+
+        res.json(broadcast);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/broadcasts/:id/start', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await supabase.from('whatsapp_broadcasts').update({ status: 'running' }).eq('id', id);
+        processBroadcast(id); // Inicia o loop em background
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/broadcasts/:id/pause', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await supabase.from('whatsapp_broadcasts').update({ status: 'paused' }).eq('id', id);
+        activeBroadcasts.delete(id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/broadcasts/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await supabase.from('whatsapp_broadcast_contacts').delete().eq('broadcast_id', id);
+        await supabase.from('whatsapp_broadcasts').delete().eq('id', id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -621,18 +848,47 @@ async function generateBotResponse(message, logic, restaurantId) {
             }
         }
 
-        // AI response (Gemini)
-        if ((logic.logic_type === 'ai' || logic.logic_type === 'hybrid') && GEMINI_API_KEY) {
-            let systemPrompt = logic.ai_prompt || 'Você é um assistente de restaurante.';
-
-            // Inject restaurant menu into AI context
+        // AI response (Gemini) — SDR MODE
+        if ((logic.logic_type === 'ai' || logic.logic_type === 'hybrid' || logic.logic_type === 'ai_scheduling') && GEMINI_API_KEY) {
+            let systemPrompt = logic.ai_prompt || 'Você é um assistente profissional de atendimento de um restaurante.';
+            
+            const restaurantContext = [];
+            
+            // 1. Restaurant Info
             if (restaurantId) {
-                const menu = await getRestaurantMenu(restaurantId);
                 const { data: restaurant } = await supabase.from('restaurants')
                     .select('name, phone, address').eq('id', restaurantId).single();
-
-                systemPrompt += `\n\nINFORMAÇÕES DO RESTAURANTE:\nNome: ${restaurant?.name || 'Restaurante'}\nTelefone: ${restaurant?.phone || ''}\nEndereço: ${restaurant?.address || ''}\n\nCARDÁPIO COMPLETO:\n${menu}`;
+                
+                if (restaurant) {
+                    restaurantContext.push(`NOME DO RESTAURANTE: ${restaurant.name}`);
+                    restaurantContext.push(`ENDEREÇO: ${restaurant.address || 'Não informado'}`);
+                    restaurantContext.push(`TELEFONE/CONTATO: ${restaurant.phone || 'Não informado'}`);
+                }
+                
+                // 2. Menu Info
+                const menu = await getRestaurantMenu(restaurantId);
+                restaurantContext.push(`\nCARDÁPIO ATUALIZADO:\n${menu}`);
             }
+
+            // 3. Knowledge Base Info
+            if (logic.knowledge_base) {
+                restaurantContext.push(`\nINFORMAÇÕES ADICIONAIS / FAQ:\n${logic.knowledge_base}`);
+            }
+
+            // 4. Personalidade SDR (Sales Development Representative)
+            const sdrInstructions = `
+# INSTRUÇÕES DE PERSONA (SDR):
+- Você é o melhor atendente do restaurante. Seu objetivo é ser extremamente educado, prestativo e focar em converter a conversa em um pedido ou reserva.
+- Nunca diga que é uma inteligência artificial ou um "modelo de linguagem". Se pergutarem, você é um assistente humano do atendimento digital.
+- Responda de forma natural, curta e direta, como se estivesse no WhatsApp. Use emojis moderadamente.
+- Se o cliente perguntar algo que não está no Cardápio ou na Base de Conhecimento, peça educadamente para aguardar que um colega humano irá assumir.
+- Tente fechar a venda: se o cliente gostar de algo, pergunte se quer adicionar ao carrinho ou reservar uma mesa.
+
+# CONTEXTO DO MOMENTO:
+- Data/Hora Atual: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+`;
+
+            const fullPrompt = `${systemPrompt}\n\n${restaurantContext.join('\n')}\n\n${sdrInstructions}`;
 
             const resp = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -641,11 +897,11 @@ async function generateBotResponse(message, logic, restaurantId) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [
-                            { role: 'user', parts: [{ text: systemPrompt }] },
-                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto para atender.' }] },
+                            { role: 'user', parts: [{ text: fullPrompt }] },
+                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto para atuar como o melhor atendente SDR do restaurante. Vou usar as informações do cardápio e base de conhecimento para converter os clientes com excelência.' }] },
                             { role: 'user', parts: [{ text: message }] }
                         ],
-                        generationConfig: { maxOutputTokens: 512, temperature: 0.7 }
+                        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
                     })
                 }
             );
@@ -671,7 +927,7 @@ async function getRestaurantMenu(restaurantId) {
         let menu = '';
         for (const cat of categories) {
             const { data: products } = await supabase
-                .from('products')
+                .from('menu_items')
                 .select('name, description, price, is_available')
                 .eq('category_id', cat.id)
                 .eq('is_available', true)

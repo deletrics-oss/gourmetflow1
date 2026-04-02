@@ -45,7 +45,7 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
     // Fetch devices from the WhatsApp server API (which syncs with Supabase)
     const fetchDevices = useCallback(async () => {
         try {
-            const data = await apiRequest('GET', `/api/devices?restaurantId=${restaurantId}`);
+            const data = await apiRequest('GET', `/api/devices?restaurantId=${restaurantId}`, undefined, { headers: { 'x-restaurant-id': restaurantId || '' } });
             setDevices(Array.isArray(data) ? data : []);
         } catch { setDevices([]); }
         setLoading(false);
@@ -81,7 +81,7 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
             const data = await apiRequest('POST', '/api/devices', {
                 name: instanceName,
                 restaurantId,
-            });
+            }, { headers: { 'x-restaurant-id': restaurantId || '' } });
             setNewName("");
             toast({ title: "Dispositivo criado! 📱", description: "Aguardando QR Code..." });
             if (data.qrCode) {
@@ -97,7 +97,7 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
     const getQRCode = async (device: Device) => {
         setQrLoading(device.id);
         try {
-            const data = await apiRequest('POST', `/api/devices/${device.id}`, {});
+            const data = await apiRequest('POST', `/api/devices/${device.id}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } });
             const qr = data.qrCode || data.qrcode || data.base64;
             if (qr) {
                 setQrModal({ id: device.id, name: device.name, qrCode: qr });
@@ -112,7 +112,7 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
     const deleteDevice = async (id: string) => {
         if (!confirm("Deseja realmente excluir este dispositivo?")) return;
         try {
-            await apiRequest('DELETE', `/api/devices/${id}`);
+            await apiRequest('DELETE', `/api/devices/${id}`, {}, { headers: { 'x-restaurant-id': restaurantId || '' } });
             setDevices(prev => prev.filter(d => d.id !== id));
             if (qrModal?.id === id) setQrModal(null);
             toast({ title: "Dispositivo removido" });
@@ -129,7 +129,8 @@ export function EvolutionManager({ restaurantId }: { restaurantId: string }) {
             // Also notify the server
             await apiRequest('PATCH', `/api/devices/${deviceId}`, {
                 logicId: logicId === 'none' ? null : logicId,
-            });
+                restaurantId
+            }, { headers: { 'x-restaurant-id': restaurantId || '' } });
 
             fetchDevices();
             toast({ title: "Lógica atualizada! 🤖" });
