@@ -45,20 +45,25 @@ async function evoFetch(endpoint, options = {}) {
     }
 }
 
-function mapStatus(state) {
-    if (!state) return 'disconnected';
-    const s = (state.state || state.status || state || '').toString().toLowerCase();
-    if (s === 'open' || s === 'connected') return 'connected';
-    if (s === 'connecting') return 'connecting';
-    return 'disconnected';
-}
+// ============================================
+// HELPER: map Evo Status
+// ============================================
+const mapStatus = (evoStatus) => {
+    const s = String(evoStatus).toLowerCase();
+    if (s.includes('open') || s.includes('connected')) return 'connected';
+    if (s.includes('qr') || s.includes('waiting')) return 'qr_ready';
+    if (s.includes('close') || s.includes('disconnect')) return 'disconnected';
+    return 'connecting';
+};
 
 // ============================================
 // HELPER: get restaurant_id (from header, query, body, or env)
 // ============================================
-function getRestaurantId(req) {
-    return req.query?.restaurantId || req.body?.restaurantId || req.headers?.['x-restaurant-id'] || RESTAURANT_ID;
-}
+const getRestaurantId = (req) => {
+    let id = req.headers['x-restaurant-id'] || req.query.restaurantId || req.body.restaurantId;
+    if (id === 'null' || id === 'undefined') return null;
+    return id || RESTAURANT_ID;
+};
 
 // ============================================
 // HELPER: set webhook for instance
@@ -121,6 +126,7 @@ async function setEvolutionWebhook(instanceName) {
 app.get('/api/devices', async (req, res) => {
     try {
         const restaurantId = getRestaurantId(req);
+        console.log(`[GET /api/devices] restaurantId recebido: "${restaurantId}"`);
         if (!restaurantId) return res.json([]);
 
         // 1. Get devices that BELONG TO THIS RESTAURANT from Supabase
@@ -210,6 +216,7 @@ app.post('/api/devices', async (req, res) => {
         // Save to Supabase
         const newId = uuidv4();
         if (restaurantId) {
+            console.log(`[POST /api/devices] Inserindo record para "${instanceName}" no Supabase para restaurant: ${restaurantId}`);
             const { error: insErr } = await supabase.from('whatsapp_devices').insert({
                 id: newId, name: instanceName,
                 connection_status: qr ? 'qr_ready' : 'connecting',
