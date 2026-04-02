@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
@@ -205,11 +205,15 @@ app.post('/api/devices', async (req, res) => {
         // Save to Supabase
         const newId = uuidv4();
         if (restaurantId) {
-            await supabase.from('whatsapp_devices').insert({
+            const { error: insErr } = await supabase.from('whatsapp_devices').insert({
                 id: newId, name: instanceName,
                 connection_status: qr ? 'qr_ready' : 'connecting',
                 restaurant_id: restaurantId,
             });
+            if (insErr) {
+                gErr(`❌ ERRO FATAL ao inserir device "${instanceName}" no Supabase:`, insErr.message);
+                return res.status(500).json({ error: 'Erro ao salvar no banco: ' + insErr.message });
+            }
         }
 
         // If no QR returned, try to connect
