@@ -8,12 +8,21 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// Tratamento para evitar crash com webhooks retornando payloads inválidas (Exemplo erro V2 "@")
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        console.error('[GourmetFlow] ❌ Payload JSON inválida recebida (rejeitando):', err.message);
+        return res.status(400).send({ status: 400, message: err.message }); // Evita stack trace gigante de sintaxe
+    }
+    next();
+});
+
 const PORT = process.env.PORT || 3088;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const EVOLUTION_API_URL = (process.env.EVOLUTION_API_URL || 'https://evolution2.deletrics.site').replace(/\/$/, '');
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'chatbot_premium_key_2026';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://npxhdsodvboqxrauwuwy.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const RESTAURANT_ID = process.env.RESTAURANT_ID || null;
 const EVOLUTION_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || 'http://localhost:3088/api/webhook/evolution';
 
