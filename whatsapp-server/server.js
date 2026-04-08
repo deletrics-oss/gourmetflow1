@@ -61,8 +61,9 @@ const mapStatus = (evoStatus) => {
 // ============================================
 const getRestaurantId = (req) => {
     let id = req.headers['x-restaurant-id'] || req.query.restaurantId || req.body.restaurantId;
-    if (id === 'null' || id === 'undefined') return null;
-    return id || RESTAURANT_ID;
+    if (id === 'null' || id === 'undefined') id = null;
+    let fallback = RESTAURANT_ID === 'null' || RESTAURANT_ID === 'undefined' ? null : RESTAURANT_ID;
+    return id || fallback;
 };
 
 // ============================================
@@ -76,44 +77,45 @@ async function setEvolutionWebhook(instanceName) {
     if (instanceName === 'unknown') return false;
     
     gLog(`🔗 Configurando webhook para instância "${instanceName}" -> ${EVOLUTION_WEBHOOK_URL}`);
-    const result = await evoFetch(`/webhook/set/${instanceName}`, {
+    // PRIMARY: V2 format
+    const v2Result = await evoFetch(`/webhook/set/${instanceName}`, {
         method: 'POST',
         body: JSON.stringify({
-            enabled: true,
-            url: EVOLUTION_WEBHOOK_URL,
-            webhookByEvents: false,
-            webhookBase64: false,
-            events: [
-                "MESSAGES_UPSERT",
-                "CONNECTION_UPDATE"
-            ]
+            webhook: {
+                enabled: true,
+                url: EVOLUTION_WEBHOOK_URL,
+                webhookByEvents: false,
+                webhookBase64: false,
+                events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
+            }
         })
     });
-    
-    if (result && !result.error) {
-        gLog(`✅ Webhook configurado com sucesso para "${instanceName}"!`);
+
+    if (v2Result && !v2Result.error && v2Result.status !== 400) {
+        gLog(`✅ Webhook (v2) configurado com sucesso para "${instanceName}"!`);
         return true;
     } else {
-        // Tentar formato alternativo da Evolution V2
-        if (result?.status === 400 || result?.error === 'Bad Request') {
-            const v2Result = await evoFetch(`/webhook/set/${instanceName}`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    webhook: {
-                        enabled: true,
-                        url: EVOLUTION_WEBHOOK_URL,
-                        webhookByEvents: false,
-                        webhookBase64: false,
-                        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
-                    }
-                })
-            });
-            if (v2Result && !v2Result.error) {
-                gLog(`✅ Webhook (v2) configurado com sucesso para "${instanceName}"!`);
-                return true;
-            }
+        // FALLBACK: V1 format
+        const v1Result = await evoFetch(`/webhook/set/${instanceName}`, {
+            method: 'POST',
+            body: JSON.stringify({
+                enabled: true,
+                url: EVOLUTION_WEBHOOK_URL,
+                webhookByEvents: false,
+                webhookBase64: false,
+                events: [
+                    "MESSAGES_UPSERT",
+                    "CONNECTION_UPDATE"
+                ]
+            })
+        });
+        
+        if (v1Result && !v1Result.error) {
+            gLog(`✅ Webhook configurado com sucesso para "${instanceName}"!`);
+            return true;
         }
-        gErr(`❌ Falha ao configurar webhook para "${instanceName}":`, JSON.stringify(result));
+        
+        gErr(`❌ Falha ao configurar webhook para "${instanceName}":`, JSON.stringify(v2Result || v1Result));
         return false;
     }
 }
@@ -702,6 +704,26 @@ async function handleEvolutionWebhook(req, res) {
                 return res.json({ ok: true });
             }
 
+            const messageId = key.id;
+
+            // Deduplicação
+            if (messageId) {
+                try {
+                    const { data: existingLog } = await supabase
+                        .from('whatsapp_sdr_logs')
+                        .select('id')
+                        .eq('message_id', messageId)
+                        .maybeSingle();
+
+                    if (existingLog) {
+                        gLog(`⏭️ Mensagem ${messageId} já processada (deduplicação)`);
+                        return res.json({ ok: true });
+                    }
+                } catch (err) {
+                    gLog(`⚠️ Erro ao checar deduplicação: ${err.message}`);
+                }
+            }
+
             const phone = key?.remoteJid?.replace('@s.whatsapp.net', '');
             if (!phone || phone.includes('@g.us') || key?.fromMe) {
                 gLog(`⏭️ Mensagem ignorada (grupo/fromMe/inválido) de ${key?.remoteJid}`);
@@ -726,6 +748,18 @@ async function handleEvolutionWebhook(req, res) {
             }
 
             gLog(`📱 Device encontrado: id=${device.id}, restaurant_id=${device.restaurant_id}`);
+
+            // Registrar log inicial para evitar corrida (race condition) de webhook duplicado
+            if (messageId) {
+                await supabase.from('whatsapp_sdr_logs').insert({
+                    message_id: messageId,
+                    restaurant_id: device.restaurant_id,
+                    instance_name: instance,
+                    contact: phone,
+                    message_in: content,
+                    status: 'received'
+                }).select().maybeSingle();
+            }
 
             // Find or create conversation
             const { data: existingConv } = await supabase.from('whatsapp_conversations')
@@ -789,8 +823,19 @@ async function handleEvolutionWebhook(req, res) {
                             is_from_bot: true, ai_response: response,
                         });
                         gLog(`✅ Resposta AI enviada e salva no Supabase!`);
+
+                        if (messageId) {
+                            await supabase.from('whatsapp_sdr_logs')
+                                .update({ message_out: response, status: 'replied' })
+                                .eq('message_id', messageId);
+                        }
                     } else {
                         gLog(`⚠️ AI não gerou resposta para esta mensagem`);
+                        if (messageId) {
+                            await supabase.from('whatsapp_sdr_logs')
+                                .update({ error: 'AI failed to generate response', status: 'error' })
+                                .eq('message_id', messageId);
+                        }
                     }
                 } else {
                     gLog(`⚠️ Lógica ${device.active_logic_id} não encontrada ou inativa`);

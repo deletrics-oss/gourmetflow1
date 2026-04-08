@@ -6,7 +6,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { useRestaurant } from "@/hooks/useRestaurant";
 import { Loader2, Smartphone, MessageCircle, Workflow, Send, Server, QrCode, Clock, Bell, ExternalLink } from "lucide-react";
-import { DevicesManager } from "@/components/whatsapp/DevicesManager";
 import { ChatInterface } from "@/components/whatsapp/ChatInterface";
 import { LogicEditor } from "@/components/whatsapp/LogicEditor";
 import { BroadcastPanel } from "@/components/whatsapp/BroadcastPanel";
@@ -82,73 +81,7 @@ export default function WhatsAppManager() {
         </div>
       </div>
 
-      {/* Banner Explicativo - Servidor Externo */}
-      <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-        <Server className="h-5 w-5 text-amber-600" />
-        <AlertTitle className="text-amber-800 dark:text-amber-200">
-          🤖 Configuração do WhatsApp Bot
-        </AlertTitle>
-        <AlertDescription className="text-amber-700 dark:text-amber-300 space-y-4">
-          <p>
-            O WhatsApp Bot requer um <strong>servidor externo</strong> para funcionar.
-            Escolha uma das opções abaixo:
-          </p>
-
-          {/* Option 1: Evolution API */}
-          <div className="bg-white dark:bg-amber-900/50 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-            <p className="font-semibold mb-2 flex items-center gap-2">
-              <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded">RECOMENDADO</span>
-              Evolution API (Mais Fácil)
-            </p>
-            <ol className="list-decimal list-inside space-y-1 text-sm mb-3">
-              <li>Acesse <a href="https://evolution-api.com" target="_blank" className="underline">evolution-api.com</a></li>
-              <li>Crie uma conta e obtenha sua instância</li>
-              <li>Configure a URL do webhook: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">{`${window.location.origin}/functions/v1/whatsapp-webhook`}</code></li>
-              <li>Adicione a API Key nas configurações do restaurante</li>
-            </ol>
-            <Button variant="outline" size="sm" className="gap-2" asChild>
-              <a href="https://doc.evolution-api.com/" target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                Documentação Evolution API
-              </a>
-            </Button>
-          </div>
-
-          {/* Option 2: Self-hosted */}
-          <div className="bg-white dark:bg-amber-900/50 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-            <p className="font-semibold mb-2">🖥️ Servidor Próprio (Avançado)</p>
-            <ol className="list-decimal list-inside space-y-1 text-sm mb-3">
-              <li>Clone o servidor: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">git clone github.com/seu-repo/whatsapp-server</code></li>
-              <li>Instale dependências: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">npm install</code></li>
-              <li>Configure variáveis de ambiente (SUPABASE_URL, SUPABASE_KEY)</li>
-              <li>Deploy em VPS (DigitalOcean, Railway, Render)</li>
-              <li>Aponte o webhook para sua URL do servidor</li>
-            </ol>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="gap-2" asChild>
-                <a href="https://wwebjs.dev/" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                  whatsapp-web.js
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" asChild>
-                <a href="/WHATSAPP_SERVER_GUIDE.md" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                  Guia Completo
-                </a>
-              </Button>
-            </div>
-          </div>
-
-          {/* Webhook URL */}
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="font-semibold text-blue-800 dark:text-blue-200 mb-1 text-sm">🔗 URL do Webhook (copie para seu servidor):</p>
-            <code className="text-xs break-all bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded block">
-              {`${window.location.origin.replace('localhost:8080', 'npxhdsodvboqxrauwuwy.supabase.co')}/functions/v1/whatsapp-webhook`}
-            </code>
-          </div>
-        </AlertDescription>
-      </Alert>
+      {/* Banner Explicativo foi removido conforme solicitado para focar na Evolution API */}
 
       {/* QR Code Placeholder Visual */}
       {stats.totalDevices === 0 && (
@@ -264,14 +197,10 @@ export default function WhatsAppManager() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Alertas</span>
           </TabsTrigger>
-          <TabsTrigger value="evolution" className="flex items-center gap-2">
-            <Server className="h-4 w-4" />
-            <span className="hidden sm:inline">Revolution API</span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices">
-          <DevicesManager />
+          <EvolutionManager restaurantId={restaurantId!} />
         </TabsContent>
 
         <TabsContent value="chat">
@@ -294,9 +223,7 @@ export default function WhatsAppManager() {
           <OwnerAlertsConfig restaurantId={restaurantId!} />
         </TabsContent>
 
-        <TabsContent value="evolution">
-          <EvolutionManager restaurantId={restaurantId!} />
-        </TabsContent>
+
       </Tabs>
     </div>
   );
