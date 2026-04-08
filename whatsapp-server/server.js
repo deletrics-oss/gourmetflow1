@@ -824,9 +824,13 @@ async function handleEvolutionWebhook(req, res) {
                 gLog(`💬 Conversa existente atualizada: ${convId}`);
             } else {
                 const { data: newConv, error: convErr } = await supabase.from('whatsapp_conversations').insert({
-                    device_id: device.id, restaurant_id: device.restaurant_id,
-                    contact_name: contactName, contact_phone: phone,
-                    last_message_at: new Date().toISOString(), unread_count: 1,
+                    device_id: device.id, 
+                    restaurant_id: device.restaurant_id,
+                    contact_name: contactName, 
+                    contact_phone: phone,
+                    phone_number: phone, // Suporte para colunas com nome diferente
+                    last_message_at: new Date().toISOString(), 
+                    unread_count: 1,
                 }).select('id').single();
                 if (convErr) gErr('Erro ao criar conversa:', convErr.message);
                 convId = newConv?.id;
@@ -998,7 +1002,7 @@ async function generateBotResponse(message, logic, restaurantId) {
             const fullPrompt = `${systemPrompt}\n\n${restaurantContext.join('\n')}\n\n${sdrInstructions}`;
 
             const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1115,7 +1119,7 @@ app.listen(PORT, async () => {
     gLog(`🔗 Evolution API: ${EVOLUTION_API_URL}`);
     gLog(`🗄️  Supabase URL: ${SUPABASE_URL}`);
     gLog(`🔑 Supabase Key: ${SUPABASE_SERVICE_KEY ? '✅ configurada' : '❌ NÃO CONFIGURADA'}`);
-    gLog(`🤖 Gemini AI: ${GEMINI_API_KEY ? '✅ configurado' : '❌ não configurado'}`);
+    gLog(`🤖 Gemini AI: ${GEMINI_API_KEY ? `✅ configurado (${GEMINI_API_KEY.substring(0, 10)}...)` : '❌ não configurado'}`);
     gLog(`📡 Porta: ${PORT}`);
     gLog('========================================');
 
