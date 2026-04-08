@@ -18,7 +18,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3088;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const EVOLUTION_API_URL = (process.env.EVOLUTION_API_URL || 'https://evolution2.deletrics.site').replace(/\/$/, '');
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'chatbot_premium_key_2026';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://npxhdsodvboqxrauwuwy.supabase.co';
