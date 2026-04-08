@@ -551,13 +551,13 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
                   <div className="flex items-center justify-between mb-2">
                     <Label>Prompt do Sistema</Label>
                     <Button variant="outline" size="sm" onClick={async () => {
-                      const instructions = prompt("Como você quer que a IA aja? Ex: 'Seja um atendente de pizzaria engraçado'");
+                      const instructions = prompt("Como você quer que o Gemini aja? Ex: 'Seja um atendente de pizzaria engraçado'");
                       if (instructions) {
-                        toast.info("A IA foi atualizada (Simulação)");
-                        setSelectedLogic({ ...selectedLogic, ai_prompt: `Você é um SDR agindo sob estas instruções: "${instructions}". Seja educado e prestativo.\n` + (selectedLogic.ai_prompt || '') });
+                        toast.info("O Gemini foi atualizado com as suas instruções!");
+                        setSelectedLogic({ ...selectedLogic, ai_prompt: `Você é um robô de inteligência artificial ultra-avançado usando o motor Google Gemini agindo sob estas instruções: "${instructions}". Seja educado, humano e prestativo.\n` + (selectedLogic.ai_prompt || '') });
                       }
-                    }} className="gap-2 shrink-0">
-                      <Sparkles className="h-4 w-4 text-purple-500" /> Gerar com IA
+                    }} className="gap-2 shrink-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 hover:from-blue-600/20 hover:to-indigo-600/20 border-blue-200">
+                      <Sparkles className="h-4 w-4 text-blue-600" /> ✨ Gerar com Gemini
                     </Button>
                   </div>
                   <div>
