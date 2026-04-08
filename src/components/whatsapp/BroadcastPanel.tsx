@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Send, Loader2, Users, CheckCircle, XCircle, Clock, FileText, Image, Play, Pause, RotateCcw, Calendar, Plus, Sparkles, Upload, Link } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Customer {
   id: string;
@@ -70,6 +71,7 @@ export function BroadcastPanel({ restaurantId }: Props) {
   const [activeTab, setActiveTab] = useState("compose");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
+  const [importingContacts, setImportingContacts] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -143,6 +145,58 @@ export function BroadcastPanel({ restaurantId }: Props) {
       c.id === customerId ? { ...c, selected: checked } : c
     ));
     setSelectAll(false);
+  };
+
+  const handleImportWhatsAppContacts = async () => {
+    if (!selectedDeviceId) {
+      toast.error("Selecione um dispositivo (Canto Direito) primeiro para importar os contatos.");
+      return;
+    }
+
+    try {
+      setImportingContacts(true);
+      toast.info("Varrendo chip do WhatsApp... (Isso demora até 1 minuto!)", { duration: 10000 });
+      
+      const res = await apiRequest('GET', `/api/devices/${selectedDeviceId}/contacts`, undefined, { headers: { 'x-restaurant-id': restaurantId || '' } });
+      
+      if (res?.data && Array.isArray(res.data)) {
+        const rawContacts = res.data;
+        const currentCustomers = [...customers];
+        let addedCount = 0;
+
+        rawContacts.forEach((contact: any) => {
+          if (contact.id && contact.id.endsWith('@s.whatsapp.net')) {
+            const phoneOnly = contact.id.split('@')[0];
+            
+            // Verifica se número parece válido e se não está na lista
+            if (phoneOnly.length >= 10 && !currentCustomers.find(c => c.phone === phoneOnly)) {
+              currentCustomers.push({
+                id: `import_${phoneOnly}`,
+                name: contact.pushName || contact.name || `Contato ${phoneOnly}`,
+                phone: phoneOnly,
+                selected: true // Auto select novos!
+              });
+              addedCount++;
+            }
+          }
+        });
+
+        // Ordenar os clientes de volta p A-Z
+        currentCustomers.sort((a,b) => a.name.localeCompare(b.name));
+        
+        setCustomers(currentCustomers);
+        if (addedCount > 0) {
+          toast.success(`${addedCount} contatos novos importados e marcados para disparo!`);
+        } else {
+          toast.info("Nenhum contato novo encontrado no celular (ou todos já estão na lista).");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao importar contatos da Evolution API.");
+    } finally {
+      setImportingContacts(false);
+    }
   };
 
   const handleSaveTemplate = async () => {
@@ -353,7 +407,13 @@ export function BroadcastPanel({ restaurantId }: Props) {
                 <Users className="h-5 w-5" />
                 Selecionar Clientes
               </h3>
-              <Badge variant="outline">{selectedCount} selecionados</Badge>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleImportWhatsAppContacts} disabled={importingContacts}>
+                  {importingContacts ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 text-green-600 mr-1" />}
+                  Puxar Celular
+                </Button>
+                <Badge variant="outline">{selectedCount} selecionados</Badge>
+              </div>
             </div>
 
             <Input

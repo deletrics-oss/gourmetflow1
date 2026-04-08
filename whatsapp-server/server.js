@@ -304,6 +304,28 @@ app.post('/api/devices/:id', async (req, res) => {
     }
 });
 
+// GET /api/devices/:id/contacts — Import contacts from phone memory
+app.get('/api/devices/:id/contacts', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { data: device } = await supabase.from('whatsapp_devices').select('*').eq('id', id).single();
+        if (!device) return res.status(404).json({ error: 'Dispositivo não encontrado' });
+
+        const instanceName = device.name;
+        
+        // Evolution endpoint to find contacts
+        const contactsResult = await evoFetch(`/chat/findContacts/${instanceName}`, { 
+            method: 'POST', 
+            body: JSON.stringify({}) 
+        });
+        
+        res.json({ success: true, count: Array.isArray(contactsResult) ? contactsResult.length : 0, data: contactsResult });
+    } catch (err) {
+        console.error('[GET /api/devices/:id/contacts] Erro:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // PATCH /api/devices/:id — update logic, etc.
 app.patch('/api/devices/:id', async (req, res) => {
     try {
