@@ -816,6 +816,20 @@ async function handleEvolutionWebhook(req, res) {
                     .select('*').eq('id', device.active_logic_id).eq('is_active', true).maybeSingle();
 
                 if (logic) {
+                    // Verificação de regras de SDR: global, whitelist, off
+                    if (logic.sdr_mode === 'off') {
+                        gLog(`⏭️ Lógica encontrada, mas SDR está DESLIGADO (sdr_mode=off)`);
+                        return res.json({ ok: true });
+                    }
+
+                    if (logic.sdr_mode === 'whitelist') {
+                        const whitelist = Array.isArray(logic.whitelist_phones) ? logic.whitelist_phones : [];
+                        if (!whitelist.includes(phone)) {
+                            gLog(`⏭️ SDR ignorado -> Modo Whitelist ativado e o número ${phone} não está na lista`);
+                            return res.json({ ok: true });
+                        }
+                    }
+
                     const response = await generateBotResponse(content, logic, device.restaurant_id);
                     if (response) {
                         gLog(`🤖 Resposta AI gerada: "${response.substring(0, 80)}${response.length > 80 ? '...' : ''}"`);

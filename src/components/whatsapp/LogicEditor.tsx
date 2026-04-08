@@ -28,6 +28,8 @@ interface LogicConfig {
   logic_type: string;
   logic_json: any;
   ai_prompt: string | null;
+  sdr_mode: string;
+  whitelist_phones: string[];
   is_active: boolean;
   created_at: string;
 }
@@ -93,6 +95,8 @@ export function LogicEditor({ restaurantId }: Props) {
         description: newLogic.description.trim() || null,
         logic_type: newLogic.logic_type,
         logic_json: { rules: [], default_reply: "Olá! Como posso ajudar?" },
+        sdr_mode: 'global',
+        whitelist_phones: [],
         ai_prompt: newLogic.logic_type === 'ai' ? `Você é um assistente virtual de um restaurante. Seja educado e prestativo.
 
 AÇÕES ESPECIAIS DISPONÍVEIS:
@@ -135,6 +139,8 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
           logic_type: selectedLogic.logic_type,
           logic_json: selectedLogic.logic_json,
           ai_prompt: selectedLogic.ai_prompt,
+          sdr_mode: selectedLogic.sdr_mode,
+          whitelist_phones: selectedLogic.whitelist_phones,
           is_active: selectedLogic.is_active,
         })
         .eq('id', selectedLogic.id);
@@ -352,8 +358,28 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
                 <h3 className="font-semibold">{selectedLogic.name}</h3>
                 {getLogicTypeBadge(selectedLogic.logic_type)}
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                <div className="flex bg-muted rounded-md p-1">
+                  <button
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${selectedLogic.sdr_mode === 'global' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setSelectedLogic({ ...selectedLogic, sdr_mode: 'global' })}
+                  >
+                    Global
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${selectedLogic.sdr_mode === 'whitelist' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setSelectedLogic({ ...selectedLogic, sdr_mode: 'whitelist' })}
+                  >
+                    Whitelist
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${selectedLogic.sdr_mode === 'off' ? 'bg-background shadow-sm text-destructive' : 'text-muted-foreground'}`}
+                    onClick={() => setSelectedLogic({ ...selectedLogic, sdr_mode: 'off' })}
+                  >
+                    Off
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 ml-4">
                   <span className="text-sm text-muted-foreground">Ativa</span>
                   <Switch
                     checked={selectedLogic.is_active}
@@ -398,6 +424,27 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
                 })}
               </div>
             </Card>
+
+            {/* Whitelist Input */}
+            {selectedLogic.sdr_mode === 'whitelist' && (
+              <Card className="p-3 border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <Label className="text-amber-800 dark:text-amber-200">Números Liberados (Whitelist)</Label>
+                <div className="flex gap-2 mt-2">
+                  <Input 
+                    placeholder="Ex: 5511999999999, 5511888888888" 
+                    value={selectedLogic.whitelist_phones ? selectedLogic.whitelist_phones.join(', ') : ''}
+                    onChange={(e) => {
+                      const phonesArray = e.target.value.split(',').map(p => p.trim()).filter(Boolean);
+                      setSelectedLogic({ ...selectedLogic, whitelist_phones: phonesArray });
+                    }}
+                    className="bg-white dark:bg-black/50"
+                  />
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  Somente estes números receberão resposta da IA. Especifique com o DDI+DDD (ex: 5511...).
+                </p>
+              </Card>
+            )}
 
             <Tabs defaultValue={selectedLogic.logic_type === 'ai' ? 'ai' : 'rules'}>
               <TabsList>
@@ -501,8 +548,19 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
 
               {selectedLogic.logic_type !== 'json' && (
                 <TabsContent value="ai" className="space-y-4">
-                  <div>
+                  <div className="flex items-center justify-between mb-2">
                     <Label>Prompt do Sistema</Label>
+                    <Button variant="outline" size="sm" onClick={async () => {
+                      const instructions = prompt("Como você quer que a IA aja? Ex: 'Seja um atendente de pizzaria engraçado'");
+                      if (instructions) {
+                        toast.info("A IA foi atualizada (Simulação)");
+                        setSelectedLogic({ ...selectedLogic, ai_prompt: `Você é um SDR agindo sob estas instruções: "${instructions}". Seja educado e prestativo.\n` + (selectedLogic.ai_prompt || '') });
+                      }
+                    }} className="gap-2 shrink-0">
+                      <Sparkles className="h-4 w-4 text-purple-500" /> Gerar com IA
+                    </Button>
+                  </div>
+                  <div>
                     <Textarea
                       value={selectedLogic.ai_prompt || ""}
                       onChange={(e) => setSelectedLogic({ ...selectedLogic, ai_prompt: e.target.value })}
