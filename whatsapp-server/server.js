@@ -1013,7 +1013,19 @@ async function generateBotResponse(message, logic, restaurantId) {
                 }
             );
             const data = await resp.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+            
+            if (data.error) {
+                console.error('[GourmetFlow] ❌ Erro na API do Gemini:', JSON.stringify(data.error));
+                return null;
+            }
+
+            const botMsg = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!botMsg) {
+                console.warn('[GourmetFlow] ⚠️ Gemini retornou estrutura sem texto ou vazia:', JSON.stringify(data));
+                return null;
+            }
+
+            return botMsg;
         }
     } catch (e) { console.error('Bot error:', e.message); }
     return null;

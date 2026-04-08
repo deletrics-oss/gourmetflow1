@@ -73,7 +73,12 @@ export function LogicEditor({ restaurantId }: Props) {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setLogics(data || []);
+      const mappedLogics = ((data as any) || []).map((item: any) => ({
+        ...item,
+        sdr_mode: item.sdr_mode || 'global',
+        whitelist_phones: Array.isArray(item.whitelist_phones) ? item.whitelist_phones : []
+      })) as LogicConfig[];
+      setLogics(mappedLogics);
     } catch (error) {
       console.error('Erro ao carregar lógicas:', error);
     } finally {
@@ -117,7 +122,7 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
       setNewLogic({ name: "", description: "", logic_type: "json" });
       setAddDialogOpen(false);
       loadLogics();
-      if (data) setSelectedLogic(data);
+      if (data) setSelectedLogic(data as any);
     } catch (error) {
       console.error('Erro ao criar lógica:', error);
       toast.error("Erro ao criar lógica");
@@ -245,11 +250,11 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
   const getLogicTypeBadge = (type: string) => {
     switch (type) {
       case 'ai':
-        return <Badge className="bg-purple-500"><Brain className="h-3 w-3 mr-1" />IA</Badge>;
+        return <Badge className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-none shadow-sm"><Sparkles className="h-3 w-3 mr-1" />Gemini</Badge>;
       case 'hybrid':
-        return <Badge className="bg-blue-500"><Sparkles className="h-3 w-3 mr-1" />Híbrido</Badge>;
+        return <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-none shadow-sm"><Workflow className="h-3 w-3 mr-1" />Híbrido</Badge>;
       default:
-        return <Badge variant="secondary"><Code className="h-3 w-3 mr-1" />JSON</Badge>;
+        return <Badge variant="secondary" className="font-mono text-[10px]"><Code className="h-3 w-3 mr-1" />JSON</Badge>;
     }
   };
 
@@ -303,11 +308,11 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="json">JSON (Regras)</SelectItem>
-                      <SelectItem value="ai">IA (Lovable AI)</SelectItem>
-                      <SelectItem value="hybrid">Híbrido (Regras + IA)</SelectItem>
-                    </SelectContent>
+                     <SelectContent>
+                       <SelectItem value="json">JSON (Regras Estáticas)</SelectItem>
+                       <SelectItem value="ai">Gemini (Google AI Ultra)</SelectItem>
+                       <SelectItem value="hybrid">Híbrido (Regras + Gemini)</SelectItem>
+                     </SelectContent>
                   </Select>
                 </div>
                 <Button onClick={handleAddLogic} disabled={saving} className="w-full">
@@ -451,10 +456,12 @@ Responda de forma natural e inclua a ação especial quando apropriado.` : null,
                 {selectedLogic.logic_type !== 'ai' && (
                   <TabsTrigger value="rules">Regras</TabsTrigger>
                 )}
-                {selectedLogic.logic_type !== 'json' && (
-                  <TabsTrigger value="ai">Prompt IA</TabsTrigger>
-                )}
-                <TabsTrigger value="default">Resposta Padrão</TabsTrigger>
+                 {selectedLogic.logic_type !== 'json' && (
+                   <TabsTrigger value="ai" className="gap-2">
+                     <Sparkles className="h-3 w-3 text-blue-500" /> Prompt Gemini
+                   </TabsTrigger>
+                 )}
+                 <TabsTrigger value="default">Resposta Padrão</TabsTrigger>
               </TabsList>
 
               {selectedLogic.logic_type !== 'ai' && (
