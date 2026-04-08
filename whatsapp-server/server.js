@@ -342,6 +342,23 @@ app.patch('/api/devices/:id', async (req, res) => {
     }
 });
 
+// PATCH /api/devices/:id/logic — legacy route for cached frontends
+app.patch('/api/devices/:id/logic', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { logicId } = req.body;
+        const updates = {};
+        if (logicId !== undefined) updates.active_logic_id = logicId;
+
+        console.log(`[GourmetFlow] ♻️ Legacy route /api/devices/${id}/logic used by cached frontend!`);
+        const { data, error } = await supabase.from('whatsapp_devices').update(updates).eq('id', id).select().single();
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // DELETE /api/devices/:id
 app.delete('/api/devices/:id', async (req, res) => {
     try {
