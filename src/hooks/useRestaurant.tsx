@@ -18,7 +18,12 @@ export const useRestaurant = () => {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (user) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRestaurantId = urlParams.get('restaurantId');
+
+    if (urlRestaurantId) {
+      loadRestaurant(urlRestaurantId);
+    } else if (user) {
       loadRestaurant();
     } else {
       setRestaurant(null);
@@ -26,35 +31,61 @@ export const useRestaurant = () => {
     }
   }, [user]);
 
-  const loadRestaurant = async () => {
+  const loadRestaurant = async (forcedId?: string) => {
     try {
       setLoading(true);
-      console.log("[useRestaurant] Loading for user:", user?.id);
-      // Buscar restaurante do usuário
-      const { data: userRestaurant, error } = await supabase
-        .from('user_restaurants')
-        .select(`
-          restaurant_id,
-          restaurants (
+      const targetId = forcedId || user?.id;
+      
+      if (!targetId) {
+        setLoading(false);
+        return;
+      }
+
+      console.log("[useRestaurant] Loading for:", forcedId ? `Restaurant ID ${forcedId}` : `User ID ${user?.id}`);
+
+      let query;
+      if (forcedId) {
+        // Busca direta pelo ID do restaurante (links externos)
+        query = supabase
+          .from('restaurants')
+          .select(`
             id,
             name,
             slug,
             phone,
             email,
             settings
-          )
-        `)
-        .eq('user_id', user?.id)
-        .eq('is_active', true)
-        .single();
+          `)
+          .eq('id', forcedId)
+          .single();
+      } else {
+        // Busca pelo vínculo do usuário
+        query = supabase
+          .from('user_restaurants')
+          .select(`
+            restaurant_id,
+            restaurants (
+              id,
+              name,
+              slug,
+              phone,
+              email,
+              settings
+            )
+          `)
+          .eq('user_id', user?.id)
+          .eq('is_active', true)
+          .single();
+      }
 
-      console.log("[useRestaurant] Query result:", { userRestaurant, error });
-
+      const { data: result, error } = await query;
+      
       if (error) throw error;
 
-      if (userRestaurant?.restaurants) {
-        const restaurantData = userRestaurant.restaurants as unknown as Restaurant;
-        setRestaurant(restaurantData);
+      const restaurantData = forcedId ? result : (result as any).restaurants;
+
+      if (restaurantData) {
+        setRestaurant(restaurantData as unknown as Restaurant);
         
         // Verificar status do onboarding
         const { data: settings } = await supabase

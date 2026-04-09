@@ -1264,11 +1264,13 @@ ${sdrInstructions}
                 throw new Error("Gemini AI SDK não inicializado (chave ausente)");
             }
 
-            const result = await aiModel.generateContent([
-                { role: 'user', parts: [{ text: fullPrompt }] },
-                { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] },
-                { role: 'user', parts: [{ text: message }] }
-            ]);
+            const result = await aiModel.generateContent({
+                contents: [
+                    { role: 'user', parts: [{ text: fullPrompt }] },
+                    { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] },
+                    { role: 'user', parts: [{ text: message }] }
+                ]
+            });
             const response = await result.response;
             const botMsg = response.text();
 
@@ -1509,7 +1511,9 @@ Regras:
 - Se for entrega, mencione o nome do motoboy se disponível
 - Responda APENAS com a mensagem, nada mais`;
 
-        const result = await aiModel.generateContent(prompt);
+        const result = await aiModel.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
         const response = await result.response;
         const msg = response.text();
         return msg?.trim() || fallbackMessages[newStatus];

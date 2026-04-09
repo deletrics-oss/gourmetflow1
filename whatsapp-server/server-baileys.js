@@ -278,11 +278,12 @@ async function generateBotResponse(message, logic) {
                 }
             }
         }
-
         if ((logic.logicType === 'ai' || logic.logicType === 'hybrid') && aiModel) {
             try {
-                const prompt = `${logic.aiPrompt || 'Você é um assistente prestativo.'}\n\nUsuário: ${message}`;
-                const result = await aiModel.generateContent(prompt);
+                const promptText = `${logic.aiPrompt || 'Você é um assistente prestativo.'}\n\nUsuário: ${message}`;
+                const result = await aiModel.generateContent({
+                    contents: [{ role: 'user', parts: [{ text: promptText }] }]
+                });
                 const responseAI = await result.response;
                 return responseAI.text();
             } catch (err) {
