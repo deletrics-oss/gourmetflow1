@@ -4,24 +4,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useApp } from "@/contexts/AppContext";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import { UploadImageDialog } from "./UploadImageDialog";
 
 interface AddCategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps) {
+export function AddCategoryDialog({ open, onOpenChange, onSuccess }: AddCategoryDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const { addCategory } = useApp();
+  const { restaurantId } = useRestaurant();
   const { toast } = useToast();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast({
         title: "Erro",
@@ -31,22 +34,49 @@ export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps
       return;
     }
 
-    addCategory({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      image: image.trim() || undefined,
-      promotion: false,
-    });
+    if (!restaurantId) {
+      toast({
+        title: "Erro",
+        description: "Restaurante não identificado",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    toast({
-      title: "Sucesso!",
-      description: "Categoria adicionada com sucesso",
-    });
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert({
+          name: name.trim(),
+          description: description.trim() || null,
+          image_url: image.trim() || null,
+          restaurant_id: restaurantId,
+          is_active: true
+        });
 
-    setName("");
-    setDescription("");
-    setImage("");
-    onOpenChange(false);
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso!",
+        description: "Categoria adicionada com sucesso",
+      });
+
+      setName("");
+      setDescription("");
+      setImage("");
+      onOpenChange(false);
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      console.error("Erro ao adicionar categoria:", error);
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar no banco de dados",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -109,7 +139,9 @@ export function AddCategoryDialog({ open, onOpenChange }: AddCategoryDialogProps
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit}>Adicionar</Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading ? "Adicionando..." : "Adicionar"}
+          </Button>
         </DialogFooter>
 
         <UploadImageDialog

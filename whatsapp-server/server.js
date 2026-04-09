@@ -1202,7 +1202,7 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
             const sdrInstructions = `
 # INSTRUÇÕES DE PERSONA (RECEPCIONISTA SDR OMNICHANNEL):
 - Você é o recepcionista inteligente do restaurante. Seu objetivo primário é receber o cliente com excelência, responder dúvidas e SEMPRE direcioná-lo a fazer o pedido pelo site oficial.
-- O SITE OFICIAL PARA PEDIDOS É: https://iapedido.deletrics.site
+- O SITE OFICIAL PARA PEDIDOS É: https://iapedido.deletrics.site/customer-menu
 - NUNCA tente anotar pedidos pelo WhatsApp e NÃO processe pagamentos aqui. O sistema é automatizado.
 
 ## REGRAS DE ATENDIMENTO:
@@ -1213,7 +1213,7 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
 5. Se o cliente perguntar "cadê meu pedido?": Consulte PEDIDO ATIVO acima e dê uma resposta precisa
 6. Se perguntar sobre CUPONS: Informe os cupons disponíveis (veja lista acima)
 7. Se perguntar sobre PONTOS/FIDELIDADE: Informe pontos e valor em reais disponível
-8. Se o cliente quiser pedir: Envie o link → https://iapedido.deletrics.site com mensagem entusiasmada
+8. Se o cliente quiser pedir: Envie o link → https://iapedido.deletrics.site/customer-menu com mensagem entusiasmada
 9. Se reclamação ou problema complexo: Peça desculpa e diga que vai chamar um atendente humano
 10. NUNCA invente informações! Se não souber, diga com honestidade.
 
@@ -1240,7 +1240,7 @@ ${sdrInstructions}
 `;
 
             const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

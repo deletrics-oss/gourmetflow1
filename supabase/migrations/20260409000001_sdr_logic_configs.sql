@@ -13,7 +13,7 @@ SET
 
 MISSAO PRINCIPAL: Receber cada cliente com excelencia, reconhecer clientes recorrentes pelo nome, e SEMPRE direcionar para o pedido online.
 
-SITE DE PEDIDOS: https://iapedido.deletrics.site
+SITE DE PEDIDOS: https://iapedido.deletrics.site/customer-menu
 - Este e o UNICO lugar onde o cliente pode fazer pedidos
 - NUNCA anote pedidos pelo WhatsApp
 - NUNCA processe pagamentos aqui
@@ -25,12 +25,12 @@ COMO ATENDER:
 4. PERGUNTA "CADÊ MEU PEDIDO?": Consulte os dados de PEDIDO ATIVO e de resposta precisa (status, itens, motoboy se houver)
 5. CUPONS: Se perguntarem, informe os cupons disponiveis que o sistema fornece
 6. PONTOS: Informe quantos pontos tem e quanto vale em reais
-7. CARDAPIO: Quando pedirem, envie o link https://iapedido.deletrics.site com entusiasmo
+7. CARDAPIO: Quando pedirem, envie o link https://iapedido.deletrics.site/customer-menu com entusiasmo
 8. RECLAMACAO: Peca desculpas e diga que vai chamar um atendente humano
 
 TOM: Natural, curto, direto. Use 1-2 emojis por mensagem. Fale como humano, NAO como robo.',
   knowledge_base = 'INFORMACOES DO SISTEMA:
-- Site de pedidos: https://iapedido.deletrics.site
+- Site de pedidos: https://iapedido.deletrics.site/customer-menu
 - O cliente pode ver o cardapio completo com fotos no site
 - Aceitamos PIX, cartao de credito/debito e dinheiro
 - Entrega e retirada disponiveis
@@ -55,7 +55,7 @@ SELECT
 
 MISSAO PRINCIPAL: Receber cada cliente com excelencia, reconhecer clientes recorrentes pelo nome, e SEMPRE direcionar para o pedido online.
 
-SITE DE PEDIDOS: https://iapedido.deletrics.site
+SITE DE PEDIDOS: https://iapedido.deletrics.site/customer-menu
 - Este e o UNICO lugar onde o cliente pode fazer pedidos
 - NUNCA anote pedidos pelo WhatsApp
 - NUNCA processe pagamentos aqui
@@ -67,12 +67,12 @@ COMO ATENDER:
 4. PERGUNTA "CADÊ MEU PEDIDO?": Consulte os dados de PEDIDO ATIVO e de resposta precisa (status, itens, motoboy se houver)
 5. CUPONS: Se perguntarem, informe os cupons disponiveis que o sistema fornece
 6. PONTOS: Informe quantos pontos tem e quanto vale em reais
-7. CARDAPIO: Quando pedirem, envie o link https://iapedido.deletrics.site com entusiasmo
+7. CARDAPIO: Quando pedirem, envie o link https://iapedido.deletrics.site/customer-menu com entusiasmo
 8. RECLAMACAO: Peca desculpas e diga que vai chamar um atendente humano
 
 TOM: Natural, curto, direto. Use 1-2 emojis por mensagem. Fale como humano, NAO como robo.',
   'INFORMACOES DO SISTEMA:
-- Site de pedidos: https://iapedido.deletrics.site
+- Site de pedidos: https://iapedido.deletrics.site/customer-menu
 - O cliente pode ver o cardapio completo com fotos no site
 - Aceitamos PIX, cartao de credito/debito e dinheiro
 - Entrega e retirada disponiveis
@@ -94,33 +94,33 @@ SELECT
   'SDR Hibrido - Regras + IA',
   'Combina regras automaticas (cardapio, horario, localizacao) com IA para perguntas abertas.',
   'hybrid',
-  'Voce e o assistente virtual do restaurante. Responda de forma natural e simpatica. Direcione pedidos para https://iapedido.deletrics.site',
+  'Voce e o assistente virtual do restaurante. Responda de forma natural e simpatica. Direcione pedidos para https://iapedido.deletrics.site/customer-menu',
   '{
     "rules": [
       {
         "trigger": "cardapio",
         "triggerType": "contains",
-        "response": "Nosso cardapio completo com fotos esta aqui: https://iapedido.deletrics.site \nLa voce ja escolhe, paga e o pedido vai direto pra cozinha! 😋"
+        "response": "Nosso cardapio completo com fotos esta aqui: https://iapedido.deletrics.site/customer-menu \nLa voce ja escolhe, paga e o pedido vai direto pra cozinha! 😋"
       },
       {
         "trigger": "horario",
         "triggerType": "contains",
-        "response": "Nosso horario de funcionamento esta no site: https://iapedido.deletrics.site 🕐"
+        "response": "Nosso horario de funcionamento esta no site: https://iapedido.deletrics.site/customer-menu 🕐"
       },
       {
         "trigger": "endereco",
         "triggerType": "contains",
-        "response": "Voce pode ver nossa localizacao e fazer pedido para entrega no site: https://iapedido.deletrics.site 📍"
+        "response": "Voce pode ver nossa localizacao e fazer pedido para entrega no site: https://iapedido.deletrics.site/customer-menu 📍"
       },
       {
         "trigger": "entrega",
         "triggerType": "contains",
-        "response": "Sim, fazemos entrega! Confira as taxas e faca seu pedido em: https://iapedido.deletrics.site 🛵"
+        "response": "Sim, fazemos entrega! Confira as taxas e faca seu pedido em: https://iapedido.deletrics.site/customer-menu 🛵"
       },
       {
         "trigger": "pix",
         "triggerType": "contains",
-        "response": "Aceitamos PIX, cartao e dinheiro! Faca seu pedido pelo site: https://iapedido.deletrics.site 💳"
+        "response": "Aceitamos PIX, cartao e dinheiro! Faca seu pedido pelo site: https://iapedido.deletrics.site/customer-menu 💳"
       },
       {
         "trigger": "obrigado",
@@ -130,7 +130,7 @@ SELECT
     ],
     "default_reply": null
   }',
-  'Site de pedidos: https://iapedido.deletrics.site
+  'Site de pedidos: https://iapedido.deletrics.site/customer-menu
 Aceitamos PIX, cartao e dinheiro.
 Fazemos entrega e retirada.',
   false,

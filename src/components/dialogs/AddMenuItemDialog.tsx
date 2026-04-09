@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { ManageVariationsDialog } from "./ManageVariationsDialog";
 import { UploadImageDialog } from "./UploadImageDialog";
 import { ImagePlus, Scale } from "lucide-react";
@@ -15,9 +16,10 @@ import { ImagePlus, Scale } from "lucide-react";
 interface AddMenuItemDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps) {
+export function AddMenuItemDialog({ open, onOpenChange, onSuccess }: AddMenuItemDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -38,6 +40,7 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   const [createdItemId, setCreatedItemId] = useState<string | null>(null);
   const [createdItemName, setCreatedItemName] = useState("");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const { restaurantId } = useRestaurant();
 
   useEffect(() => {
     if (open) {
@@ -46,10 +49,12 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
   }, [open]);
 
   const loadCategories = async () => {
+    if (!restaurantId) return;
     try {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .eq('is_active', true)
         .order('sort_order');
       
@@ -91,7 +96,8 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
           preparation_time: parseInt(preparationTime),
           available_hours: availableHours,
           sale_type: saleType,
-          price_per_kg: saleType === "weight" ? parseFloat(pricePerKg) : null
+          price_per_kg: saleType === "weight" ? parseFloat(pricePerKg) : null,
+          restaurant_id: restaurantId
         })
         .select()
         .single();
@@ -119,6 +125,7 @@ export function AddMenuItemDialog({ open, onOpenChange }: AddMenuItemDialogProps
         days: [0, 1, 2, 3, 4, 5, 6]
       });
       onOpenChange(false);
+      if (onSuccess) onSuccess();
       
       // Abrir dialog de variações
       setShowVariations(true);

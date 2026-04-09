@@ -70,15 +70,19 @@ export default function Cardapio() {
   };
 
   const loadData = async () => {
+    if (!restaurantId) return;
+    
     try {
       const { data: cats } = await supabase
         .from('categories')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('sort_order');
       
       const { data: items } = await supabase
         .from('menu_items')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('name');
       
       setCategories(cats || []);
@@ -735,8 +739,8 @@ export default function Cardapio() {
         </TabsContent>
       </Tabs>
 
-      <AddCategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} />
-      <AddMenuItemDialog open={itemDialogOpen} onOpenChange={setItemDialogOpen} />
+      <AddCategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} onSuccess={loadData} />
+      <AddMenuItemDialog open={itemDialogOpen} onOpenChange={setItemDialogOpen} onSuccess={loadData} />
       <ExtractMenuDialog open={extractDialogOpen} onOpenChange={setExtractDialogOpen} onSuccess={loadData} />
       
       {selectedCategory && (
