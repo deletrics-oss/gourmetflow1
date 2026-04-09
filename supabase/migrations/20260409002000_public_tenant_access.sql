@@ -2,7 +2,9 @@
 -- Permite que clientes anônimos visualizem cardápios e monitores se tiverem o restaurant_id
 
 -- 1. Tabela: restaurants
-ALTER POLICY "Permitir leitura pública de restaurantes por ID" ON public.restaurants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir leitura pública de restaurantes por ID" ON public.restaurants;
+CREATE POLICY "Permitir leitura pública de restaurantes por ID" ON public.restaurants
+FOR SELECT USING (true);
 
 -- 2. Tabela: restaurant_settings
 DROP POLICY IF EXISTS "Leitura pública de configurações" ON public.restaurant_settings;
