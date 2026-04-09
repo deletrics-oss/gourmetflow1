@@ -104,7 +104,7 @@ export default function PDV() {
   // NFC-e settings
   const [nfceEnabled, setNfceEnabled] = useState(false);
   const [nfceSettings, setNfceSettings] = useState<any>(null);
-  const [deliveryType, setDeliveryType] = useState<string>("delivery");
+
   const { toast } = useToast();
 
   useEffect(() => {
