@@ -1264,13 +1264,10 @@ ${sdrInstructions}
                 throw new Error("Gemini AI SDK não inicializado (chave ausente)");
             }
 
-            const chat = aiModel.startChat({
-                history: [
-                    { role: 'user', parts: [{ text: fullPrompt }] },
-                    { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] }
-                ]
-            });
-            const result = await chat.sendMessage(message);
+            // MODO DE COMPATIBILIDADE TOTAL: Prompt Único (Sem Roles/History)
+            const combinedPrompt = `${fullPrompt}\n\n[CLIENTE DIZ]: "${message}"\n\n[RESPOSTA SDR]:`;
+            
+            const result = await aiModel.generateContent(combinedPrompt);
             const response = await result.response;
             const botMsg = response.text();
 
