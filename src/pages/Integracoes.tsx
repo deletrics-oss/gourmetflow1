@@ -351,6 +351,7 @@ export default function Integracoes() {
           <TabsTrigger value="agregadores">Agregadores</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="social">Redes Sociais</TabsTrigger>
+          <TabsTrigger value="canais">Canais de Venda</TabsTrigger>
         </TabsList>
 
         <TabsContent value="delivery" className="space-y-4">
@@ -874,6 +875,65 @@ export default function Integracoes() {
                 </Button>
               </div>
             )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="canais" className="space-y-4">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Zap className="h-6 w-6 text-primary" />
+              <div>
+                <h3 className="text-lg font-semibold">Canais de Venda e Visualização</h3>
+                <p className="text-sm text-muted-foreground">
+                  Copie os links abaixo para compartilhar com seus clientes ou usar em tablets/totens.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-6">
+              {[
+                { label: "Cardápio Digital (Menu Online)", path: "/customer-menu", icon: Zap },
+                { label: "Totem de Autoatendimento", path: "/totem", icon: Smartphone },
+                { label: "Menu Tablet (Mesas)", path: "/menu-tablet", icon: Smartphone },
+                { label: "Balcão Externo (Takeaway)", path: "/balcao-externo", icon: PlayCircle },
+                { label: "Monitor de Senhas", path: "/monitor-senhas", icon: Info },
+              ].map((canal) => {
+                const fullUrl = `https://iapedido.deletrics.site${canal.path}${restaurantId ? `?restaurantId=${restaurantId}` : ''}`;
+                return (
+                  <div key={canal.path} className="space-y-2 border-b pb-4 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <canal.icon className="h-4 w-4 text-primary" />
+                      <Label className="font-semibold">{canal.label}</Label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input value={fullUrl} readOnly className="bg-muted font-mono text-xs" />
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(fullUrl);
+                          toast.success(`${canal.label} copiado!`);
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={fullUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <Alert className="mt-6 bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800 text-xs">
+                O parâmetro <strong>restaurantId</strong> é obrigatório para garantir que o sistema carregue apenas os seus dados (produtos, categorias e configurações).
+              </AlertDescription>
+            </Alert>
           </Card>
         </TabsContent>
       </Tabs>
