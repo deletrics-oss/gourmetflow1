@@ -488,24 +488,6 @@ app.patch('/api/logics/:id', async (req, res) => {
 
 // DELETE /api/logics/:id
 app.delete('/api/logics/:id', async (req, res) => {
-    async function saveMessageToSupabase(data, retryCount = 3) {
-        for (let i = 0; i < retryCount; i++) {
-            try {
-                const { error } = await supabase.from('whatsapp_messages').insert(data);
-                if (error) throw error;
-                console.log(`[GourmetFlow] ✅ Mensagem salva no Supabase com sucesso! (phone=${data.customer_phone}, conv=${data.conversation_id})`);
-                return true;
-            } catch (err) {
-                console.error(`[GourmetFlow] ❌ Tentativa ${i + 1}/${retryCount} - Erro ao salvar mensagem:`, err.message);
-                if (i === retryCount - 1) {
-                    console.error('[GourmetFlow] ❌ Erro FINAL ao salvar no Supabase:', err);
-                    return false;
-                }
-                // Espera curta antes de tentar de novo (1s, 2s, 3s...)
-                await new Promise(res => setTimeout(res, (i + 1) * 1000));
-            }
-        }
-    }
     try {
         const { id } = req.params;
         const { error } = await supabase.from('whatsapp_logic_configs').delete().eq('id', id);
@@ -1625,6 +1607,25 @@ app.get('/health', async (req, res) => {
 // ============================================
 // START + PROACTIVE LISTENER
 // ============================================
+async function saveMessageToSupabase(data, retryCount = 3) {
+    for (let i = 0; i < retryCount; i++) {
+        try {
+            const { error } = await supabase.from('whatsapp_messages').insert(data);
+            if (error) throw error;
+            console.log(`[GourmetFlow] ✅ Mensagem salva no Supabase com sucesso! (phone=${data.customer_phone}, conv=${data.conversation_id})`);
+            return true;
+        } catch (err) {
+            console.error(`[GourmetFlow] ❌ Tentativa ${i + 1}/${retryCount} - Erro ao salvar mensagem:`, err.message);
+            if (i === retryCount - 1) {
+                console.error('[GourmetFlow] ❌ Erro FINAL ao salvar no Supabase:', err);
+                return false;
+            }
+            // Espera curta antes de tentar de novo (1s, 2s, 3s...)
+            await new Promise(res => setTimeout(res, (i + 1) * 1000));
+        }
+    }
+}
+
 async function checkSupabase() {
     try {
         const { data, error } = await supabase.from('restaurants').select('id').limit(1);
