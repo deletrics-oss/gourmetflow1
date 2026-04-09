@@ -112,65 +112,28 @@ export default function AdminAssinaturas() {
     try {
       setLoading(true);
       
-      // Buscar todos os perfis (que representam todos os usuários)
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, phone, created_at');
+      // Novo RPC que traz TUDO: email, restaurante, assinatura e status
+      const { data, error } = await supabase.rpc('get_admin_users_v2');
 
-      if (profilesError) throw profilesError;
+      if (error) throw error;
 
-      // Buscar todas as assinaturas
-      const { data: subscriptions, error: subsError } = await supabase
-        .from('subscriptions')
-        .select('*');
+      const usersList: UserWithSubscription[] = (data || []).map((u: any) => ({
+        id: u.id,
+        email: u.email || 'Sem email',
+        created_at: u.created_at,
+        full_name: u.full_name || u.restaurant_name,
+        phone: u.phone,
+        subscription: u.plan_type ? {
+          id: u.id, // Simplificado
+          plan_type: u.plan_type,
+          status: u.status,
+          trial_end: u.trial_end,
+          current_period_end: u.trial_end, // fallback
+          manually_blocked: u.manually_blocked,
+          blocked_reason: null,
+        } : null
+      }));
 
-      if (subsError) throw subsError;
-
-      // Buscar emails dos usuários via RPC (se existir) ou usar profiles
-      const { data: rpcData } = await supabase.rpc('get_admin_subscriptions');
-
-      // Mapear usuários com suas assinaturas
-      const usersMap = new Map<string, UserWithSubscription>();
-
-      // Primeiro, adicionar usuários do RPC que já tem assinatura
-      if (rpcData) {
-        rpcData.forEach((sub: any) => {
-          usersMap.set(sub.user_id, {
-            id: sub.user_id,
-            email: sub.restaurant_email || 'Sem email',
-            created_at: sub.created_at,
-            full_name: sub.restaurant_name,
-            phone: sub.restaurant_phone,
-            subscription: {
-              id: sub.id,
-              plan_type: sub.plan_type,
-              status: sub.status,
-              trial_end: sub.trial_end,
-              current_period_end: sub.current_period_end,
-              manually_blocked: sub.manually_blocked,
-              blocked_reason: sub.blocked_reason,
-            },
-          });
-        });
-      }
-
-      // Adicionar perfis que não estão no RPC (usuários sem assinatura)
-      if (profiles) {
-        profiles.forEach((profile: any) => {
-          if (!usersMap.has(profile.user_id)) {
-            usersMap.set(profile.user_id, {
-              id: profile.user_id,
-              email: 'Sem email cadastrado',
-              created_at: profile.created_at,
-              full_name: profile.full_name,
-              phone: profile.phone,
-              subscription: null,
-            });
-          }
-        });
-      }
-
-      const usersList = Array.from(usersMap.values());
       setUsers(usersList);
       calculateStats(usersList);
     } catch (error) {
@@ -178,6 +141,20 @@ export default function AdminAssinaturas() {
       toast.error('Erro ao carregar usuários');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+
+      if (error) throw error;
+      toast.success(`E-mail de recuperação enviado para ${email}`);
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error('Erro ao enviar e-mail de recuperação');
     }
   };
 
@@ -592,8 +569,18 @@ export default function AdminAssinaturas() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleViewDetails(user)}
+                            title="Ver Detalhes"
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResetPassword(user.email)}
+                            className="text-orange-600"
+                            title="Resetar Senha"
+                          >
+                            <RefreshCw className="h-4 w-4" />
                           </Button>
                           {!user.subscription && (
                             <Button
@@ -604,6 +591,7 @@ export default function AdminAssinaturas() {
                                 setShowCreateDialog(true);
                               }}
                               className="text-green-600"
+                              title="Criar Assinatura"
                             >
                               <Plus className="h-4 w-4" />
                             </Button>

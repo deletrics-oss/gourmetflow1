@@ -162,6 +162,7 @@ export default function SuperAdmin() {
 
   const loadRestaurants = async () => {
     try {
+      // Buscar restaurantes (usando join opcional para não esconder novos cadastros)
       const { data, error } = await supabase
         .from("restaurants")
         .select(`
@@ -170,12 +171,11 @@ export default function SuperAdmin() {
           phone,
           email,
           created_at,
-          user_restaurants!inner (
+          user_restaurants (
             user_id,
             is_active
           )
-        `)
-        .eq("user_restaurants.is_active", true);
+        `);
 
       if (error) throw error;
 
