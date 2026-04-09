@@ -16,7 +16,7 @@ app.use(express.json({ limit: '50mb' }));
 const PORT = process.env.BAILEYS_PORT || 3089;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
-const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' }) : null;
+const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }) : null;
 
 // ============================================
 // JSON FILE DATABASE

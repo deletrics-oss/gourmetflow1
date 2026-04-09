@@ -43,7 +43,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // GEMINI AI SDK INITIALIZATION
 // ============================================
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
-const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' }) : null;
+// Usando o alias -latest que é mais resiliente a mudanças de versão de API
+const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }) : null;
 
 // ============================================
 // EVOLUTION API HELPER
