@@ -5,17 +5,19 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 export function SubscriptionAlert() {
-  const { subscribed, inTrial, daysLeft, loading } = useSubscription();
+  const { isSuperAdmin } = useAuth();
+  const { isExpired, inTrial, daysLeft, loading } = useSubscription();
   const navigate = useNavigate();
   const { isAdmin, loading: authLoading } = useAuth();
 
-  if (loading || authLoading) return null;
+  // Não mostrar nada para Super Admins ou se estiver carregando
+  if (loading || authLoading || isSuperAdmin) return null;
   
   // Admins não veem alertas de subscription
   if (isAdmin) return null;
 
   // Badge compacto verde quando subscribed ou em trial com muitos dias
-  if (subscribed || (inTrial && daysLeft !== undefined && daysLeft > 10)) {
+  if (!isExpired || (inTrial && (daysLeft ?? 0) > 10)) {
     return (
       <div className="fixed bottom-20 right-6 z-40">
         <Button

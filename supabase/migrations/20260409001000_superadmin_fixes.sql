@@ -132,4 +132,25 @@ BEGIN
 END;
 $$;
 
+-- 4. FUNÇÃO PARA ALTERAR SENHA MANUALMENTE (SUPER ADMIN)
+CREATE OR REPLACE FUNCTION public.admin_reset_user_password(p_user_id UUID, p_new_password TEXT)
+RETURNS VOID
+SECURITY DEFINER
+SET search_path = auth, public
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Verificar se quem está chamando é admin
+  IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'admin') THEN
+    RAISE EXCEPTION 'Acesso negado. Apenas administradores podem alterar senhas.';
+  END IF;
+
+  -- Atualizar a senha no sistema de autenticação do Supabase
+  UPDATE auth.users 
+  SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+      updated_at = now()
+  WHERE id = p_user_id;
+END;
+$$;
+
 COMMIT;

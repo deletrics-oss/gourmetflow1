@@ -42,7 +42,23 @@ export function useSubscription() {
     try {
       const { data, error } = await supabase.functions.invoke('check-subscription');
       
-      if (error) throw error;
+      const { isSuperAdmin } = await import('@/hooks/useAuth').then(m => m.useAuth());
+
+      if (error) {
+        if (isSuperAdmin) {
+          setStatus({
+            subscribed: true,
+            inTrial: true,
+            daysLeft: 999,
+            loading: false,
+            isExpired: false,
+            canAccess: true,
+            isBlocked: false,
+          });
+          return;
+        }
+        throw error;
+      }
 
       // Calcular flags de acesso
       const inTrial = data?.inTrial || false;
@@ -50,6 +66,18 @@ export function useSubscription() {
       const daysLeft = data?.daysLeft ?? 0;
       const isBlocked = data?.isBlocked || false;
       
+      // Super Admin override
+      if (isSuperAdmin) {
+        setStatus({
+          ...data,
+          loading: false,
+          isExpired: false,
+          canAccess: true,
+          isBlocked: false,
+        });
+        return;
+      }
+
       // Trial expirado = em trial mas sem dias restantes
       const trialExpired = inTrial && daysLeft <= 0;
       
@@ -68,12 +96,16 @@ export function useSubscription() {
       });
     } catch (error) {
       console.error('Error checking subscription:', error);
+      
+      // Se der erro mas for Admin, libera
+      const { isSuperAdmin } = await import('@/hooks/useAuth').then(m => m.useAuth());
+      
       setStatus({ 
-        subscribed: false, 
-        inTrial: false, 
+        subscribed: isSuperAdmin, 
+        inTrial: isSuperAdmin, 
         loading: false,
-        isExpired: true,
-        canAccess: false,
+        isExpired: !isSuperAdmin,
+        canAccess: isSuperAdmin,
         isBlocked: false,
       });
     }

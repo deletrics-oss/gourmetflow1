@@ -101,51 +101,64 @@ serve(async (req) => {
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       productId = subscription.items.data[0].price.product as string;
 
-      // Mapear price_id para plan_type
+      // Mapeamento Robustecido
       const priceToPlan: Record<string, string> = {
-        "price_1SXEUNPDGZjTHjxq7tgsf3Uf": "delivery1",  // R$59,99
-        "price_1SXEUaPDGZjTHjxqqWAYOo0p": "delivery2",  // R$99,99
-        "price_1SXEV2PDGZjTHjxqR1Q2CoLF": "delivery3",  // R$159,99
+        "price_1SXEUNPDGZjTHjxq7tgsf3Uf": "delivery1",
+        "price_1SXEUaPDGZjTHjxqqWAYOo0p": "delivery2",
+        "price_1SXEV2PDGZjTHjxqR1Q2CoLF": "delivery3",
+        "price_1QREp8LpU9P8uR5u6Fz9K7G2": "essencial",
+        "price_1OSy9FLpU9P8uR5u6Fz9K7G2": "essencial_mesas"
       };
+      
       const priceId = subscription.items.data[0].price.id;
-      planType = priceToPlan[priceId] || null;
+      planType = priceToPlan[priceId] || "digital";
 
       logStep("Active subscription found", { subscriptionId: subscription.id, planType });
 
-      // Atualizar no banco de dados
-      await supabaseClient
-        .from('subscriptions')
-        .upsert({
-          user_id: user.id,
-          stripe_customer_id: customerId,
-          stripe_subscription_id: subscription.id,
-          plan_type: planType,
-          status: 'active',
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: subscriptionEnd,
-        }, {
-          onConflict: 'user_id'
-        });
-    } else {
-      logStep("No active subscription found");
+      // Atualizar no banco de dados com tratamento de erro
+      try {
+        await supabaseClient
+          .from('subscriptions')
+          .upsert({
+            user_id: user.id,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscription.id,
+            plan_type: planType,
+            status: 'active',
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: subscriptionEnd,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+      } catch (dbError) {
+        logStep("Database update failed (skipping)", { dbError });
+      }
     }
 
     return new Response(JSON.stringify({
       subscribed: hasActiveSub,
       productId,
-      planType,
+      planType: planType || (dbSub?.plan_type),
       subscriptionEnd,
-      inTrial: false,
+      inTrial: dbSub?.status === 'trial',
+      daysLeft: dbSub?.trial_end ? Math.max(0, Math.ceil((new Date(dbSub.trial_end).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    logStep("HANDLED ERROR", { message: errorMessage });
+    
+    // Retornar um 200 mesmo em erro de auth para nÃ£o quebrar o front
+    return new Response(JSON.stringify({ 
+      subscribed: false, 
+      error: errorMessage,
+      inTrial: false 
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+      status: 200,
     });
   }
 });

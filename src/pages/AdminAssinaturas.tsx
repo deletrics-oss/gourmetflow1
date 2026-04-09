@@ -44,7 +44,9 @@ import {
   Edit,
   Calendar,
   CheckCircle,
-  UserX
+  UserX,
+  RefreshCw,
+  KeyRound
 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -361,6 +363,31 @@ export default function AdminAssinaturas() {
     }
   };
 
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+
+  const handleUpdatePassword = async () => {
+    if (!selectedUser || !newPassword) return;
+    
+    try {
+      // Usaremos um RPC ou Edge Function para isso por seguranÃ§a,
+      // mas por ora chamaremos via Admin API se disponÃ­vel ou daremos a dica
+      const { error } = await supabase.rpc('admin_reset_user_password', {
+        p_user_id: selectedUser.id,
+        p_new_password: newPassword
+      });
+
+      if (error) throw error;
+
+      toast.success(`Senha de ${selectedUser.email} alterada com sucesso!`);
+      setShowPasswordDialog(false);
+      setNewPassword("");
+    } catch (error) {
+      console.error('Error updating password:', error);
+      toast.error('Erro ao alterar senha. Verifique se o RPC admin_reset_user_password foi criado.');
+    }
+  };
+
   const getStatusBadge = (user: UserWithSubscription) => {
     if (!user.subscription) {
       return <Badge variant="outline" className="bg-gray-100">Sem Assinatura</Badge>;
@@ -391,6 +418,10 @@ export default function AdminAssinaturas() {
       essencial: "Essencial",
       essencial_mesas: "Essencial + Mesas",
       customizado: "Customizado",
+      delivery1: "Delivery 1 (R$59)",
+      delivery2: "Delivery 2 (R$99)",
+      delivery3: "Delivery 3 (R$159)",
+      free: "Grátis",
     };
     return names[type] || type;
   };
@@ -671,6 +702,10 @@ export default function AdminAssinaturas() {
                         <Calendar className="h-4 w-4 mr-2" />
                         Estender Trial
                       </Button>
+                      <Button variant="outline" onClick={() => setShowPasswordDialog(true)} className="text-orange-600">
+                        <KeyRound className="h-4 w-4 mr-2" />
+                        Trocar Senha
+                      </Button>
                       <Button variant="outline" onClick={handleActivateSubscription} className="text-green-600">
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Ativar Manualmente
@@ -838,6 +873,34 @@ export default function AdminAssinaturas() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBlockDialog(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={() => handleToggleBlock(true)}>Bloquear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Senha do UsuÃ¡rio</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha para {selectedUser?.email}. O usuÃ¡rio poderÃ¡ logar imediatamente com ela.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nova Senha</label>
+              <Input 
+                type="password" 
+                placeholder="Digite a nova senha..." 
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>Cancelar</Button>
+            <Button onClick={handleUpdatePassword} className="bg-orange-600 hover:bg-orange-700">
+              Confirmar Nova Senha
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
