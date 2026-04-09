@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const QRCode = require('qrcode');
@@ -14,6 +15,8 @@ app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.BAILEYS_PORT || 3089;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
 
 // ============================================
 // JSON FILE DATABASE
@@ -276,24 +279,15 @@ async function generateBotResponse(message, logic) {
             }
         }
 
-        if ((logic.logicType === 'ai' || logic.logicType === 'hybrid') && GEMINI_API_KEY) {
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            { role: 'user', parts: [{ text: logic.aiPrompt || 'Você é um assistente prestativo.' }] },
-                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto para ajudar.' }] },
-                            { role: 'user', parts: [{ text: message }] }
-                        ],
-                        generationConfig: { maxOutputTokens: 512, temperature: 0.7 }
-                    })
-                }
-            );
-            const data = await response.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        if ((logic.logicType === 'ai' || logic.logicType === 'hybrid') && aiModel) {
+            try {
+                const prompt = `${logic.aiPrompt || 'Você é um assistente prestativo.'}\n\nUsuário: ${message}`;
+                const result = await aiModel.generateContent(prompt);
+                const responseAI = await result.response;
+                return responseAI.text();
+            } catch (err) {
+                console.error('[GourmetFlow] ❌ Erro SDK Gemini (Baileys):', err.message);
+            }
         }
     } catch (error) {
         console.error('Error generating bot response:', error);

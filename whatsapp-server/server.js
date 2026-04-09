@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 app.use(cors());
@@ -37,6 +38,12 @@ function gErr(...args) { console.error(LOG_PREFIX, '❌', ...args); }
 // SUPABASE CLIENT
 // ============================================
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// ============================================
+// GEMINI AI SDK INITIALIZATION
+// ============================================
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
 
 // ============================================
 // EVOLUTION API HELPER
@@ -1253,31 +1260,20 @@ ${sdrInstructions}
 - Data/Hora Atual: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
 `;
 
-            const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            { role: 'user', parts: [{ text: fullPrompt }] },
-                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] },
-                            { role: 'user', parts: [{ text: message }] }
-                        ],
-                        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-                    })
-                }
-            );
-            const data = await resp.json();
-            
-            if (data.error) {
-                gErr('Erro na API do Gemini:', JSON.stringify(data.error));
-                return null;
+            if (!aiModel) {
+                throw new Error("Gemini AI SDK não inicializado (chave ausente)");
             }
 
-            const botMsg = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            const result = await aiModel.generateContent([
+                { role: 'user', parts: [{ text: fullPrompt }] },
+                { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] },
+                { role: 'user', parts: [{ text: message }] }
+            ]);
+            const response = await result.response;
+            const botMsg = response.text();
+
             if (!botMsg) {
-                gLog('⚠️ Gemini retornou estrutura sem texto:', JSON.stringify(data));
+                gLog('⚠️ Gemini retornou estrutura sem texto');
                 return null;
             }
 
@@ -1495,9 +1491,7 @@ async function generateStatusNotification(oldStatus, newStatus, orderNumber, mot
         'cancelled': `❌ Pedido #${orderNumber} foi cancelado. Qualquer dúvida é só chamar!`
     };
 
-    if (!GEMINI_API_KEY) {
-        return fallbackMessages[newStatus] || `📋 Pedido #${orderNumber}: status atualizado para ${translateStatus(newStatus)}`;
-    }
+    if (!aiModel) return fallbackMessages[newStatus] || `📋 Pedido #${orderNumber}: status atualizado para ${translateStatus(newStatus)}`;
 
     try {
         const prompt = `Você é o SDR WhatsApp de um restaurante. Gere UMA ÚNICA mensagem curta e humanizada (máximo 2 linhas) para notificar o cliente sobre a mudança de status do pedido.
@@ -1515,19 +1509,9 @@ Regras:
 - Se for entrega, mencione o nome do motoboy se disponível
 - Responda APENAS com a mensagem, nada mais`;
 
-        const responseGemini = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    generationConfig: { maxOutputTokens: 150, temperature: 0.9 }
-                })
-            }
-        );
-        const data = await responseGemini.json();
-        const msg = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const result = await aiModel.generateContent(prompt);
+        const response = await result.response;
+        const msg = response.text();
         return msg?.trim() || fallbackMessages[newStatus];
     } catch (err) {
         gErr('Erro ao gerar notificação IA:', err.message);
