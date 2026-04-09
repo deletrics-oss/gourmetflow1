@@ -43,7 +43,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // GEMINI AI SDK INITIALIZATION
 // ============================================
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
-const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
+const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' }) : null;
+
+if (genAI) {
+    // Diagnóstico: Listar modelos disponíveis para esta chave
+    // Nota: genAI.listModels() retorna um objeto que contém uma propriedade models
+    genAI.getGenerativeModel({ model: "gemini-1.5-flash" }).listModels()
+        .then(response => {
+            console.log('[GourmetFlow] 🤖 Modelos disponíveis na sua chave:', response.models?.map(m => m.name.replace('models/', '')) || 'Não listado');
+        }).catch(e => console.log('[GourmetFlow] 🤖 Erro ao listar modelos:', e.message));
+}
 
 // ============================================
 // EVOLUTION API HELPER
