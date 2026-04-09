@@ -72,7 +72,7 @@ export function SidebarContent({ onNavigate, showSearch = true }: SidebarContent
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isManager, isSuperAdmin, isOwner, signOut, user } = useAuth();
-  const { restaurant } = useRestaurant();
+  const { restaurant, restaurantId, loading: restaurantLoading } = useRestaurant();
   const [showSearchDialog, setShowSearchDialog] = useState(false);
 
   const handleSignOut = async () => {
@@ -86,9 +86,16 @@ export function SidebarContent({ onNavigate, showSearch = true }: SidebarContent
   };
 
   const openExternal = (url: string, name: string, specs: string) => {
+    // Determine the correct restaurant ID
+    const rId = restaurantId || restaurant?.id;
+    
+    if (!rId && !restaurantLoading) {
+      console.warn("[Sidebar] Tentativa de abrir link externo sem restaurantId disponível");
+    }
+
     // Append restaurantId to ensure multi-tenant isolation on external screens
     const separator = url.includes('?') ? '&' : '?';
-    const finalUrl = restaurant?.id ? `${url}${separator}restaurantId=${restaurant.id}` : url;
+    const finalUrl = rId ? `${url}${separator}restaurantId=${rId}` : url;
     
     window.open(finalUrl, name, specs);
     onNavigate?.();

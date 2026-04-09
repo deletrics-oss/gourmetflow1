@@ -351,8 +351,9 @@ app.patch('/api/devices/:id/logic', async (req, res) => {
         if (logicId !== undefined) updates.active_logic_id = logicId;
 
         console.log(`[GourmetFlow] ♻️ Legacy route /api/devices/${id}/logic used by cached frontend!`);
-        const { data, error } = await supabase.from('whatsapp_devices').update(updates).eq('id', id).select().single();
+        const { data: devices, error } = await supabase.from('whatsapp_devices').update(updates).eq('id', id).select().limit(1);
         if (error) throw error;
+        const data = devices && devices.length > 0 ? devices[0] : null;
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -363,7 +364,8 @@ app.patch('/api/devices/:id/logic', async (req, res) => {
 app.delete('/api/devices/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { data: device } = await supabase.from('whatsapp_devices').select('name').eq('id', id).single();
+        const { data: devices } = await supabase.from('whatsapp_devices').select('name').eq('id', id).limit(1);
+        const device = devices && devices.length > 0 ? devices[0] : null;
 
         if (device) {
             await evoFetch(`/instance/delete/${device.name}`, { method: 'DELETE' });
@@ -382,7 +384,8 @@ app.delete('/api/devices/:id', async (req, res) => {
 app.post('/api/whatsapp/reconnect/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { data: device } = await supabase.from('whatsapp_devices').select('name').eq('id', id).single();
+        const { data: devices } = await supabase.from('whatsapp_devices').select('name').eq('id', id).limit(1);
+        const device = devices && devices.length > 0 ? devices[0] : null;
         const instanceName = device?.name || id;
 
         if (req.body?.forceReset) {
@@ -431,7 +434,7 @@ app.post('/api/logics', async (req, res) => {
         const restaurantId = getRestaurantId(req);
         const { name, description, logicType, logicJson, aiPrompt, knowledgeBase } = req.body;
         
-        const { data, error } = await supabase.from('whatsapp_logic_configs').insert({
+        const { data: logics, error } = await supabase.from('whatsapp_logic_configs').insert({
             restaurant_id: restaurantId,
             name,
             description,
@@ -440,10 +443,10 @@ app.post('/api/logics', async (req, res) => {
             ai_prompt: aiPrompt,
             knowledge_base: knowledgeBase,
             is_active: true
-        }).select().single();
+        }).select().limit(1);
 
         if (error) throw error;
-        res.json(data);
+        res.json(logics && logics.length > 0 ? logics[0] : null);
     } catch (err) {
         console.error('[POST /api/logics] ERRO:', err.message);
         res.status(500).json({ error: err.message });
@@ -1105,10 +1108,11 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
 
                     // Buscar motoboy se em entrega
                     if (activeOrder.motoboy_id) {
-                        const { data: motoboy } = await supabase.from('motoboys')
+                        const { data: motoboys } = await supabase.from('motoboys')
                             .select('name, phone')
                             .eq('id', activeOrder.motoboy_id)
-                            .single();
+                            .limit(1);
+                        const motoboy = motoboys && motoboys.length > 0 ? motoboys[0] : null;
                         if (motoboy) {
                             customerContext.push(`- 🛵 Motoboy: ${motoboy.name}${motoboy.phone ? ` (${motoboy.phone})` : ''}`);
                         }
@@ -1153,9 +1157,10 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
             // 4. CONTEXTO DO RESTAURANTE
             // -----------------------------------------------
             if (restaurantId) {
-                const { data: restaurant } = await supabase.from('restaurants')
+                const { data: restaurants } = await supabase.from('restaurants')
                     .select('name, phone, street, number, neighborhood, city, state')
-                    .eq('id', restaurantId).single();
+                    .eq('id', restaurantId).limit(1);
+                const restaurant = restaurants && restaurants.length > 0 ? restaurants[0] : null;
                 
                 if (restaurant) {
                     restaurantContext.push(`NOME DO RESTAURANTE: ${restaurant.name}`);
@@ -1249,7 +1254,7 @@ ${sdrInstructions}
 `;
 
             const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1406,9 +1411,10 @@ async function setupOrderStatusListener() {
                         gLog(`✅ Notificação proativa enviada para ${customerPhone}: "${notification.substring(0, 60)}..."`);
 
                         // Salvar na conversa
-                        const { data: conv } = await supabase.from('whatsapp_conversations')
+                        const { data: conversations } = await supabase.from('whatsapp_conversations')
                             .select('id').eq('device_id', device.id)
-                            .eq('contact_phone', customerPhone).maybeSingle();
+                            .eq('contact_phone', customerPhone).limit(1);
+                        const conv = conversations && conversations.length > 0 ? conversations[0] : null;
                         
                         if (conv) {
                             await supabase.from('whatsapp_messages').insert({
@@ -1509,8 +1515,8 @@ Regras:
 - Se for entrega, mencione o nome do motoboy se disponível
 - Responda APENAS com a mensagem, nada mais`;
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        const responseGemini = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1520,7 +1526,7 @@ Regras:
                 })
             }
         );
-        const data = await resp.json();
+        const data = await responseGemini.json();
         const msg = data.candidates?.[0]?.content?.parts?.[0]?.text;
         return msg?.trim() || fallbackMessages[newStatus];
     } catch (err) {
