@@ -47,10 +47,10 @@ const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, 
 
 if (genAI) {
     // Diagnóstico: Listar modelos disponíveis para esta chave
-    // Nota: genAI.listModels() retorna um objeto que contém uma propriedade models
-    genAI.getGenerativeModel({ model: "gemini-1.5-flash" }).listModels()
+    genAI.listModels()
         .then(response => {
-            console.log('[GourmetFlow] 🤖 Modelos disponíveis na sua chave:', response.models?.map(m => m.name.replace('models/', '')) || 'Não listado');
+            const models = response.models || response;
+            console.log('[GourmetFlow] 🤖 Modelos disponíveis na sua chave:', Array.isArray(models) ? models.map(m => m.name.replace('models/', '')) : 'Estrutura desconhecida');
         }).catch(e => console.log('[GourmetFlow] 🤖 Erro ao listar modelos:', e.message));
 }
 
