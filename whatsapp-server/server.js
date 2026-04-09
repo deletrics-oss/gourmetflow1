@@ -1269,19 +1269,24 @@ ${sdrInstructions}
             const combinedPrompt = `${fullPrompt}\n\n[CLIENTE DIZ]: "${message}"\n\n[RESPOSTA SDR]:`;
             
             let botMsg;
-            try {
-                const result = await aiModel.generateContent(combinedPrompt);
-                const response = await result.response;
-                botMsg = response.text();
-            } catch (err) {
-                if (err.message.includes('404') || err.message.toLowerCase().includes('not found')) {
-                    console.log('[GourmetFlow] 🔄 Fallback automático: gemini-1.5-flash não encontrado, tentando gemini-pro...');
-                    const fallbackModel = genAI.getGenerativeModel({ model: "gemini-pro" });
-                    const result = await fallbackModel.generateContent(combinedPrompt);
+            const modelsToTry = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-pro"];
+            
+            for (const modelName of modelsToTry) {
+                try {
+                    console.log(`[GourmetFlow] 🤖 Tentando modelo: ${modelName}...`);
+                    const currentModel = genAI.getGenerativeModel({ model: modelName });
+                    const result = await currentModel.generateContent(combinedPrompt);
                     const response = await result.response;
                     botMsg = response.text();
-                } else {
-                    throw err;
+                    if (botMsg) {
+                        console.log(`[GourmetFlow] ✅ Resposta gerada com sucesso usando: ${modelName}`);
+                        break; 
+                    }
+                } catch (err) {
+                    console.error(`[GourmetFlow] ⚠️ Falha no modelo ${modelName}:`, err.message);
+                    if (modelName === modelsToTry[modelsToTry.length - 1]) {
+                        throw err; // Se o último falhar, explode o erro
+                    }
                 }
             }
 
