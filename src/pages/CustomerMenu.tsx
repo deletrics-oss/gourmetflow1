@@ -110,7 +110,6 @@ export default function CustomerMenu() {
 
   useEffect(() => {
     loadData();
-    loadRestaurantSettings();
     // Load saved customer data
     const savedName = localStorage.getItem('customer_name');
     const savedPhone = localStorage.getItem('customer_phone');
@@ -160,59 +159,52 @@ export default function CustomerMenu() {
 
   const loadData = async () => {
     try {
-      // Get restaurant_id from URL or settings
       const urlParams = new URLSearchParams(window.location.search);
-      const restaurantIdFromUrl = urlParams.get('restaurantId');
+      const restaurantId = urlParams.get('restaurantId');
       
-      let restaurantId = restaurantIdFromUrl;
-      
-      // If no restaurant_id in URL, try to get from restaurant_settings
       if (!restaurantId) {
-        const { data: settings } = await supabase
-          .from('restaurant_settings')
-          .select('restaurant_id')
-          .limit(1)
-          .maybeSingle();
-        
-        restaurantId = settings?.restaurant_id;
-      }
-      
-      // Build queries with restaurant_id filter if available
-      let categoriesQuery = supabase.from('categories').select('*').eq('is_active', true).order('sort_order');
-      let itemsQuery = supabase.from('menu_items').select('*').eq('is_available', true).order('sort_order');
-      
-      if (restaurantId) {
-        categoriesQuery = categoriesQuery.eq('restaurant_id', restaurantId);
-        itemsQuery = itemsQuery.eq('restaurant_id', restaurantId);
+        console.error('[CUSTOMER_MENU] restaurantId ausente na URL');
+        return;
       }
       
       const [categoriesRes, itemsRes] = await Promise.all([
-        categoriesQuery,
-        itemsQuery
+        supabase
+          .from('categories')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .eq('is_active', true)
+          .order('sort_order'),
+        supabase
+          .from('menu_items')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .eq('is_available', true)
+          .order('sort_order')
       ]);
 
       if (categoriesRes.data) setCategories(categoriesRes.data);
       if (itemsRes.data) setMenuItems(itemsRes.data);
+      
+      // Carregar as configurações específicas DESTE restaurante
+      await loadRestaurantSettings(restaurantId);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar o cardápio');
     }
   };
 
-  const loadRestaurantSettings = async () => {
+  const loadRestaurantSettings = async (restaurantId: string) => {
+    if (!restaurantId) return;
     try {
       const { data } = await supabase
         .from('restaurant_settings')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .single();
       
       if (data) {
         setRestaurantSettings(data);
-        console.log('[CUSTOMER_MENU] Configurações carregadas:', {
-          pagseguro_enabled: data.pagseguro_enabled,
-          mercadopago_enabled: data.mercadopago_enabled,
-          loyalty_enabled: data.loyalty_enabled
-        });
+        console.log('[CUSTOMER_MENU] Configurações carregadas para:', restaurantId);
         
         // Aplicar cores personalizadas
         if (data.primary_color) document.documentElement.style.setProperty('--customer-primary', data.primary_color);

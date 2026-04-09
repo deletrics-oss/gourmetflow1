@@ -306,7 +306,8 @@ export default function CustomerMenuTablet() {
           subtotal: cartTotal,
           total: cartTotal,
           notes: observations || null,
-          loyalty_points_earned: points
+          loyalty_points_earned: points,
+          restaurant_id: table.restaurant_id
         })
         .select()
         .single();
@@ -386,7 +387,8 @@ export default function CustomerMenuTablet() {
           description: `Pedido Tablet Mesa ${table?.number} - ${currentOrderNumber}`,
           amount: cartTotal,
           payment_method: 'PIX',
-          movement_date: new Date().toISOString()
+          movement_date: new Date().toISOString(),
+          restaurant_id: table.restaurant_id
         });
 
       if (existingCustomer?.id && earnedPoints > 0 && restaurantSettings?.loyalty_enabled) {
@@ -404,7 +406,8 @@ export default function CustomerMenuTablet() {
             order_id: currentOrderId,
             points: earnedPoints,
             type: 'earn',
-            description: `Pontos ganhos no pedido ${currentOrderNumber}`
+            description: `Pontos ganhos no pedido ${currentOrderNumber}`,
+            restaurant_id: table.restaurant_id
           });
       }
 
@@ -459,7 +462,8 @@ export default function CustomerMenuTablet() {
             payment_method: 'pending',
             subtotal: cartTotal,
             total: cartTotal,
-            notes: observations || null
+            notes: observations || null,
+            restaurant_id: table.restaurant_id
           })
           .select()
           .single();

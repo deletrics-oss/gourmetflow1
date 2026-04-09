@@ -133,10 +133,32 @@ export default function CustomerMenuTotem() {
 
   const loadData = async () => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const restaurantId = urlParams.get('restaurantId');
+      
+      if (!restaurantId) {
+        console.error('[TOTEM] restaurantId ausente na URL');
+        return;
+      }
+
       const [categoriesRes, itemsRes, settingsRes] = await Promise.all([
-        supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('menu_items').select('*').eq('is_available', true).order('sort_order'),
-        supabase.from('restaurant_settings').select('*').single()
+        supabase
+          .from('categories')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .eq('is_active', true)
+          .order('sort_order'),
+        supabase
+          .from('menu_items')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .eq('is_available', true)
+          .order('sort_order'),
+        supabase
+          .from('restaurant_settings')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .single()
       ]);
 
       if (categoriesRes.data) setCategories(categoriesRes.data);

@@ -24,20 +24,29 @@ export default function MonitorSenhasExterno() {
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    loadOrders();
-    loadRestaurantSettings();
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantId = urlParams.get('restaurantId');
+    
+    if (!restaurantId) {
+      console.error('[PASSWORD_MONITOR] restaurantId ausente na URL');
+      return;
+    }
+
+    loadOrders(restaurantId);
+    loadRestaurantSettings(restaurantId);
     
     // Realtime subscription
     const channel = supabase
-      .channel('orders-monitor')
+      .channel(`orders-monitor-${restaurantId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'orders'
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}`
         },
-        () => loadOrders()
+        () => loadOrders(restaurantId)
       )
       .subscribe();
 
@@ -46,12 +55,17 @@ export default function MonitorSenhasExterno() {
     };
   }, [filterTotem]);
 
-  const loadRestaurantSettings = async () => {
-    const { data } = await supabase.from('restaurant_settings').select('name').maybeSingle();
+  const loadRestaurantSettings = async (restaurantId: string) => {
+    const { data } = await supabase
+      .from('restaurant_settings')
+      .select('name')
+      .eq('restaurant_id', restaurantId)
+      .single();
     if (data?.name) setRestaurantName(data.name);
   };
 
-  const loadOrders = async () => {
+  const loadOrders = async (restaurantId: string) => {
+    if (!restaurantId) return;
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -59,6 +73,7 @@ export default function MonitorSenhasExterno() {
       let query = supabase
         .from('orders')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .gte('created_at', today.toISOString())
         .order('created_at', { ascending: false });
 

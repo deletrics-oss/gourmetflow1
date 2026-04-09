@@ -35,13 +35,26 @@ export default function MonitorCozinhaExterno() {
   }, [orders]);
 
   useEffect(() => {
-    loadOrders();
-    loadRestaurantSettings();
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantId = urlParams.get('restaurantId');
+    
+    if (!restaurantId) {
+      console.error('[KITCHEN_MONITOR] restaurantId ausente na URL');
+      return;
+    }
+
+    loadOrders(restaurantId);
+    loadRestaurantSettings(restaurantId);
     
     const channel = supabase
-      .channel('kitchen-orders-external')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadOrders();
+      .channel(`kitchen-orders-${restaurantId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `restaurant_id=eq.${restaurantId}`
+      }, () => {
+        loadOrders(restaurantId);
       })
       .subscribe();
 
@@ -50,12 +63,13 @@ export default function MonitorCozinhaExterno() {
     };
   }, []);
 
-  const loadRestaurantSettings = async () => {
+  const loadRestaurantSettings = async (restaurantId: string) => {
     try {
       const { data } = await supabase
         .from('restaurant_settings')
         .select('name')
-        .maybeSingle();
+        .eq('restaurant_id', restaurantId)
+        .single();
 
       if (data?.name) {
         setRestaurantName(data.name);
@@ -65,7 +79,8 @@ export default function MonitorCozinhaExterno() {
     }
   };
 
-  const loadOrders = async () => {
+  const loadOrders = async (restaurantId: string) => {
+    if (!restaurantId) return;
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -74,6 +89,7 @@ export default function MonitorCozinhaExterno() {
           order_items(*, menu_items(preparation_time)),
           tables(number)
         `)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'preparing', 'ready'])
         .order('created_at', { ascending: true });
 

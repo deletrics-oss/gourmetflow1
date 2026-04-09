@@ -45,15 +45,22 @@ export default function TableCustomerMenu() {
         .eq('id', tableId)
         .single();
 
+      if (!tableData) {
+        setLoading(false);
+        return;
+      }
+
       setTable(tableData);
+      const restaurantId = tableData.restaurant_id;
 
       // Load active order for this table
       const { data: orderData } = await supabase
         .from('orders')
         .select('*, order_items(*)')
         .eq('table_id', tableId)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'confirmed', 'preparing'])
-        .single();
+        .maybeSingle();
 
       setOrder(orderData);
 
@@ -61,6 +68,7 @@ export default function TableCustomerMenu() {
       const { data: items } = await supabase
         .from('menu_items')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .eq('is_available', true)
         .order('sort_order');
 
@@ -70,6 +78,7 @@ export default function TableCustomerMenu() {
       const { data: cats } = await supabase
         .from('categories')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .eq('is_active', true)
         .order('sort_order');
 
@@ -176,6 +185,7 @@ export default function TableCustomerMenu() {
           .insert([{
             order_number: orderNumber,
             table_id: tableId,
+            restaurant_id: table.restaurant_id,
             delivery_type: 'dine_in' as const,
             status: 'new' as const,
             total: total,

@@ -90,6 +90,7 @@ export default function BalcaoExterno() {
   });
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const { toast } = useToast();
   const { sendMessage } = useWhatsApp();
   const { restaurant } = useRestaurant();
@@ -187,28 +188,47 @@ export default function BalcaoExterno() {
   }, [customerAddress.street, customerAddress.number, customerAddress.city, deliveryType]);
 
   useEffect(() => {
-    loadCategories();
-    loadMenuItems();
-    loadRestaurantSettings();
-    loadMotoboys();
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantId = urlParams.get('restaurantId');
+    
+    if (!restaurantId) {
+      console.error('[BALCAO_MONITOR] restaurantId ausente na URL');
+      return;
+    }
+
+    setRestaurantId(restaurantId);
+    loadCategories(restaurantId);
+    loadMenuItems(restaurantId);
+    loadRestaurantSettings(restaurantId);
+    loadMotoboys(restaurantId);
   }, []);
 
-  const loadCategories = async () => {
-    const { data } = await supabase.from("categories").select("*").eq("is_active", true).order("sort_order");
+  const loadCategories = async (restaurantId: string) => {
+    const { data } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true)
+      .order("sort_order");
     if (data) setCategories(data);
   };
 
-  const loadMenuItems = async () => {
+  const loadMenuItems = async (restaurantId: string) => {
     const { data } = await supabase
       .from("menu_items")
       .select("*")
+      .eq("restaurant_id", restaurantId)
       .eq("is_available", true)
       .order("sort_order");
     if (data) setMenuItems(data);
   };
 
-  const loadRestaurantSettings = async () => {
-    const { data } = await supabase.from("restaurant_settings").select("*").single();
+  const loadRestaurantSettings = async (restaurantId: string) => {
+    const { data } = await supabase
+      .from("restaurant_settings")
+      .select("*")
+      .eq("restaurant_id", restaurantId)
+      .single();
     if (data) {
       setRestaurantName(data.name || "Restaurante");
       setLoyaltyEnabled(data.loyalty_enabled || false);
@@ -217,10 +237,11 @@ export default function BalcaoExterno() {
     }
   };
 
-  const loadMotoboys = async () => {
+  const loadMotoboys = async (restaurantId: string) => {
     const { data } = await supabase
       .from("motoboys")
       .select("*")
+      .eq("restaurant_id", restaurantId)
       .eq("is_active", true)
       .order("name");
     if (data) setMotoboys(data);
@@ -396,7 +417,8 @@ export default function BalcaoExterno() {
                 ...customerAddress,
                 latitude: customerAddress.latitude,
                 longitude: customerAddress.longitude,
-              }
+              },
+              restaurant_id: restaurantId
             })
             .select('id')
             .single();
@@ -423,7 +445,8 @@ export default function BalcaoExterno() {
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
           status: "new",
           subtotal: subtotal,
-          total: total
+          total: total,
+          restaurant_id: restaurantId
         })
         .select()
         .single();
@@ -457,7 +480,8 @@ export default function BalcaoExterno() {
             order_id: order.id,
             points: -pointsToUse,
             type: 'redeem',
-            description: `Desconto no pedido ${orderNumber}`
+            description: `Desconto no pedido ${orderNumber}`,
+            restaurant_id: restaurantId
           });
       }
       
@@ -486,7 +510,8 @@ export default function BalcaoExterno() {
             order_id: order.id,
             points: pointsEarned,
             type: 'earn',
-            description: `Compra no pedido ${orderNumber}`
+            description: `Compra no pedido ${orderNumber}`,
+            restaurant_id: restaurantId
           });
       }
 

@@ -24,16 +24,34 @@ export default function MonitorGestorExterno() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantId = urlParams.get('restaurantId');
+    
+    if (!restaurantId) {
+      console.error('[GESTO_MONITOR] restaurantId ausente na URL');
+      return;
+    }
+
+    loadData(restaurantId);
     const interval = setInterval(() => {
-      loadData(); // Refresh data
+      loadData(restaurantId); // Refresh data
       setCurrentSlide(prev => (prev + 1) % 3); // 3 slides
     }, 5000); // Muda a cada 5 segundos
 
     const channel = supabase
-      .channel('monitor-gestor-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_movements' }, loadData)
+      .channel(`monitor-gestor-${restaurantId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `restaurant_id=eq.${restaurantId}`
+      }, () => loadData(restaurantId))
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'cash_movements',
+        filter: `restaurant_id=eq.${restaurantId}`
+      }, () => loadData(restaurantId))
       .subscribe();
 
     return () => {
@@ -42,7 +60,8 @@ export default function MonitorGestorExterno() {
     };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (restaurantId: string) => {
+    if (!restaurantId) return;
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -51,12 +70,14 @@ export default function MonitorGestorExterno() {
         supabase
           .from('orders')
           .select('*')
+          .eq('restaurant_id', restaurantId)
           .gte('created_at', today.toISOString())
           .order('created_at', { ascending: false }),
-        supabase.from('menu_items').select('*'),
+        supabase.from('menu_items').select('*').eq('restaurant_id', restaurantId),
         supabase
           .from('cash_movements')
           .select('*')
+          .eq('restaurant_id', restaurantId)
           .gte('created_at', today.toISOString())
           .order('created_at', { ascending: false })
       ]);
