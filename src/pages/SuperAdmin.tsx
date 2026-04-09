@@ -162,33 +162,14 @@ export default function SuperAdmin() {
 
   const loadRestaurants = async () => {
     try {
-      // Buscar restaurantes (usando join opcional para não esconder novos cadastros)
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select(`
-          id,
-          name,
-          phone,
-          email,
-          created_at,
-          user_restaurants (
-            user_id,
-            is_active
-          )
-        `);
+      // Usar o RPC v2 para buscar tudo de uma vez com segurança (contorna erro 406 e RLS)
+      const { data, error } = await supabase.rpc("get_admin_users_v2");
 
       if (error) throw error;
 
-      // Para cada restaurante, buscar informações de assinatura e pedidos
+      // Buscar estatísticas de pedidos para cada restaurante
       const restaurantsWithDetails = await Promise.all(
-        (data || []).map(async (restaurant) => {
-          // Buscar assinatura do usuário
-          const { data: subData } = await supabase
-            .from("subscriptions")
-            .select("plan_type, status, trial_end, manually_blocked, blocked_reason")
-            .eq("user_id", restaurant.user_restaurants[0].user_id)
-            .single();
-
+        (data || []).map(async (userData: any) => {
           // Buscar estatísticas de pedidos
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -196,31 +177,31 @@ export default function SuperAdmin() {
           const { data: orderStats } = await supabase
             .from("orders")
             .select("total, created_at")
-            .eq("restaurant_id", restaurant.id)
+            .eq("restaurant_id", userData.id) // O ID aqui já é o do restaurante no RPC v2
             .gte("created_at", thirtyDaysAgo.toISOString());
 
           const { data: lastOrder } = await supabase
             .from("orders")
             .select("created_at")
-            .eq("restaurant_id", restaurant.id)
+            .eq("restaurant_id", userData.id)
             .order("created_at", { ascending: false })
             .limit(1);
 
           const orders30d = orderStats?.length || 0;
-          const revenue30d = orderStats?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
+          const revenue30d = orderStats?.reduce((sum: number, o: any) => sum + (o.total || 0), 0) || 0;
           const lastActivity = lastOrder?.[0]?.created_at || null;
 
           return {
-            id: restaurant.id,
-            name: restaurant.name,
-            phone: restaurant.phone,
-            email: restaurant.email,
-            created_at: restaurant.created_at,
-            plan_type: subData?.plan_type || null,
-            subscription_status: subData?.status || null,
-            trial_end: subData?.trial_end || null,
-            manually_blocked: subData?.manually_blocked || false,
-            blocked_reason: subData?.blocked_reason || null,
+            id: userData.id,
+            name: userData.restaurant_name || "Sem nome",
+            phone: userData.phone,
+            email: userData.email,
+            created_at: userData.created_at,
+            plan_type: userData.plan_type,
+            subscription_status: userData.status,
+            trial_end: userData.trial_end,
+            manually_blocked: userData.manually_blocked,
+            blocked_reason: null,
             orders_30d: orders30d,
             revenue_30d: revenue30d,
             last_activity: lastActivity,

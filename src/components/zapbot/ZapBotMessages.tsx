@@ -1,25 +1,25 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase-client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Phone, Bot, Loader2, MessageCircle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export function ZapBotMessages() {
+  const { restaurant } = useRestaurant();
+
   const { data: messages, isLoading, refetch } = useQuery({
-    queryKey: ["whatsapp-messages"],
+    queryKey: ["whatsapp-messages", restaurant?.id],
     queryFn: async () => {
+      if (!restaurant?.id) return [];
+      
       const { data, error } = await supabase
         .from("whatsapp_messages")
         .select("*")
+        .eq("restaurant_id", restaurant.id) // FILTRO OBRIGATÓRIO DE SEGURANÇA
         .order("received_at", { ascending: false })
         .limit(100);
 
       if (error) throw error;
       return data;
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 5000,
+    enabled: !!restaurant?.id,
   });
 
   if (isLoading) {

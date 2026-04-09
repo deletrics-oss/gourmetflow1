@@ -11,7 +11,10 @@ import { Copy, Save, Loader2, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
+import { useRestaurant } from "@/hooks/useRestaurant";
+
 export function ZapBotSettings() {
+  const { restaurant } = useRestaurant();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState({
@@ -31,17 +34,20 @@ export function ZapBotSettings() {
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   const { data: currentSettings, isLoading } = useQuery({
-    queryKey: ["restaurant-settings-whatsapp"],
+    queryKey: ["restaurant-settings-whatsapp", restaurant?.id],
     queryFn: async () => {
+      if (!restaurant?.id) return null;
+
       const { data, error } = await supabase
         .from("restaurant_settings")
         .select("*")
-        .limit(1)
+        .eq("restaurant_id", restaurant.id) // ISOLAMENTO DE TENANT
         .maybeSingle();
 
       if (error) throw error;
       return data;
     },
+    enabled: !!restaurant?.id,
   });
 
   useEffect(() => {

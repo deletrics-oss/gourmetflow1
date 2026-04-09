@@ -10,22 +10,29 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { useRestaurant } from "@/hooks/useRestaurant";
+
 export function ZapBotAppointments() {
+  const { restaurant } = useRestaurant();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   const { data: appointments, isLoading } = useQuery({
-    queryKey: ["whatsapp-appointments"],
+    queryKey: ["whatsapp-appointments", restaurant?.id],
     queryFn: async () => {
+      if (!restaurant?.id) return [];
+
       const { data, error } = await supabase
         .from("whatsapp_appointments")
         .select("*")
+        .eq("restaurant_id", restaurant.id) // FILTRO OBRIGATÓRIO DE SEGURANÇA
         .order("appointment_date", { ascending: true });
 
       if (error) throw error;
       return data;
     },
     refetchInterval: 10000,
+    enabled: !!restaurant?.id,
   });
 
   const appointmentsOnSelectedDate = appointments?.filter((apt) => {
