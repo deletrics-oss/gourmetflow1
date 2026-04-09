@@ -283,9 +283,23 @@ async function generateBotResponse(message, logic) {
                 // MODO DE COMPATIBILIDADE TOTAL: Prompt Único
                 const combinedPrompt = `${logic.aiPrompt || 'Você é um assistente prestativo.'}\n\n[CLIENTE DIZ]: "${message}"\n\n[SUA RESPOSTA]:`;
                 
-                const result = await aiModel.generateContent(combinedPrompt);
-                const responseAI = await result.response;
-                return responseAI.text();
+                let responseText;
+                try {
+                    const result = await aiModel.generateContent(combinedPrompt);
+                    const responseAI = await result.response;
+                    responseText = responseAI.text();
+                } catch (err) {
+                    if (err.message.includes('404') || err.message.toLowerCase().includes('not found')) {
+                        console.log('[GourmetFlow] 🔄 Fallback Baileys: Usando gemini-pro...');
+                        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+                        const result = await fallbackModel.generateContent(combinedPrompt);
+                        const responseAI = await result.response;
+                        responseText = responseAI.text();
+                    } else {
+                        throw err;
+                    }
+                }
+                return responseText;
             } catch (err) {
                 console.error('[GourmetFlow] ❌ Erro SDK Gemini (Baileys):', err.message);
             }

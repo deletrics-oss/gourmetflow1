@@ -1268,9 +1268,22 @@ ${sdrInstructions}
             // MODO DE COMPATIBILIDADE TOTAL: Prompt Único (Sem Roles/History)
             const combinedPrompt = `${fullPrompt}\n\n[CLIENTE DIZ]: "${message}"\n\n[RESPOSTA SDR]:`;
             
-            const result = await aiModel.generateContent(combinedPrompt);
-            const response = await result.response;
-            const botMsg = response.text();
+            let botMsg;
+            try {
+                const result = await aiModel.generateContent(combinedPrompt);
+                const response = await result.response;
+                botMsg = response.text();
+            } catch (err) {
+                if (err.message.includes('404') || err.message.toLowerCase().includes('not found')) {
+                    console.log('[GourmetFlow] 🔄 Fallback automático: gemini-1.5-flash não encontrado, tentando gemini-pro...');
+                    const fallbackModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+                    const result = await fallbackModel.generateContent(combinedPrompt);
+                    const response = await result.response;
+                    botMsg = response.text();
+                } else {
+                    throw err;
+                }
+            }
 
             if (!botMsg) {
                 gLog('⚠️ Gemini retornou estrutura sem texto');
