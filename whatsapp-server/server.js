@@ -852,6 +852,29 @@ async function handleEvolutionWebhook(req, res) {
                 gLog(`✅ Mensagem salva no Supabase com sucesso! (phone=${phone}, conv=${convId})`);
             }
 
+            // Check for review response FIRST (before AI)
+            if (convId) {
+                const reviewResponse = await handleReviewResponse(content, convId, device.restaurant_id, phone, device.id);
+                if (reviewResponse) {
+                    gLog(`⭐ Avaliação recebida de ${phone}: "${content}" → respondendo...`);
+                    const { data: deviceData } = await supabase.from('whatsapp_devices')
+                        .select('name').eq('id', device.id).single();
+                    if (deviceData) {
+                        await evoFetch(`/message/sendText/${deviceData.name}`, {
+                            method: 'POST',
+                            body: JSON.stringify({ number: phone, text: reviewResponse }),
+                        });
+                        await supabase.from('whatsapp_messages').insert({
+                            device_id: device.id, restaurant_id: device.restaurant_id,
+                            conversation_id: convId, phone_number: phone,
+                            message_content: reviewResponse, message_type: 'text',
+                            direction: 'outgoing', remetente: 'bot', is_from_bot: true,
+                        });
+                    }
+                    return res.json({ ok: true });
+                }
+            }
+
             // Auto-respond with AI if logic is active
             if (device.active_logic_id) {
                 gLog(`🤖 Lógica ativa encontrada: ${device.active_logic_id} — gerando resposta AI...`);
@@ -873,7 +896,7 @@ async function handleEvolutionWebhook(req, res) {
                         }
                     }
 
-                    const response = await generateBotResponse(content, logic, device.restaurant_id);
+                    const response = await generateBotResponse(content, logic, device.restaurant_id, phone);
                     if (response) {
                         gLog(`🤖 Resposta AI gerada: "${response.substring(0, 80)}${response.length > 80 ? '...' : ''}"`);
                         await evoFetch(`/message/sendText/${instance}`, {
@@ -924,9 +947,9 @@ app.post('/api/webhook', handleEvolutionWebhook);
 app.post('/api/webhook/evolution', handleEvolutionWebhook);
 
 // ============================================
-// AI BOT RESPONSE (with restaurant menu context)
+// AI BOT RESPONSE (with FULL restaurant + CRM context)
 // ============================================
-async function generateBotResponse(message, logic, restaurantId) {
+async function generateBotResponse(message, logic, restaurantId, customerPhone) {
     try {
         // Rule-based matching first
         if (logic.logic_type === 'json' || logic.logic_type === 'hybrid') {
@@ -940,7 +963,6 @@ async function generateBotResponse(message, logic, restaurantId) {
                         rule.triggerType === 'startsWith' ? msg.startsWith(trigger) :
                         msg.includes(trigger);
                     if (match) {
-                        // Handle special actions
                         let response = rule.response;
                         if (response.includes('#CARDAPIO') && restaurantId) {
                             const menu = await getRestaurantMenu(restaurantId);
@@ -959,48 +981,263 @@ async function generateBotResponse(message, logic, restaurantId) {
             }
         }
 
-        // AI response (Gemini) — SDR MODE
+        // ===================================================
+        // AI response (Gemini) — SDR OMNICHANNEL MODE
+        // ===================================================
         if ((logic.logic_type === 'ai' || logic.logic_type === 'hybrid' || logic.logic_type === 'ai_scheduling') && GEMINI_API_KEY) {
             let systemPrompt = logic.ai_prompt || 'Você é um assistente profissional de atendimento de um restaurante.';
             
             const restaurantContext = [];
+            const customerContext = [];
             
-            // 1. Restaurant Info
+            // -----------------------------------------------
+            // 1. CRM COMPLETO — Perfil + Pontos + Cupons
+            // -----------------------------------------------
+            if (customerPhone) {
+                const { data: customer } = await supabase.from('customers')
+                    .select('id, name, loyalty_points, notes, cpf, address, created_at')
+                    .eq('phone', customerPhone)
+                    .maybeSingle();
+                
+                if (customer) {
+                    customerContext.push(`- Nome do Cliente: ${customer.name}`);
+                    customerContext.push(`- Cliente desde: ${new Date(customer.created_at).toLocaleDateString('pt-BR')}`);
+                    customerContext.push(`- Pontos de Fidelidade: ${customer.loyalty_points || 0}`);
+                    
+                    // Calcular valor em reais dos pontos
+                    const { data: settings } = await supabase.from('restaurant_settings')
+                        .select('loyalty_enabled, loyalty_points_per_real, loyalty_redemption_value')
+                        .eq('restaurant_id', restaurantId)
+                        .maybeSingle();
+                    
+                    if (settings && settings.loyalty_enabled && customer.loyalty_points > 0) {
+                        const cashValue = (customer.loyalty_points * (settings.loyalty_redemption_value || 0.01)).toFixed(2);
+                        customerContext.push(`- Valor dos pontos em R$: R$ ${cashValue} (pode usar no próximo pedido!)`);
+                    }
+                    
+                    if (customer.notes) {
+                        customerContext.push(`- Observações do perfil: ${customer.notes}`);
+                    }
+                    if (customer.address) {
+                        const addr = typeof customer.address === 'string' ? JSON.parse(customer.address) : customer.address;
+                        customerContext.push(`- Endereço salvo: ${addr.street || ''} ${addr.number || ''} - ${addr.neighborhood || ''} ${addr.city || ''}`);
+                    }
+                } else {
+                    customerContext.push(`- Novo cliente (primeiro contato)`);
+                }
+
+                // Contagem total de pedidos anteriores
+                const { count: orderCount } = await supabase.from('orders')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('customer_phone', customerPhone);
+                
+                customerContext.push(`- Total de Pedidos Já Realizados: ${orderCount || 0}`);
+
+                // Últimos 3 pedidos (histórico recente)
+                const { data: recentOrders } = await supabase.from('orders')
+                    .select('order_number, status, total, delivery_type, created_at')
+                    .eq('customer_phone', customerPhone)
+                    .order('created_at', { ascending: false })
+                    .limit(3);
+                
+                if (recentOrders && recentOrders.length > 0) {
+                    customerContext.push(`\n# HISTÓRICO RECENTE DE PEDIDOS:`);
+                    for (const ro of recentOrders) {
+                        const statusLabel = translateStatus(ro.status);
+                        customerContext.push(`  - #${ro.order_number} | ${statusLabel} | R$ ${Number(ro.total).toFixed(2)} | ${ro.delivery_type} | ${new Date(ro.created_at).toLocaleDateString('pt-BR')}`);
+                    }
+                }
+
+                // -----------------------------------------------
+                // 2. PEDIDO ATIVO — Com itens, motoboy, tempo
+                // -----------------------------------------------
+                const { data: activeOrder } = await supabase.from('orders')
+                    .select('id, order_number, status, total, delivery_type, delivery_address, delivery_fee, motoboy_id, estimated_delivery_time, notes, created_at, order_source')
+                    .eq('customer_phone', customerPhone)
+                    .not('status', 'in', '("completed","cancelled")')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (activeOrder) {
+                    customerContext.push(`\n# 🔥 PEDIDO ATIVO AGORA:`);
+                    customerContext.push(`- Pedido: #${activeOrder.order_number}`);
+                    customerContext.push(`- Status: ${translateStatus(activeOrder.status)}`);
+                    customerContext.push(`- Valor Total: R$ ${Number(activeOrder.total).toFixed(2)}`);
+                    customerContext.push(`- Tipo: ${activeOrder.delivery_type === 'delivery' ? 'Entrega' : activeOrder.delivery_type === 'pickup' ? 'Retirada' : 'Mesa'}`);
+                    customerContext.push(`- Origem: ${activeOrder.order_source || 'pdv'}`);
+                    customerContext.push(`- Feito em: ${new Date(activeOrder.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
+                    
+                    if (activeOrder.delivery_fee > 0) {
+                        customerContext.push(`- Taxa de entrega: R$ ${Number(activeOrder.delivery_fee).toFixed(2)}`);
+                    }
+                    if (activeOrder.estimated_delivery_time) {
+                        customerContext.push(`- Previsão de entrega: ${new Date(activeOrder.estimated_delivery_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`);
+                    }
+                    if (activeOrder.notes) {
+                        customerContext.push(`- Observações: ${activeOrder.notes}`);
+                    }
+                    if (activeOrder.delivery_address) {
+                        const addr = typeof activeOrder.delivery_address === 'string' ? JSON.parse(activeOrder.delivery_address) : activeOrder.delivery_address;
+                        customerContext.push(`- Endereço de entrega: ${addr.street || ''} ${addr.number || ''} - ${addr.neighborhood || ''} ${addr.city || ''}`);
+                    }
+
+                    // Buscar itens do pedido ativo
+                    const { data: orderItems } = await supabase.from('order_items')
+                        .select('name, quantity, unit_price, notes')
+                        .eq('order_id', activeOrder.id);
+                    
+                    if (orderItems && orderItems.length > 0) {
+                        customerContext.push(`- Itens pedidos:`);
+                        for (const item of orderItems) {
+                            customerContext.push(`    • ${item.quantity}x ${item.name} (R$ ${Number(item.unit_price).toFixed(2)})${item.notes ? ` [${item.notes}]` : ''}`);
+                        }
+                    }
+
+                    // Buscar motoboy se em entrega
+                    if (activeOrder.motoboy_id) {
+                        const { data: motoboy } = await supabase.from('motoboys')
+                            .select('name, phone')
+                            .eq('id', activeOrder.motoboy_id)
+                            .single();
+                        if (motoboy) {
+                            customerContext.push(`- 🛵 Motoboy: ${motoboy.name}${motoboy.phone ? ` (${motoboy.phone})` : ''}`);
+                        }
+                    }
+
+                    // Última atualização de status
+                    const { data: lastHistory } = await supabase.from('order_status_history')
+                        .select('new_status, created_at')
+                        .eq('order_id', activeOrder.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    if (lastHistory) {
+                        customerContext.push(`- Última atualização: ${translateStatus(lastHistory.new_status)} às ${new Date(lastHistory.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`);
+                    }
+                }
+
+                // -----------------------------------------------
+                // 3. CUPONS DE DESCONTO ATIVOS
+                // -----------------------------------------------
+                const { data: activeCoupons } = await supabase.from('coupons')
+                    .select('code, type, discount_value, min_order_value, valid_until')
+                    .eq('is_active', true)
+                    .or(`valid_until.is.null,valid_until.gte.${new Date().toISOString()}`)
+                    .limit(5);
+                
+                if (activeCoupons && activeCoupons.length > 0) {
+                    customerContext.push(`\n# 🎫 CUPONS DE DESCONTO DISPONÍVEIS:`);
+                    for (const c of activeCoupons) {
+                        const discountText = c.type === 'percentage' 
+                            ? `${c.discount_value}% de desconto`
+                            : `R$ ${Number(c.discount_value).toFixed(2)} de desconto`;
+                        const minText = c.min_order_value > 0 ? ` (pedido mínimo R$ ${Number(c.min_order_value).toFixed(2)})` : '';
+                        const validText = c.valid_until ? ` válido até ${new Date(c.valid_until).toLocaleDateString('pt-BR')}` : '';
+                        customerContext.push(`  - Código: *${c.code}* → ${discountText}${minText}${validText}`);
+                    }
+                }
+            }
+
+            // -----------------------------------------------
+            // 4. CONTEXTO DO RESTAURANTE
+            // -----------------------------------------------
             if (restaurantId) {
                 const { data: restaurant } = await supabase.from('restaurants')
-                    .select('name, phone, address').eq('id', restaurantId).single();
+                    .select('name, phone, street, number, neighborhood, city, state')
+                    .eq('id', restaurantId).single();
                 
                 if (restaurant) {
                     restaurantContext.push(`NOME DO RESTAURANTE: ${restaurant.name}`);
-                    restaurantContext.push(`ENDEREÇO: ${restaurant.address || 'Não informado'}`);
+                    const address = [restaurant.street, restaurant.number, restaurant.neighborhood, restaurant.city, restaurant.state].filter(Boolean).join(', ');
+                    restaurantContext.push(`ENDEREÇO: ${address || 'Não informado'}`);
                     restaurantContext.push(`TELEFONE/CONTATO: ${restaurant.phone || 'Não informado'}`);
                 }
+
+                // Horário de funcionamento
+                const { data: settings } = await supabase.from('restaurant_settings')
+                    .select('business_hours, payment_methods, delivery_options')
+                    .eq('restaurant_id', restaurantId).maybeSingle();
                 
-                // 2. Menu Info
+                if (settings) {
+                    if (settings.business_hours) {
+                        restaurantContext.push(`\nHORÁRIO DE FUNCIONAMENTO: ${JSON.stringify(settings.business_hours)}`);
+                    }
+                    if (settings.payment_methods) {
+                        restaurantContext.push(`FORMAS DE PAGAMENTO ACEITAS: ${JSON.stringify(settings.payment_methods)}`);
+                    }
+                    if (settings.delivery_options) {
+                        restaurantContext.push(`OPÇÕES DE ENTREGA: ${JSON.stringify(settings.delivery_options)}`);
+                    }
+                }
+
+                // Zonas de entrega
+                const { data: deliveryZones } = await supabase.from('delivery_zones')
+                    .select('min_distance, max_distance, fee')
+                    .eq('restaurant_id', restaurantId)
+                    .eq('is_active', true)
+                    .order('min_distance');
+                
+                if (deliveryZones && deliveryZones.length > 0) {
+                    restaurantContext.push(`\nTAXAS DE ENTREGA:`);
+                    for (const zone of deliveryZones) {
+                        restaurantContext.push(`  - ${zone.min_distance}-${zone.max_distance}km: R$ ${Number(zone.fee).toFixed(2)}`);
+                    }
+                }
+                
+                // Cardápio
                 const menu = await getRestaurantMenu(restaurantId);
-                restaurantContext.push(`\nCARDÁPIO ATUALIZADO:\n${menu}`);
+                restaurantContext.push(`\nCARDÁPIO ATUALIZADO (Use para informar preços e detalhes):\n${menu}`);
             }
 
-            // 3. Knowledge Base Info
+            // 4b. Knowledge Base
             if (logic.knowledge_base) {
                 restaurantContext.push(`\nINFORMAÇÕES ADICIONAIS / FAQ:\n${logic.knowledge_base}`);
             }
 
-            // 4. Personalidade SDR (Sales Development Representative)
+            // -----------------------------------------------
+            // 5. PERSONA SDR OMNICHANNEL COMPLETA
+            // -----------------------------------------------
             const sdrInstructions = `
-# INSTRUÇÕES DE PERSONA (RECEPCIONISTA VIRTUAL OMNICHANNEL):
-- Você é o recepcionista inteligente do restaurante. Seu objetivo primário é receber o cliente de braços abertos, responder dúvidas rápidas e SEMPRE direcioná-lo a fazer o pedido de forma autônoma pelo nosso site oficial.
-- O SITE OFICIAL PARA EMISSÃO DE PEDIDOS É: https://iapedido.deletrics.site
-- NUNCA tente anotar pedidos pelo WhatsApp e NÃO ofereça processar pagamentos por aqui. Nosso sistema é automatizado.
-- Quando o cliente quiser pedir, envie a mensagem com o link: "Para pedir mais rapidinho e ver com fotos, é só acessar nosso cardápio online: https://iapedido.deletrics.site Lá você já escolhe, paga e o pedido vai direto pra nossa cozinha preparar 😊"
-- Se o cliente tiver uma reclamação ou um problema complexo, peça um momento para chamar um colega humano da recepção.
-- Responda de forma natural, BEM curta e direta. Use emojis moderadamente.
+# INSTRUÇÕES DE PERSONA (RECEPCIONISTA SDR OMNICHANNEL):
+- Você é o recepcionista inteligente do restaurante. Seu objetivo primário é receber o cliente com excelência, responder dúvidas e SEMPRE direcioná-lo a fazer o pedido pelo site oficial.
+- O SITE OFICIAL PARA PEDIDOS É: https://iapedido.deletrics.site
+- NUNCA tente anotar pedidos pelo WhatsApp e NÃO processe pagamentos aqui. O sistema é automatizado.
+
+## REGRAS DE ATENDIMENTO:
+1. Se o cliente é NOVO: Dê boas-vindas calorosas e apresente o link do cardápio
+2. Se o cliente é RECORRENTE: Reconheça-o pelo nome, mencione seus pontos de fidelidade
+3. Se há PEDIDO ATIVO: Informe o status EXATO (ex: "está na cozinha agora, ~10 min!"). Use os dados acima.
+4. Se pedido está com MOTOBOY: Diga o nome do motoboy e que está a caminho
+5. Se o cliente perguntar "cadê meu pedido?": Consulte PEDIDO ATIVO acima e dê uma resposta precisa
+6. Se perguntar sobre CUPONS: Informe os cupons disponíveis (veja lista acima)
+7. Se perguntar sobre PONTOS/FIDELIDADE: Informe pontos e valor em reais disponível
+8. Se o cliente quiser pedir: Envie o link → https://iapedido.deletrics.site com mensagem entusiasmada
+9. Se reclamação ou problema complexo: Peça desculpa e diga que vai chamar um atendente humano
+10. NUNCA invente informações! Se não souber, diga com honestidade.
+
+## TOM DE VOZ:
+- Natural, curto e direto. Nada de textão!
+- Use emojis moderadamente (1-2 por mensagem)
+- Fale como um atendente humano profissional, NÃO como robô
+- Se for VIP (5+ pedidos), trate como cliente especial
+`;
+
+            const fullPrompt = `
+${systemPrompt}
+
+# PERFIL DO CLIENTE:
+${customerContext.length > 0 ? customerContext.join('\n') : '- Novo cliente (primeiro contato)'}
+
+# CONTEXTO DO RESTAURANTE:
+${restaurantContext.join('\n')}
+
+${sdrInstructions}
 
 # CONTEXTO DO MOMENTO:
 - Data/Hora Atual: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
 `;
-
-            const fullPrompt = `${systemPrompt}\n\n${restaurantContext.join('\n')}\n\n${sdrInstructions}`;
 
             const resp = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -1010,7 +1247,7 @@ async function generateBotResponse(message, logic, restaurantId) {
                     body: JSON.stringify({
                         contents: [
                             { role: 'user', parts: [{ text: fullPrompt }] },
-                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto para atuar como o melhor atendente SDR do restaurante. Vou usar as informações do cardápio e base de conhecimento para converter os clientes com excelência.' }] },
+                            { role: 'model', parts: [{ text: 'Entendido! Estou pronto como SDR Omnichannel. Vou usar TODOS os dados — CRM, pedidos ativos, cupons, pontos e cardápio — para atender cada cliente com excelência e precisão.' }] },
                             { role: 'user', parts: [{ text: message }] }
                         ],
                         generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
@@ -1020,23 +1257,43 @@ async function generateBotResponse(message, logic, restaurantId) {
             const data = await resp.json();
             
             if (data.error) {
-                console.error('[GourmetFlow] ❌ Erro na API do Gemini:', JSON.stringify(data.error));
+                gErr('Erro na API do Gemini:', JSON.stringify(data.error));
                 return null;
             }
 
             const botMsg = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!botMsg) {
-                console.warn('[GourmetFlow] ⚠️ Gemini retornou estrutura sem texto ou vazia:', JSON.stringify(data));
+                gLog('⚠️ Gemini retornou estrutura sem texto:', JSON.stringify(data));
                 return null;
             }
 
             return botMsg;
         }
-    } catch (e) { console.error('Bot error:', e.message); }
+    } catch (e) { gErr('Bot error:', e.message); }
     return null;
 }
 
+// ============================================
+// HELPER: Traduzir status de pedido
+// ============================================
+function translateStatus(status) {
+    const map = {
+        'new': '🆕 Novo (Recebido)',
+        'confirmed': '✅ Confirmado',
+        'preparing': '👨‍🍳 Na Cozinha (Preparando)',
+        'ready': '✨ Pronto para envio',
+        'out_for_delivery': '🛵 Saiu para Entrega',
+        'completed': '🎉 Entregue/Concluído',
+        'cancelled': '❌ Cancelado',
+        'ready_for_payment': '💳 Aguardando Pagamento',
+        'pending_receipt': '📋 Aguardando Confirmação'
+    };
+    return map[status] || status;
+}
+
+// ============================================
 // Get restaurant menu from Supabase
+// ============================================
 async function getRestaurantMenu(restaurantId) {
     try {
         const { data: categories } = await supabase
@@ -1052,7 +1309,7 @@ async function getRestaurantMenu(restaurantId) {
         for (const cat of categories) {
             const { data: products } = await supabase
                 .from('menu_items')
-                .select('name, description, price, is_available')
+                .select('name, description, price, promotional_price, is_available, preparation_time')
                 .eq('category_id', cat.id)
                 .eq('is_available', true)
                 .order('name');
@@ -1060,7 +1317,11 @@ async function getRestaurantMenu(restaurantId) {
             if (products && products.length > 0) {
                 menu += `\n📋 *${cat.name}*\n`;
                 for (const p of products) {
-                    menu += `  • ${p.name} - R$ ${Number(p.price).toFixed(2)}${p.description ? ` (${p.description})` : ''}\n`;
+                    const priceText = p.promotional_price && p.promotional_price < p.price
+                        ? `~R$ ${Number(p.price).toFixed(2)}~ por R$ ${Number(p.promotional_price).toFixed(2)} 🔥`
+                        : `R$ ${Number(p.price).toFixed(2)}`;
+                    const timeText = p.preparation_time ? ` ⏱️${p.preparation_time}min` : '';
+                    menu += `  • ${p.name} - ${priceText}${timeText}${p.description ? ` (${p.description})` : ''}\n`;
                 }
             }
         }
@@ -1069,6 +1330,239 @@ async function getRestaurantMenu(restaurantId) {
     } catch {
         return 'Cardápio não disponível no momento.';
     }
+}
+
+// ============================================
+// PROACTIVE ORDER STATUS NOTIFICATIONS
+// (Supabase Realtime → Evolution API)
+// ============================================
+async function setupOrderStatusListener() {
+    gLog('🔔 Iniciando listener proativo de status de pedidos...');
+    
+    const channel = supabase
+        .channel('order-status-proactive')
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'orders'
+            },
+            async (payload) => {
+                try {
+                    const oldStatus = payload.old?.status;
+                    const newStatus = payload.new?.status;
+                    const customerPhone = payload.new?.customer_phone;
+                    const orderNumber = payload.new?.order_number;
+                    const restaurantId = payload.new?.restaurant_id;
+                    const orderId = payload.new?.id;
+                    const motoboyId = payload.new?.motoboy_id;
+
+                    // Ignorar se status não mudou ou não tem telefone
+                    if (!oldStatus || oldStatus === newStatus || !customerPhone) return;
+                    // Ignorar pedidos já notificados nesta transição
+                    if (payload.new?.whatsapp_notified && newStatus !== 'completed') return;
+
+                    gLog(`📢 STATUS CHANGE detectado: #${orderNumber} ${oldStatus} → ${newStatus} (cliente: ${customerPhone})`);
+
+                    // Buscar dispositivo WhatsApp conectado do restaurante
+                    const { data: device } = await supabase.from('whatsapp_devices')
+                        .select('id, name')
+                        .eq('restaurant_id', restaurantId)
+                        .eq('connection_status', 'connected')
+                        .maybeSingle();
+
+                    if (!device) {
+                        gLog(`⚠️ Sem dispositivo WhatsApp conectado para restaurant ${restaurantId}`);
+                        return;
+                    }
+
+                    // Buscar nome do motoboy se aplicável
+                    let motoboyName = null;
+                    if (motoboyId && (newStatus === 'out_for_delivery' || newStatus === 'completed')) {
+                        const { data: motoboy } = await supabase.from('motoboys')
+                            .select('name').eq('id', motoboyId).single();
+                        motoboyName = motoboy?.name;
+                    }
+
+                    // Gerar mensagem humanizada via Gemini
+                    const notification = await generateStatusNotification(oldStatus, newStatus, orderNumber, motoboyName);
+                    
+                    if (notification) {
+                        // Enviar via Evolution API
+                        await evoFetch(`/message/sendText/${device.name}`, {
+                            method: 'POST',
+                            body: JSON.stringify({ number: customerPhone, text: notification }),
+                        });
+                        gLog(`✅ Notificação proativa enviada para ${customerPhone}: "${notification.substring(0, 60)}..."`);
+
+                        // Salvar na conversa
+                        const { data: conv } = await supabase.from('whatsapp_conversations')
+                            .select('id').eq('device_id', device.id)
+                            .eq('contact_phone', customerPhone).maybeSingle();
+                        
+                        if (conv) {
+                            await supabase.from('whatsapp_messages').insert({
+                                device_id: device.id, restaurant_id: restaurantId,
+                                conversation_id: conv.id, phone_number: customerPhone,
+                                message_content: notification, message_type: 'text',
+                                direction: 'outgoing', remetente: 'bot',
+                                is_from_bot: true,
+                            });
+                        }
+
+                        // Marcar pedido como notificado
+                        await supabase.from('orders')
+                            .update({ whatsapp_notified: true })
+                            .eq('id', orderId);
+
+                        // Registrar no histórico
+                        await supabase.from('order_status_history').insert({
+                            order_id: orderId,
+                            old_status: oldStatus,
+                            new_status: newStatus,
+                            customer_notified: true
+                        });
+
+                        // Se pedido COMPLETED → solicitar avaliação após 2 min
+                        if (newStatus === 'completed') {
+                            setTimeout(async () => {
+                                const reviewMsg = `⭐ Obrigado por pedir com a gente!\n\nComo foi sua experiência? Responda com uma nota de *1 a 5* e nos ajude a melhorar! 😊\n\n⭐ = Ruim | ⭐⭐⭐ = OK | ⭐⭐⭐⭐⭐ = Excelente`;
+                                await evoFetch(`/message/sendText/${device.name}`, {
+                                    method: 'POST',
+                                    body: JSON.stringify({ number: customerPhone, text: reviewMsg }),
+                                });
+                                gLog(`⭐ Pedido de avaliação enviado para ${customerPhone}`);
+
+                                // Marcar conversa como aguardando review
+                                if (conv) {
+                                    await supabase.from('whatsapp_conversations')
+                                        .update({ context: { awaiting_review: true, order_id: orderId } })
+                                        .eq('id', conv.id);
+                                    await supabase.from('whatsapp_messages').insert({
+                                        device_id: device.id, restaurant_id: restaurantId,
+                                        conversation_id: conv.id, phone_number: customerPhone,
+                                        message_content: reviewMsg, message_type: 'text',
+                                        direction: 'outgoing', remetente: 'bot',
+                                        is_from_bot: true,
+                                    });
+                                }
+                            }, 2 * 60 * 1000); // 2 minutos após entrega
+                        }
+                    }
+                } catch (err) {
+                    gErr('Erro no listener de status:', err.message);
+                }
+            }
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                gLog('✅ Listener proativo de pedidos ATIVO! Monitorando mudanças de status...');
+            } else {
+                gLog(`📡 Status do listener proativo: ${status}`);
+            }
+        });
+
+    return channel;
+}
+
+// ============================================
+// GENERATE HUMANIZED STATUS NOTIFICATION (Gemini)
+// ============================================
+async function generateStatusNotification(oldStatus, newStatus, orderNumber, motoboyName) {
+    // Fallback messages (used if Gemini fails)
+    const fallbackMessages = {
+        'confirmed': `✅ Pedido #${orderNumber} confirmado! Já estamos preparando.`,
+        'preparing': `👨‍🍳 Pedido #${orderNumber} entrou na cozinha! O preparo começou.`,
+        'ready': `✨ Pedido #${orderNumber} pronto! ${motoboyName ? 'Motoboy já vai buscar!' : 'Aguardando retirada.'}`,
+        'out_for_delivery': `🛵 Pedido #${orderNumber} saiu para entrega!${motoboyName ? ` Motoboy: ${motoboyName}` : ''}`,
+        'completed': `🎉 Pedido #${orderNumber} entregue! Obrigado pela preferência!`,
+        'cancelled': `❌ Pedido #${orderNumber} foi cancelado. Qualquer dúvida é só chamar!`
+    };
+
+    if (!GEMINI_API_KEY) {
+        return fallbackMessages[newStatus] || `📋 Pedido #${orderNumber}: status atualizado para ${translateStatus(newStatus)}`;
+    }
+
+    try {
+        const prompt = `Você é o SDR WhatsApp de um restaurante. Gere UMA ÚNICA mensagem curta e humanizada (máximo 2 linhas) para notificar o cliente sobre a mudança de status do pedido.
+
+Pedido: #${orderNumber}
+Status anterior: ${translateStatus(oldStatus)}
+Novo status: ${translateStatus(newStatus)}
+${motoboyName ? `Motoboy: ${motoboyName}` : ''}
+
+Regras:
+- Seja natural e simpático, como um atendente humano
+- Use 1-2 emojis relevantes
+- NÃO use formatação markdown pesada
+- Varie o texto (não seja repetitivo)
+- Se for entrega, mencione o nome do motoboy se disponível
+- Responda APENAS com a mensagem, nada mais`;
+
+        const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    generationConfig: { maxOutputTokens: 150, temperature: 0.9 }
+                })
+            }
+        );
+        const data = await resp.json();
+        const msg = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return msg?.trim() || fallbackMessages[newStatus];
+    } catch (err) {
+        gErr('Erro ao gerar notificação IA:', err.message);
+        return fallbackMessages[newStatus];
+    }
+}
+
+// ============================================
+// HANDLE REVIEW RESPONSE (1-5 stars)
+// ============================================
+async function handleReviewResponse(message, conversationId, restaurantId, customerPhone, deviceId) {
+    // Verificar se a conversa está aguardando review
+    const { data: conv } = await supabase.from('whatsapp_conversations')
+        .select('context').eq('id', conversationId).single();
+    
+    if (!conv?.context?.awaiting_review) return null;
+
+    const rating = parseInt(message.trim());
+    if (isNaN(rating) || rating < 1 || rating > 5) return null;
+
+    const orderId = conv.context.order_id;
+
+    // Salvar avaliação
+    try {
+        await supabase.from('order_reviews').insert({
+            order_id: orderId,
+            restaurant_id: restaurantId,
+            customer_phone: customerPhone,
+            rating: rating,
+            source: 'whatsapp'
+        });
+    } catch (err) {
+        // Tabela pode não existir ainda, criar inline se necessário
+        gLog(`⚠️ Erro ao salvar review (tabela pode não existir): ${err.message}`);
+    }
+
+    // Limpar flag de review
+    await supabase.from('whatsapp_conversations')
+        .update({ context: { awaiting_review: false } })
+        .eq('id', conversationId);
+
+    const responses = {
+        1: 'Poxa, sentimos muito por não ter atendido suas expectativas 😞 Vamos trabalhar para melhorar! Obrigado pelo feedback.',
+        2: 'Obrigado pelo feedback! Vamos melhorar na próxima. Conte com a gente! 💪',
+        3: 'Valeu pela nota! Bom saber que foi razoável. Vamos caprichar mais na próxima! 😊',
+        4: 'Que bom! Ficamos felizes que gostou! 🎉 Volte sempre!',
+        5: 'UAU! Nota máxima! 🌟🌟🌟🌟🌟 Obrigado demais! Você é especial pra gente! ❤️'
+    };
+
+    return responses[rating] || 'Obrigado pelo feedback! 🙏';
 }
 
 // ============================================
@@ -1107,16 +1601,17 @@ app.get('/health', async (req, res) => {
             hasServiceKey: !!SUPABASE_SERVICE_KEY,
         },
         geminiAi: GEMINI_API_KEY ? 'configured' : 'not configured',
+        proactiveNotifications: 'active',
         timestamp: new Date().toISOString(),
     });
 });
 
 // ============================================
-// START
+// START + PROACTIVE LISTENER
 // ============================================
 app.listen(PORT, async () => {
     gLog('========================================');
-    gLog('🚀 GourmetFlow WhatsApp Server iniciado!');
+    gLog('🚀 GourmetFlow WhatsApp SDR Omnichannel iniciado!');
     gLog(`🔗 Evolution API: ${EVOLUTION_API_URL}`);
     gLog(`🗄️  Supabase URL: ${SUPABASE_URL}`);
     gLog(`🔑 Supabase Key: ${SUPABASE_SERVICE_KEY ? '✅ configurada' : '❌ NÃO CONFIGURADA'}`);
@@ -1132,6 +1627,10 @@ app.listen(PORT, async () => {
             gErr('Verifique SUPABASE_URL e SUPABASE_SERVICE_KEY no .env');
         } else {
             gLog('✅ Conexão com Supabase verificada com sucesso!');
+
+            // Iniciar listener proativo de status de pedidos
+            await setupOrderStatusListener();
+            gLog('🔔 Sistema de notificações proativas ATIVADO!');
         }
     } catch (e) {
         gErr(`❌ Supabase inacessível: ${e.message}`);
