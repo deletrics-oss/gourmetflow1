@@ -786,10 +786,15 @@ async function handleEvolutionWebhook(req, res) {
             gLog(`💬 Mensagem recebida de ${contactName} (${phone}): "${content.substring(0, 80)}${content.length > 80 ? '...' : ''}"`);
 
             // Find device in Supabase
-            const { data: device, error: devErr } = await supabase.from('whatsapp_devices')
-                .select('id, restaurant_id, active_logic_id').eq('name', instance).maybeSingle();
+            const { data: devices, error: devErr } = await supabase.from('whatsapp_devices')
+                .select('id, restaurant_id, active_logic_id')
+                .eq('name', instance)
+                .limit(1); // MAIS RESILIENTE: pega o primeiro se houver duplicidade
 
             if (devErr) gErr('Erro ao buscar device:', devErr.message);
+            
+            const device = devices && devices.length > 0 ? devices[0] : null;
+
             if (!device) {
                 gLog(`⚠️ Device "${instance}" não encontrado no Supabase — mensagem não processada`);
                 return res.json({ ok: true });

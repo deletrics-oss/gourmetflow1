@@ -720,7 +720,10 @@ export default function Balcao() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/balcao-externo')}
+            onClick={() => {
+              const url = `/balcao-externo${restaurant?.id ? `?restaurantId=${restaurant.id}` : ''}`;
+              window.open(url, 'Balcão Externo', 'width=1920,height=1080');
+            }}
             className="gap-2"
           >
             <ExternalLink className="h-4 w-4" />

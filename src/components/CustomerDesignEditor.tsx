@@ -50,6 +50,7 @@ const gradients = [
 ];
 
 export function CustomerDesignEditor({ settings, onSave }: Props) {
+  const { restaurant } = useRestaurant();
   const [localSettings, setLocalSettings] = useState<DesignSettings>(settings);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBg, setUploadingBg] = useState(false);
@@ -143,9 +144,15 @@ export function CustomerDesignEditor({ settings, onSave }: Props) {
     const urls = {
       totem: '/totem',
       menu: '/customer-menu',
-      tablet: '/menu-tablet?tableId=demo'
+      tablet: '/menu-tablet'
     };
-    window.open(urls[type], '_blank');
+    
+    const baseUrl = urls[type];
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const restParam = restaurant?.id ? `${separator}restaurantId=${restaurant.id}` : '';
+    const tableParam = type === 'tablet' ? `${restParam ? '&' : '?'}tableId=demo` : '';
+    
+    window.open(`${baseUrl}${restParam}${tableParam}`, '_blank');
   };
 
   return (

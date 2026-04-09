@@ -66,10 +66,13 @@ interface SidebarContentProps {
   showSearch?: boolean;
 }
 
+import { useRestaurant } from "@/hooks/useRestaurant";
+
 export function SidebarContent({ onNavigate, showSearch = true }: SidebarContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isManager, isSuperAdmin, isOwner, signOut, user } = useAuth();
+  const { restaurant } = useRestaurant();
   const [showSearchDialog, setShowSearchDialog] = useState(false);
 
   const handleSignOut = async () => {
@@ -83,7 +86,11 @@ export function SidebarContent({ onNavigate, showSearch = true }: SidebarContent
   };
 
   const openExternal = (url: string, name: string, specs: string) => {
-    window.open(url, name, specs);
+    // Append restaurantId to ensure multi-tenant isolation on external screens
+    const separator = url.includes('?') ? '&' : '?';
+    const finalUrl = restaurant?.id ? `${url}${separator}restaurantId=${restaurant.id}` : url;
+    
+    window.open(finalUrl, name, specs);
     onNavigate?.();
   };
 
