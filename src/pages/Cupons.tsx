@@ -8,8 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Ticket, Copy, Trash2, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useRestaurant } from "@/hooks/useRestaurant";
+import { Loader2 } from "lucide-react";
 
 export default function Cupons() {
+  const { restaurantId, loading: restaurantLoading } = useRestaurant();
   const [cupons, setCupons] = useState<any[]>([]);
   const [code, setCode] = useState("");
   const [type, setType] = useState<"percentage" | "fixed" | "free_shipping">("percentage");
@@ -18,13 +21,17 @@ export default function Cupons() {
   const [maxUses, setMaxUses] = useState(100);
 
   useEffect(() => {
-    loadCupons();
-  }, []);
+    if (restaurantId) {
+      loadCupons(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadCupons = async () => {
+  const loadCupons = async (rId: string = restaurantId) => {
+    if (!rId) return;
     const { data } = await supabase
       .from('coupons')
       .select('*')
+      .eq('restaurant_id', rId)
       .order('created_at', { ascending: false });
     
     setCupons(data || []);
@@ -42,7 +49,8 @@ export default function Cupons() {
       discount_value: discountValue,
       min_order_value: minOrderValue,
       max_uses: maxUses,
-      is_active: true
+      is_active: true,
+      restaurant_id: restaurantId
     }]);
 
     if (error) {
@@ -64,7 +72,11 @@ export default function Cupons() {
   };
 
   const handleDeleteCoupon = async (id: string) => {
-    const { error } = await supabase.from('coupons').delete().eq('id', id);
+    const { error } = await supabase
+      .from('coupons')
+      .delete()
+      .eq('id', id)
+      .eq('restaurant_id', restaurantId);
     
     if (error) {
       toast.error('Erro ao deletar cupom');
@@ -79,7 +91,8 @@ export default function Cupons() {
     const { error } = await supabase
       .from('coupons')
       .update({ is_active: !currentStatus })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('restaurant_id', restaurantId);
 
     if (error) {
       toast.error('Erro ao atualizar status');
@@ -89,6 +102,14 @@ export default function Cupons() {
     toast.success('Status atualizado');
     loadCupons();
   };
+
+  if (restaurantLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">

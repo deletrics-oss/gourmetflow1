@@ -221,9 +221,12 @@ serve(async (req) => {
                 .limit(20);
 
               const historyMessages = history?.map(h => h.message_content) || [];
+              const menuUrl = `https://gourmetflow.vercel.app/cardapio?restaurantId=${targetRestaurantId}`;
+              const enrichedPrompt = `${logic.ai_prompt || "Você é um assistente virtual prestativo."}\n\n[CONTEXTO DO SISTEMA]\nO link do cardápio deste restaurante é: ${menuUrl}\nSe o cliente pedir o cardápio, fotos dos produtos ou quiser fazer um pedido, forneça SEMPRE este link.`;
+              
               response = await getAIResponse(
                 message,
-                logic.ai_prompt || "Você é um assistente virtual prestativo.",
+                enrichedPrompt,
                 historyMessages
               );
             }

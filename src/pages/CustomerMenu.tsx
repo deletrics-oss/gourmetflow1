@@ -164,6 +164,7 @@ export default function CustomerMenu() {
       
       if (!restaurantId) {
         console.error('[CUSTOMER_MENU] restaurantId ausente na URL');
+        toast.error('Cardápio indisponível: ID do restaurante não identificado');
         return;
       }
       
@@ -231,10 +232,16 @@ export default function CustomerMenu() {
     if (!phone) return;
     
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const restaurantId = urlParams.get('restaurantId');
+
+      if (!restaurantId) return;
+
       const { data } = await supabase
         .from('customers')
         .select('*')
         .eq('phone', phone)
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
       
       if (data) {

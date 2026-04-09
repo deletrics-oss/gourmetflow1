@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { logActionWithContext } from '@/lib/logging';
+import { useRestaurant } from '@/hooks/useRestaurant';
 
 interface ManageTablesDialogProps {
   open: boolean;
@@ -16,21 +17,24 @@ interface ManageTablesDialogProps {
 }
 
 export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTablesDialogProps) {
+  const { restaurantId } = useRestaurant();
   const [loading, setLoading] = useState(false);
   const [tables, setTables] = useState<Array<{ id: string; number: number; capacity: number; status: string }>>([]);
   const [newTableNumber, setNewTableNumber] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState('4');
 
   useEffect(() => {
-    if (open) {
-      loadTables();
+    if (open && restaurantId) {
+      loadTables(restaurantId);
     }
-  }, [open]);
+  }, [open, restaurantId]);
 
-  const loadTables = async () => {
+  const loadTables = async (rId: string = restaurantId) => {
+    if (!rId) return;
     const { data, error } = await supabase
       .from('tables')
       .select('*')
+      .eq('restaurant_id', rId)
       .order('number');
 
     if (error) {
@@ -48,6 +52,7 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
     setLoading(true);
     try {
       const { data, error } = await supabase.from('tables').insert({
+        restaurant_id: restaurantId,
         number: parseInt(newTableNumber),
         capacity: parseInt(newTableCapacity),
         status: 'free',
@@ -68,7 +73,7 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
       toast.success('Mesa adicionada com sucesso!');
       setNewTableNumber('');
       setNewTableCapacity('4');
-      loadTables();
+      loadTables(restaurantId);
       onSuccess();
     } catch (error: any) {
       console.error('Erro ao adicionar mesa:', error);
@@ -86,7 +91,12 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
     if (!confirm('Tem certeza que deseja remover esta mesa?')) return;
 
     try {
-      const { error } = await supabase.from('tables').delete().eq('id', table.id);
+      if (!restaurantId) throw new Error("Restaurant ID is required");
+      const { error } = await supabase
+        .from('tables')
+        .delete()
+        .eq('id', table.id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
 
@@ -99,7 +109,7 @@ export function ManageTablesDialog({ open, onOpenChange, onSuccess }: ManageTabl
       );
 
       toast.success('Mesa removida com sucesso!');
-      loadTables();
+      loadTables(restaurantId);
       onSuccess();
     } catch (error) {
       console.error('Erro ao remover mesa:', error);

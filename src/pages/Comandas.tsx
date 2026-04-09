@@ -15,8 +15,10 @@ import { generatePrintReceipt } from "@/components/PrintReceipt";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { logActionWithContext } from "@/lib/logging";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Comandas() {
+  const { restaurantId } = useRestaurant();
   const [comandas, setComandas] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +30,13 @@ export default function Comandas() {
   const [editCustomerDialogOpen, setEditCustomerDialogOpen] = useState(false);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (restaurantId) {
+      loadData(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadData = async () => {
+  const loadData = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       // Load orders (comandas) with items
       const { data: orders, error: ordersError } = await supabase
@@ -49,6 +54,7 @@ export default function Comandas() {
             notes
           )
         `)
+        .eq('restaurant_id', rId)
         .eq('delivery_type', 'dine_in')
         .in('status', ['new', 'confirmed', 'preparing', 'ready'])
         .order('created_at', { ascending: false });
@@ -58,6 +64,7 @@ export default function Comandas() {
       const { data: tablesData, error: tablesError } = await supabase
         .from('tables' as any)
         .select('*')
+        .eq('restaurant_id', rId)
         .order('number');
 
       if (tablesError) throw tablesError;
@@ -298,7 +305,8 @@ export default function Comandas() {
                             status: 'pending_receipt',
                             updated_at: new Date().toISOString()
                           })
-                          .eq('id', comanda.id);
+                          .eq('id', comanda.id)
+                          .eq('restaurant_id', restaurantId);
 
                         if (orderError) throw orderError;
                         
@@ -307,7 +315,8 @@ export default function Comandas() {
                           const { error: tableError } = await supabase
                             .from('tables' as any)
                             .update({ status: 'free' })
-                            .eq('id', comanda.table_id);
+                            .eq('id', comanda.table_id)
+                            .eq('restaurant_id', restaurantId);
                           
                           if (tableError) throw tableError;
                         }
@@ -328,7 +337,7 @@ export default function Comandas() {
                         );
                         
                         toast.success('Aguardando comprovante no caixa!');
-                        loadData();
+                        loadData(restaurantId);
                       } catch (error: any) {
                         console.error('Erro ao processar pagamento:', error);
                         toast.error(error?.message || 'Erro ao processar');
@@ -348,7 +357,8 @@ export default function Comandas() {
                             status: 'ready_for_payment',
                             updated_at: new Date().toISOString()
                           })
-                          .eq('id', comanda.id);
+                          .eq('id', comanda.id)
+                          .eq('restaurant_id', restaurantId);
 
                         if (orderError) throw orderError;
                         
@@ -357,7 +367,8 @@ export default function Comandas() {
                           const { error: tableError } = await supabase
                             .from('tables' as any)
                             .update({ status: 'free' })
-                            .eq('id', comanda.table_id);
+                            .eq('id', comanda.table_id)
+                            .eq('restaurant_id', restaurantId);
                           
                           if (tableError) throw tableError;
                         }
@@ -379,7 +390,7 @@ export default function Comandas() {
                         );
                         
                         toast.success('Enviado para o caixa!');
-                        loadData();
+                        loadData(restaurantId);
                       } catch (error: any) {
                         console.error('Erro ao fechar comanda:', error);
                         toast.error(error?.message || 'Erro ao fechar comanda');
@@ -399,14 +410,14 @@ export default function Comandas() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         tables={tables}
-        onSuccess={loadData}
+        onSuccess={() => loadData(restaurantId)}
       />
 
       <AddItemsToComandaDialog
         open={addItemsDialogOpen}
         onOpenChange={setAddItemsDialogOpen}
         orderId={selectedOrderId}
-        onSuccess={loadData}
+        onSuccess={() => loadData(restaurantId)}
       />
 
       {/* Dialog para Editar Item */}
@@ -509,14 +520,15 @@ export default function Comandas() {
                       await supabase
                         .from('orders')
                         .update({ total: newTotal, subtotal: newTotal })
-                        .eq('id', comanda.id);
+                        .eq('id', comanda.id)
+                        .eq('restaurant_id', restaurantId);
                     }
                   }
 
                   toast.success('Item atualizado!');
                   setEditItemDialogOpen(false);
                   setSelectedEditItem(null);
-                  loadData();
+                  loadData(restaurantId);
                 } catch (error: any) {
                   console.error('Erro ao atualizar item:', error);
                   toast.error('Erro ao atualizar item');
@@ -534,7 +546,7 @@ export default function Comandas() {
         open={editCustomerDialogOpen}
         onOpenChange={setEditCustomerDialogOpen}
         orderId={selectedOrderId}
-        onSuccess={loadData}
+        onSuccess={() => loadData(restaurantId)}
       />
 
       <div className="mt-8 bg-blue-50 dark:bg-blue-950 p-6 rounded-lg">

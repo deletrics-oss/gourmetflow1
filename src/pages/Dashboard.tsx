@@ -25,7 +25,8 @@ export default function Dashboard() {
     const channel = supabase.channel('dashboard-orders').on('postgres_changes', {
       event: '*',
       schema: 'public',
-      table: 'orders'
+      table: 'orders',
+      filter: `restaurant_id=eq.${restaurantId}`
     }, () => {
       if (restaurantId) loadStats();
     }).subscribe();

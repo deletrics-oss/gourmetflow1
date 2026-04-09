@@ -35,18 +35,19 @@ export default function Salao() {
       loadTables();
     }
     
-    // Realtime subscription for table changes
+    // Realtime subscription for table changes (scoped to restaurant)
     const channel = supabase
-      .channel('tables-changes')
+      .channel(`tables-${restaurantId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'tables'
+          table: 'tables',
+          filter: `restaurant_id=eq.${restaurantId}`
         },
         () => {
-          if (restaurantId) loadTables();
+          loadTables();
         }
       )
       .subscribe();

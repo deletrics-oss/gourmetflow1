@@ -12,8 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, Edit, Plus, Wallet, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Despesas() {
+  const { restaurantId } = useRestaurant();
   const queryClient = useQueryClient();
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
@@ -28,27 +30,33 @@ export default function Despesas() {
   });
 
   const { data: expenses = [] } = useQuery({
-    queryKey: ['expenses'],
+    queryKey: ['expenses', restaurantId],
     queryFn: async () => {
+      if (!restaurantId) return [];
       const { data, error } = await supabase
         .from('expenses')
         .select('*, suppliers(name)')
+        .eq('restaurant_id', restaurantId)
         .order('expense_date', { ascending: false });
       if (error) throw error;
       return data;
     },
+    enabled: !!restaurantId
   });
 
   const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers'],
+    queryKey: ['suppliers', restaurantId],
     queryFn: async () => {
+      if (!restaurantId) return [];
       const { data, error} = await supabase
         .from('suppliers')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .order('name');
       if (error) throw error;
       return data;
     },
+    enabled: !!restaurantId
   });
 
   const saveMutation = useMutation({
@@ -57,10 +65,11 @@ export default function Despesas() {
         const { error } = await supabase
           .from('expenses')
           .update(data)
-          .eq('id', editingExpense.id);
+          .eq('id', editingExpense.id)
+          .eq('restaurant_id', restaurantId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('expenses').insert([data]);
+        const { error } = await supabase.from('expenses').insert([{ ...data, restaurant_id: restaurantId }]);
         if (error) throw error;
       }
     },
@@ -73,7 +82,12 @@ export default function Despesas() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (!restaurantId) throw new Error("Restaurant ID is required");
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
       if (error) throw error;
     },
     onSuccess: () => {

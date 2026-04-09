@@ -9,6 +9,7 @@ import { logActionWithContext } from '@/lib/logging';
 import { Users, Clock, DollarSign, Plus, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useRestaurant } from '@/hooks/useRestaurant';
 
 interface TableDetailsDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface TableDetailsDialogProps {
 }
 
 export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: TableDetailsDialogProps) {
+  const { restaurantId } = useRestaurant();
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
 
@@ -46,6 +48,7 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
           )
         `)
         .eq('table_id', table.id)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment'])
         .order('created_at', { ascending: false });
 
@@ -85,6 +88,7 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
           updated_at: new Date().toISOString()
         })
         .eq('table_id', table.id)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'confirmed', 'preparing', 'ready']);
 
       if (ordersError) throw ordersError;
@@ -93,7 +97,8 @@ export function TableDetailsDialog({ open, onOpenChange, table, onSuccess }: Tab
       const { error: tableError } = await supabase
         .from('tables')
         .update({ status: 'free' })
-        .eq('id', table.id);
+        .eq('id', table.id)
+        .eq('restaurant_id', restaurantId);
 
       if (tableError) throw tableError;
 

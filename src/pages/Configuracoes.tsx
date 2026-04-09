@@ -13,9 +13,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import { useCEP } from "@/hooks/useCEP";
 import { useAuth } from "@/hooks/useAuth";
-import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Configuracoes() {
   const { isOwner, isAdmin } = useAuth();
@@ -256,10 +256,10 @@ export default function Configuracoes() {
           longitude: parseFloat(data[0].lon)
         };
 
-        // Salvar no banco
         const { data: existing, error: existingError } = await supabase
           .from('restaurant_settings')
           .select('id')
+          .eq('restaurant_id', restaurantId)
           .maybeSingle();
 
         if (existingError && existingError.code !== 'PGRST116') {
@@ -274,7 +274,8 @@ export default function Configuracoes() {
               longitude: coords.longitude,
               max_delivery_radius: maxDeliveryRadius
             })
-            .eq('id', existing.id);
+            .eq('id', existing.id)
+            .eq('restaurant_id', restaurantId);
         }
 
         setRestaurantCoords(coords);
@@ -386,6 +387,7 @@ export default function Configuracoes() {
           .from('restaurant_settings')
           .update(dataToSave)
           .eq('id', existing.id)
+          .eq('restaurant_id', restaurantId)
           .select()
           .single();
 
@@ -1640,7 +1642,7 @@ export default function Configuracoes() {
                       show_logo_on_menu: designSettings.show_logo_on_menu,
                       menu_font: designSettings.menu_font
                     })
-                    .eq('name', settings.name);
+                    .eq('restaurant_id', restaurantId);
 
                   if (error) throw error;
 

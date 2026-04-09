@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface Employee {
   id: string;
@@ -87,12 +88,12 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function Funcionarios() {
+  const { restaurantId } = useRestaurant();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     email: "",
@@ -104,31 +105,16 @@ export default function Funcionarios() {
   const [selectedScreens, setSelectedScreens] = useState<string[]>([]);
 
   useEffect(() => {
-    loadRestaurantAndEmployees();
-  }, []);
+    if (restaurantId) {
+      loadEmployees(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadRestaurantAndEmployees = async () => {
+  const loadEmployees = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       setLoading(true);
       
-      // Buscar restaurant_id do usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userRestaurant } = await supabase
-        .from("user_restaurants")
-        .select("restaurant_id, role")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .single();
-
-      if (!userRestaurant) {
-        toast.error("Restaurante não encontrado");
-        return;
-      }
-
-      setRestaurantId(userRestaurant.restaurant_id);
-
       // Buscar todos os funcionários do restaurante
       const { data: employeesData, error } = await supabase
         .from("user_restaurants")
@@ -139,7 +125,7 @@ export default function Funcionarios() {
           is_active,
           created_at
         `)
-        .eq("restaurant_id", userRestaurant.restaurant_id);
+        .eq("restaurant_id", rId);
 
       if (error) throw error;
 
@@ -153,10 +139,6 @@ export default function Funcionarios() {
             .eq("user_id", emp.user_id)
             .single();
 
-          // Buscar email do auth (via profiles ou outra forma)
-          // Como não podemos acessar auth.users diretamente, vamos usar o email do signup
-          const { data: authUser } = await supabase.auth.admin?.getUserById?.(emp.user_id) || { data: null };
-          
           // Buscar permissões
           const { data: permissions } = await supabase
             .from("user_permissions")
@@ -167,7 +149,7 @@ export default function Funcionarios() {
           return {
             id: emp.id,
             user_id: emp.user_id,
-            email: authUser?.user?.email || "email@exemplo.com",
+            email: "funcionario@sistema.com", // Em ambiente real, buscaríamos via Edge Function ou perfil
             full_name: profile?.full_name || "Sem nome",
             phone: profile?.phone || null,
             role: emp.role,
@@ -249,7 +231,7 @@ export default function Funcionarios() {
       toast.success("Funcionário convidado com sucesso! Um email foi enviado.");
       setShowAddDialog(false);
       resetForm();
-      await loadRestaurantAndEmployees();
+      await loadEmployees(restaurantId);
     } catch (error: any) {
       console.error("Erro ao convidar funcionário:", error);
       toast.error(error.message || "Erro ao convidar funcionário");
@@ -261,12 +243,13 @@ export default function Funcionarios() {
       const { error } = await supabase
         .from("user_restaurants")
         .update({ is_active: !employee.is_active })
-        .eq("id", employee.id);
+        .eq("id", employee.id)
+        .eq("restaurant_id", restaurantId);
 
       if (error) throw error;
 
       toast.success(employee.is_active ? "Funcionário desativado" : "Funcionário ativado");
-      await loadRestaurantAndEmployees();
+      await loadEmployees(restaurantId);
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
       toast.error("Erro ao atualizar status");
@@ -304,7 +287,7 @@ export default function Funcionarios() {
 
       toast.success("Permissões atualizadas!");
       setShowEditDialog(false);
-      await loadRestaurantAndEmployees();
+      await loadEmployees(restaurantId);
     } catch (error) {
       console.error("Erro ao salvar permissões:", error);
       toast.error("Erro ao salvar permissões");
@@ -344,7 +327,7 @@ export default function Funcionarios() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={loadRestaurantAndEmployees} variant="outline">
+          <Button onClick={() => loadEmployees(restaurantId)} variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
             Atualizar
           </Button>

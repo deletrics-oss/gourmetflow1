@@ -40,38 +40,42 @@ export default function Clientes() {
       loadCustomers();
     }
     
-    // Realtime subscription para novos clientes
-    const channel = supabase
-      .channel('customers_changes')
-      .on('postgres_changes' as any, {
-        event: '*',
-        schema: 'public',
-        table: 'customers'
-      }, () => {
-        if (restaurantId) loadCustomers();
-      })
-      .subscribe();
+    // Realtime subscription para novos clientes exclusivos deste restaurante
+    if (restaurantId) {
+      const channel = supabase
+        .channel('customers_changes')
+        .on('postgres_changes' as any, {
+          event: '*',
+          schema: 'public',
+          table: 'customers',
+          filter: `restaurant_id=eq.${restaurantId}`
+        }, () => {
+          loadCustomers(restaurantId);
+        })
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [restaurantId]);
 
-  const loadCustomers = async () => {
-    if (!restaurantId) return;
+  const loadCustomers = async (rId: string = restaurantId) => {
+    if (!rId) return;
     
     try {
       const { data, error } = await supabase
         .from('customers' as any)
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('restaurant_id', rId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
       const { data: historyData } = await supabase
         .from('customer_order_history' as any)
-        .select('*');
+        .select('*')
+        .eq('restaurant_id', rId);
       
       setCustomers(data || []);
       setCustomerHistory(historyData || []);
@@ -97,7 +101,8 @@ export default function Clientes() {
         const { error } = await supabase
           .from('customers' as any)
           .update(formData)
-          .eq('id', editingCustomer.id);
+          .eq('id', editingCustomer.id)
+          .eq('restaurant_id', restaurantId);
 
         if (error) throw error;
         toast.success('Cliente atualizado!');
@@ -112,7 +117,7 @@ export default function Clientes() {
 
       setDialogOpen(false);
       resetForm();
-      loadCustomers();
+      loadCustomers(restaurantId);
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
       toast.error('Erro ao salvar cliente');
@@ -126,11 +131,12 @@ export default function Clientes() {
       const { error} = await supabase
         .from('customers' as any)
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       toast.success('Cliente excluído!');
-      loadCustomers();
+      loadCustomers(restaurantId);
     } catch (error) {
       console.error('Erro ao excluir cliente:', error);
       toast.error('Erro ao excluir cliente');
@@ -142,11 +148,12 @@ export default function Clientes() {
       const { error } = await supabase
         .from('customers' as any)
         .update({ is_suspicious: !currentStatus })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       toast.success(!currentStatus ? 'Cliente marcado como suspeito' : 'Marcação removida');
-      loadCustomers();
+      loadCustomers(restaurantId);
     } catch (error) {
       console.error('Erro ao atualizar cliente:', error);
       toast.error('Erro ao atualizar');
@@ -178,12 +185,13 @@ export default function Clientes() {
       const { error } = await supabase
         .from('customers' as any)
         .delete()
-        .in('id', selectedCustomers);
+        .in('id', selectedCustomers)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       toast.success('Clientes excluídos!');
       setSelectedCustomers([]);
-      loadCustomers();
+      loadCustomers(restaurantId);
     } catch (error) {
       console.error('Erro ao excluir clientes:', error);
       toast.error('Erro ao excluir clientes');

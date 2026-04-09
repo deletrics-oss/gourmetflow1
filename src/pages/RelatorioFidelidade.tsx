@@ -1,18 +1,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DollarSign, TrendingDown, TrendingUp, Tag, Users } from "lucide-react";
+import { DollarSign, TrendingDown, TrendingUp, Tag, Users, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function RelatorioFidelidade() {
+  const { restaurantId, loading: restaurantLoading } = useRestaurant();
+
   // Query para buscar dados de cashback
   const { data: cashbackData } = useQuery({
-    queryKey: ['cashback-overview'],
+    queryKey: ['cashback-overview', restaurantId],
+    enabled: !!restaurantId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('loyalty_transactions')
-        .select('*');
+        .select('*')
+        .eq('restaurant_id', restaurantId);
       
       if (error) throw error;
       return data || [];
@@ -21,11 +26,13 @@ export default function RelatorioFidelidade() {
 
   // Query para buscar cupons utilizados
   const { data: couponsData } = useQuery({
-    queryKey: ['coupons-usage'],
+    queryKey: ['coupons-usage', restaurantId],
+    enabled: !!restaurantId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('coupons')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .gt('current_uses', 0);
       
       if (error) throw error;
@@ -35,11 +42,13 @@ export default function RelatorioFidelidade() {
 
   // Query para clientes com cashback
   const { data: customersWithCashback } = useQuery({
-    queryKey: ['customers-cashback'],
+    queryKey: ['customers-cashback', restaurantId],
+    enabled: !!restaurantId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .gt('loyalty_points', 0)
         .order('loyalty_points', { ascending: false });
       
@@ -59,6 +68,14 @@ export default function RelatorioFidelidade() {
 
   const totalCouponsValue = couponsData
     ?.reduce((sum, c) => sum + (c.discount_value * c.current_uses), 0) || 0;
+
+  if (restaurantLoading || !restaurantId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">

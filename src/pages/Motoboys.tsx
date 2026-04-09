@@ -10,8 +10,10 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Motoboys() {
+  const { restaurantId } = useRestaurant();
   const [motoboys, setMotoboys] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMotoboy, setEditingMotoboy] = useState<any>(null);
@@ -25,14 +27,18 @@ export default function Motoboys() {
   });
 
   useEffect(() => {
-    loadMotoboys();
-  }, []);
+    if (restaurantId) {
+      loadMotoboys(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadMotoboys = async () => {
+  const loadMotoboys = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       const { data, error } = await supabase
         .from('motoboys')
         .select('*')
+        .eq('restaurant_id', rId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -50,35 +56,17 @@ export default function Motoboys() {
     }
 
     try {
-      // Buscar restaurant_id do usuário
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Usuário não autenticado');
-        return;
-      }
-
-      const { data: userRestaurant } = await supabase
-        .from('user_restaurants')
-        .select('restaurant_id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .single();
-
-      if (!userRestaurant) {
-        toast.error('Restaurante não encontrado');
-        return;
-      }
-
       const dataToSave = {
         ...formData,
-        restaurant_id: userRestaurant.restaurant_id
+        restaurant_id: restaurantId
       };
 
       if (editingMotoboy) {
         const { error } = await supabase
           .from('motoboys')
           .update(dataToSave)
-          .eq('id', editingMotoboy.id);
+          .eq('id', editingMotoboy.id)
+          .eq('restaurant_id', restaurantId);
 
         if (error) throw error;
         toast.success('Motoboy atualizado!');
@@ -93,7 +81,7 @@ export default function Motoboys() {
 
       setDialogOpen(false);
       resetForm();
-      loadMotoboys();
+      loadMotoboys(restaurantId);
     } catch (error: any) {
       console.error('Erro ao salvar motoboy:', error);
       toast.error(error?.message || 'Erro ao salvar motoboy');
@@ -107,11 +95,12 @@ export default function Motoboys() {
       const { error } = await supabase
         .from('motoboys')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       toast.success('Motoboy excluído!');
-      loadMotoboys();
+      loadMotoboys(restaurantId);
     } catch (error) {
       console.error('Erro ao excluir motoboy:', error);
       toast.error('Erro ao excluir motoboy');

@@ -19,6 +19,7 @@ import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import { CustomerAddressForm } from "@/components/delivery/CustomerAddressForm";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { logActionWithContext } from "@/lib/logging";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface CartItem {
   id: string;
@@ -58,6 +59,7 @@ export default function PDV() {
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [tables, setTables] = useState<any[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit_card" | "debit_card" | "pix">("cash");
+  const { restaurantId } = useRestaurant();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [restaurantName, setRestaurantName] = useState("Restaurante");
@@ -102,45 +104,49 @@ export default function PDV() {
   // NFC-e settings
   const [nfceEnabled, setNfceEnabled] = useState(false);
   const [nfceSettings, setNfceSettings] = useState<any>(null);
+  const [deliveryType, setDeliveryType] = useState<string>("delivery");
   const { toast } = useToast();
 
   useEffect(() => {
-    loadCategories();
-    loadMenuItems();
-    loadTables();
-    loadRestaurantSettings();
-    loadPendingOrders();
-    loadRecentlyClosedOrders();
-    loadMotoboys();
+    if (restaurantId) {
+      loadCategories(restaurantId);
+      loadMenuItems(restaurantId);
+      loadTables(restaurantId);
+      loadRestaurantSettings(restaurantId);
+      loadPendingOrders(restaurantId);
+      loadRecentlyClosedOrders(restaurantId);
+      loadMotoboys(restaurantId);
+    }
 
     // Atualizar pedidos pendentes em tempo real
-    const channel = supabase
-      .channel('orders_changes')
-      .on('postgres_changes' as any, {
-        event: '*',
-        schema: 'public',
-        table: 'orders'
-      }, () => {
-        loadPendingOrders();
-      })
-      .subscribe();
+    if (restaurantId) {
+      const channel = supabase
+        .channel('orders_changes')
+        .on('postgres_changes' as any, {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}`
+        }, () => {
+          loadPendingOrders(restaurantId);
+        })
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [restaurantId]);
 
   // Cálculo automático de taxa de entrega
   useEffect(() => {
     const autoCalculateFee = async () => {
-      // SEMPRE zerar taxa para pickup, counter e dine_in
       if (deliveryType === 'pickup' || deliveryType === 'counter' || deliveryType === 'dine_in') {
         setDeliveryFee(0);
         setDeliveryDistance(null);
         return;
       }
 
-      // Calcular APENAS para delivery e online
       if ((deliveryType === 'delivery' || deliveryType === 'online') && customerAddress.street && customerAddress.number) {
         try {
           const result = await calculateFromAddress(customerAddress);
@@ -166,31 +172,23 @@ export default function PDV() {
     autoCalculateFee();
   }, [customerAddress.street, customerAddress.number, customerAddress.city, deliveryType]);
 
-  const loadRestaurantSettings = async () => {
+  const loadRestaurantSettings = async (restaurantId: string) => {
     try {
       const { data } = await supabase
         .from('restaurant_settings')
         .select('name, street, number, neighborhood, city, state, zipcode, latitude, longitude, pagseguro_enabled, mercadopago_enabled, rede_enabled, stone_enabled, nubank_enabled')
+        .eq('restaurant_id', restaurantId)
         .maybeSingle();
 
       if (data) {
         setRestaurantName((data as any).name || 'Restaurante');
         setRestaurantSettings(data as any);
         
-        // Carregar zonas de entrega se houver coordenadas
         if ((data as any).latitude && (data as any).longitude) {
-          const { data: restaurantData } = await supabase
-            .from('restaurants')
-            .select('id')
-            .maybeSingle();
-          
-          if (restaurantData?.id) {
-            loadDeliveryZones(restaurantData.id);
-          }
+          loadDeliveryZones(restaurantId);
         }
       }
 
-      // Load NFC-e settings
       const { data: nfceData } = await supabase
         .from("nfce_settings")
         .select("*")
@@ -205,11 +203,12 @@ export default function PDV() {
     }
   };
 
-  const loadMotoboys = async () => {
+  const loadMotoboys = async (restaurantId: string) => {
     try {
       const { data } = await supabase
         .from('motoboys')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .eq('is_active', true)
         .order('name');
       
@@ -219,36 +218,39 @@ export default function PDV() {
     }
   };
 
-  const loadCategories = async () => {
+  const loadCategories = async (restaurantId: string) => {
     const { data } = await supabase
       .from('categories')
       .select('*')
+      .eq('restaurant_id', restaurantId)
       .eq('is_active', true)
       .order('sort_order');
     
     if (data) setCategories(data as any);
   };
 
-  const loadMenuItems = async () => {
+  const loadMenuItems = async (restaurantId: string) => {
     const { data } = await supabase
       .from('menu_items')
       .select('*')
+      .eq('restaurant_id', restaurantId)
       .eq('is_available', true)
       .order('sort_order');
     
     if (data) setMenuItems(data as any);
   };
 
-  const loadTables = async () => {
+  const loadTables = async (restaurantId: string) => {
     const { data } = await supabase
       .from('tables')
       .select('*')
+      .eq('restaurant_id', restaurantId)
       .order('number');
     
     if (data) setTables(data as any);
   };
 
-  const loadPendingOrders = async () => {
+  const loadPendingOrders = async (restaurantId: string) => {
     try {
       const { data: orders } = await supabase
         .from('orders' as any)
@@ -258,6 +260,7 @@ export default function PDV() {
           tables(number),
           comandas_fixas(numero)
         `)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['new', 'confirmed', 'preparing', 'ready', 'ready_for_payment', 'pending_receipt'])
         .order('created_at', { ascending: false });
 
@@ -268,9 +271,7 @@ export default function PDV() {
   };
 
   const searchOrderByNumber = async (orderNum: string) => {
-    if (!orderNum || orderNum.length < 3) {
-      return;
-    }
+    if (!orderNum || orderNum.length < 3 || !restaurantId) return;
 
     setSearchingOrder(true);
     try {
@@ -282,6 +283,7 @@ export default function PDV() {
           tables(number)
         `)
         .ilike('order_number', `%${orderNum}%`)
+        .eq('restaurant_id', restaurantId)
         .in('status', ['confirmed', 'new', 'preparing', 'ready'])
         .maybeSingle();
 
@@ -294,22 +296,21 @@ export default function PDV() {
       }
     } catch (error) {
       console.error('Erro ao buscar pedido:', error);
-      sonnerToast.error('Erro ao buscar pedido');
+      sonnerToast.error("Erro ao carregar pedido");
     } finally {
       setSearchingOrder(false);
     }
   };
 
   const searchCustomerByPhoneOrCpf = async (searchTerm: string) => {
-    if (!searchTerm || searchTerm.length < 8) {
-      return;
-    }
+    if (!searchTerm || searchTerm.length < 8 || !restaurantId) return;
 
     setSearchingCustomer(true);
     try {
       const { data: customer } = await supabase
         .from('customers')
         .select('*')
+        .eq('restaurant_id', restaurantId)
         .or(`phone.eq.${searchTerm},cpf.eq.${searchTerm}`)
         .maybeSingle();
 
@@ -317,8 +318,6 @@ export default function PDV() {
         setCustomerName(customer.name || "");
         setCustomerPhone(customer.phone || "");
         setCustomerCpf(customer.cpf || "");
-        
-        // ✅ Carregar pontos e status suspeito
         setCustomerLoyaltyPoints(customer.loyalty_points || 0);
         setIsCustomerSuspicious(customer.is_suspicious || false);
         
@@ -337,7 +336,6 @@ export default function PDV() {
           });
         }
         
-        // ✅ Toast com informações completas
         const warnings = [];
         if (customer.is_suspicious) warnings.push("⚠️ Cliente Suspeito");
         if (customer.loyalty_points > 0) warnings.push(`⭐ ${customer.loyalty_points} pontos`);
@@ -358,7 +356,7 @@ export default function PDV() {
     }
   };
 
-  const loadRecentlyClosedOrders = async () => {
+  const loadRecentlyClosedOrders = async (restaurantId: string) => {
     try {
       const { data: orders } = await supabase
         .from('orders' as any)
@@ -367,6 +365,7 @@ export default function PDV() {
           order_items:order_items(*),
           tables(number)
         `)
+        .eq('restaurant_id', restaurantId)
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
         .limit(5);
@@ -378,12 +377,7 @@ export default function PDV() {
   };
 
   const handleSelectPendingOrder = (order: any) => {
-    console.log("📋 [PDV] Carregando pedido pendente:", order);
-    
-    // 1. Definir pedido atual
     setCurrentOrder(order);
-    
-    // 2. Carregar items no carrinho VISUAL
     const cartItems = order.order_items.map((item: any) => ({
       id: item.menu_item_id,
       name: item.name,
@@ -393,15 +387,10 @@ export default function PDV() {
       customizationsText: item.notes || '',
     }));
     setCart(cartItems);
-    console.log("🛒 [PDV] Items carregados no carrinho:", cartItems);
-    
-    // 3. Carregar dados do cliente
     setCustomerName(order.customer_name || '');
     setCustomerPhone(order.customer_phone || '');
     setCustomerCpf(order.customer_cpf || '');
-    console.log("👤 [PDV] Cliente:", order.customer_name, order.customer_phone);
     
-    // ✅ Carregar dados do cliente se existir customer_id
     if (order.customer_id) {
       const loadCustomerData = async () => {
         const { data: customer } = await supabase
@@ -415,39 +404,22 @@ export default function PDV() {
           setIsCustomerSuspicious(customer.is_suspicious || false);
         }
       };
-      
       loadCustomerData();
     }
     
-    // 4. Carregar endereço (se delivery)
-    if (order.delivery_address) {
-      setCustomerAddress(order.delivery_address);
-      console.log("📍 [PDV] Endereço carregado:", order.delivery_address);
-    }
-    
-    // 5. Carregar taxa de entrega
+    if (order.delivery_address) setCustomerAddress(order.delivery_address);
     setDeliveryFee(order.delivery_fee || 0);
     setDeliveryDistance(null);
-    console.log("💰 [PDV] Taxa de entrega: R$", order.delivery_fee || 0);
     
-    // 6. Carregar tipo de entrega
-    if (order.delivery_type === 'delivery') {
-      setDeliveryType('delivery');
-    } else if (order.delivery_type === 'pickup') {
-      setDeliveryType('pickup');
-    } else if (order.delivery_type === 'dine_in') {
+    if (order.delivery_type === 'delivery') setDeliveryType('delivery');
+    else if (order.delivery_type === 'pickup') setDeliveryType('pickup');
+    else if (order.delivery_type === 'dine_in') {
       setDeliveryType('dine_in');
       setSelectedTable(order.table_id || '');
     }
     
-    // 7. Mudar para aba de Pedido Atual
     setActiveTab("new");
-    
-    // 8. Toast informativo
-    sonnerToast.info(
-      `✅ Pedido ${order.order_number} carregado!\nTotal: R$ ${order.total.toFixed(2)}\nSelecione a forma de pagamento e clique em "Finalizar Pedido".`,
-      { duration: 5000 }
-    );
+    sonnerToast.info(`✅ Pedido ${order.order_number} carregado!`, { duration: 5000 });
   };
 
   const handleViewClosedOrder = (order: any) => {
@@ -456,29 +428,28 @@ export default function PDV() {
   };
 
   const handleCloseCurrentOrder = async () => {
-    if (!currentOrder) return;
+    if (!currentOrder || !restaurantId) return;
 
     try {
-      // Atualizar pedido como completo
       const { error: orderError } = await supabase
-        .from('orders' as any)
+        .from('orders')
         .update({ 
           status: 'completed',
           completed_at: new Date().toISOString()
         })
-        .eq('id', currentOrder.id);
+        .eq('id', currentOrder.id)
+        .eq('restaurant_id', restaurantId);
 
       if (orderError) throw orderError;
 
-      // Liberar mesa se for pedido no local
       if (currentOrder.table_id) {
         await supabase
           .from('tables' as any)
           .update({ status: 'free' })
+          .eq('restaurant_id', restaurantId)
           .eq('id', currentOrder.table_id);
       }
 
-      // Registrar entrada no caixa
       const paymentMethodMap: any = {
         'cash': 'Dinheiro',
         'credit_card': 'Cartão',
@@ -494,23 +465,37 @@ export default function PDV() {
           category: 'sale',
           description: `Pedido ${currentOrder.order_number}`,
           payment_method: paymentMethodMap[currentOrder.payment_method] || 'Dinheiro',
-          movement_date: new Date().toISOString().split('T')[0]
+          movement_date: new Date().toISOString(),
+          restaurant_id: restaurantId
         });
 
       sonnerToast.success(`Pedido ${currentOrder.order_number} fechado com sucesso!`);
       
-      // Imprimir recibo se opção estiver marcada
       if (printOnClose) {
-        const tableNum = currentOrder.table_id && currentOrder.tables
-          ? currentOrder.tables.number 
-          : undefined;
+        const tableNum = currentOrder.table_id && currentOrder.tables ? currentOrder.tables.number : undefined;
         generatePrintReceipt(currentOrder, restaurantName, tableNum, 'customer');
       }
       
       setCurrentOrder(null);
-      loadPendingOrders();
-      loadRecentlyClosedOrders();
-      loadTables();
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+      setCustomerCpf("");
+      setCustomerAddress({
+        street: "", number: "", complement: "",
+        neighborhood: "", city: "", state: "", zipcode: "",
+        latitude: undefined, longitude: undefined,
+      });
+      setDeliveryFee(0);
+      setDeliveryDistance(null);
+      setSelectedTable("");
+      setSelectedMotoboy("none");
+      setCustomerLoyaltyPoints(0);
+      setIsCustomerSuspicious(false);
+      
+      loadPendingOrders(restaurantId);
+      loadRecentlyClosedOrders(restaurantId);
+      loadTables(restaurantId);
     } catch (error) {
       console.error('Erro ao fechar pedido:', error);
       sonnerToast.error('Erro ao fechar pedido');
@@ -529,11 +514,14 @@ export default function PDV() {
       return;
     }
 
+    if (!restaurantId) return;
+
     // Check if item has variations
     const { data: variations } = await supabase
       .from('item_variations')
       .select('*')
       .eq('menu_item_id', item.id)
+      .eq('restaurant_id', restaurantId)
       .eq('is_active', true);
 
     if (variations && variations.length > 0) {
@@ -667,7 +655,8 @@ export default function PDV() {
             completed_at: new Date().toISOString(),
             payment_method: paymentMethod
           })
-          .eq('id', currentOrder.id);
+          .eq('id', currentOrder.id)
+          .eq('restaurant_id', restaurantId);
 
         // Registrar caixa
         const paymentMethodMap: any = {
@@ -681,9 +670,10 @@ export default function PDV() {
           type: 'income',
           description: `Pedido ${currentOrder.order_number}`,
           amount: currentOrder.total,
-          movement_date: new Date().toISOString().split('T')[0],
+          movement_date: new Date().toISOString(),
           payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
           category: 'sale',
+          restaurant_id: restaurantId,
           created_by: (await supabase.auth.getUser()).data.user?.id
         }]);
 
@@ -712,8 +702,10 @@ export default function PDV() {
         setCustomerLoyaltyPoints(0);
         setIsCustomerSuspicious(false);
         
-        loadPendingOrders();
-        loadRecentlyClosedOrders();
+        if (restaurantId) {
+          loadPendingOrders(restaurantId);
+          loadRecentlyClosedOrders(restaurantId);
+        }
         return;
       }
 
@@ -738,6 +730,7 @@ export default function PDV() {
         const { data: existingCustomer } = await supabase
           .from('customers')
           .select('id')
+          .eq('restaurant_id', restaurantId)
           .or(`phone.eq.${customerPhone},cpf.eq.${customerCpf}`)
           .maybeSingle();
 
@@ -750,7 +743,8 @@ export default function PDV() {
               name: customerName,
               phone: customerPhone,
               cpf: customerCpf || null,
-              address: (deliveryType === 'delivery' || deliveryType === 'online') ? customerAddress : null
+              address: (deliveryType === 'delivery' || deliveryType === 'online') ? customerAddress : null,
+              restaurant_id: restaurantId
             })
             .select('id')
             .single();
@@ -769,7 +763,7 @@ export default function PDV() {
         .eq('is_active', true)
         .maybeSingle();
 
-      const restaurantId = userRestaurant?.restaurant_id;
+      const rId = userRestaurant?.restaurant_id || restaurantId;
 
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -789,7 +783,7 @@ export default function PDV() {
           customer_phone: customerPhone || null,
           customer_cpf: customerCpf || null,
           motoboy_id: selectedMotoboy && selectedMotoboy !== "none" ? selectedMotoboy : null,
-          restaurant_id: restaurantId
+          restaurant_id: rId
         }])
         .select()
         .single();
@@ -860,9 +854,10 @@ export default function PDV() {
           type: 'income',
           description: `Pedido ${orderNumber} - ${deliveryType === 'dine_in' ? 'Balcão' : deliveryType === 'online' ? 'Online' : 'Retirada'}`,
           amount: total,
-          movement_date: new Date().toISOString().split('T')[0],
+          movement_date: new Date().toISOString(),
           payment_method: paymentMethodMap[paymentMethod] || 'Dinheiro',
           category: 'sale',
+          restaurant_id: restaurantId,
           created_by: (await supabase.auth.getUser()).data.user?.id
         }]);
 
@@ -870,10 +865,11 @@ export default function PDV() {
         await supabase
           .from('orders')
           .update({ 
-            status: 'completed' as any,
+            status: 'completed',
             completed_at: new Date().toISOString()
           })
-          .eq('id', order.id);
+          .eq('id', order.id)
+          .eq('restaurant_id', restaurantId);
         
         // ✅ FASE 2: Log de pedido processado
         await logActionWithContext(
@@ -896,7 +892,8 @@ export default function PDV() {
         await supabase
           .from('tables')
           .update({ status: 'occupied' })
-          .eq('id', selectedTable);
+          .eq('id', selectedTable)
+          .eq('restaurant_id', restaurantId);
       }
 
       toast({
@@ -948,9 +945,11 @@ export default function PDV() {
       setDeliveryType("dine_in");
       setCustomerLoyaltyPoints(0);
       setIsCustomerSuspicious(false);
-      loadTables();
-      loadPendingOrders();
-      loadRecentlyClosedOrders();
+      if (restaurantId) {
+        loadTables(restaurantId);
+        loadPendingOrders(restaurantId);
+        loadRecentlyClosedOrders(restaurantId);
+      }
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       toast({
@@ -1623,12 +1622,13 @@ export default function PDV() {
                     onClick={async () => {
                       try {
                         const { error } = await supabase
-                          .from('orders' as any)
+                          .from('orders')
                           .update({ 
                             status: 'completed',
                             updated_at: new Date().toISOString()
                           })
-                          .eq('id', order.id);
+                          .eq('id', order.id)
+                          .eq('restaurant_id', restaurantId);
 
                         if (error) throw error;
 

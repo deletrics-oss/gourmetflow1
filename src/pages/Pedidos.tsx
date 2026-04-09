@@ -39,7 +39,12 @@ export default function Pedidos() {
     // Realtime subscription
     const channel = supabase
       .channel('orders-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `restaurant_id=eq.${restaurantId}`
+      }, () => {
         if (restaurantId) loadOrders();
       })
       .subscribe();
@@ -87,6 +92,7 @@ export default function Pedidos() {
         .from("motoboys")
         .select("*")
         .eq("id", motoboyId)
+        .eq("restaurant_id", restaurantId)
         .single();
 
       // Log da ação
@@ -142,6 +148,7 @@ export default function Pedidos() {
         .from('orders')
         .select('*')
         .eq('id', orderId)
+        .eq('restaurant_id', restaurantId)
         .single();
 
       if (fetchError) {
@@ -172,6 +179,7 @@ export default function Pedidos() {
             completed_at: new Date().toISOString()
           })
           .eq('id', orderId)
+          .eq('restaurant_id', restaurantId)
           .select()
           .single();
 
@@ -201,7 +209,8 @@ export default function Pedidos() {
           await supabase
             .from('tables')
             .update({ status: 'free' })
-            .eq('id', order.table_id);
+            .eq('id', order.table_id)
+            .eq('restaurant_id', restaurantId);
         }
 
         // Se tem pontos de fidelidade, creditar os pontos
@@ -210,6 +219,7 @@ export default function Pedidos() {
             .from('customers')
             .select('*')
             .eq('phone', order.customer_phone)
+            .eq('restaurant_id', restaurantId)
             .maybeSingle();
 
           if (customer) {
@@ -217,6 +227,7 @@ export default function Pedidos() {
               .from('loyalty_transactions')
               .select('*')
               .eq('order_id', orderId)
+              .eq('restaurant_id', restaurantId)
               .eq('type', 'earned')
               .maybeSingle();
 
@@ -225,7 +236,8 @@ export default function Pedidos() {
               await supabase
                 .from('customers')
                 .update({ loyalty_points: newPoints })
-                .eq('id', customer.id);
+                .eq('id', customer.id)
+                .eq('restaurant_id', restaurantId);
 
               await supabase
                 .from('loyalty_transactions')
@@ -234,7 +246,8 @@ export default function Pedidos() {
                   order_id: orderId,
                   points: order.loyalty_points_earned,
                   type: 'earned',
-                  description: `Pontos ganhos no pedido ${order.order_number}`
+                  description: `Pontos ganhos no pedido ${order.order_number}`,
+                  restaurant_id: restaurantId
                 });
 
               toast.success(`Pedido concluído! Cliente ganhou ${order.loyalty_points_earned} pontos!`);

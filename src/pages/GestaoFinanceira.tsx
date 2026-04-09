@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useRestaurant } from "@/hooks/useRestaurant";
 import {
   LineChart,
   Line,
@@ -44,6 +45,7 @@ interface BalanceByMethod {
 }
 
 export default function GestaoFinanceira() {
+  const { restaurantId } = useRestaurant();
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month">("today");
   const [balances, setBalances] = useState<BalanceByMethod>({
@@ -60,28 +62,48 @@ export default function GestaoFinanceira() {
   const [topItems, setTopItems] = useState<any[]>([]);
 
   useEffect(() => {
-    loadFinancialData();
+    if (restaurantId) {
+      loadFinancialData(restaurantId);
+    }
     
-    // Realtime subscription para atualizar quando houver mudanças
-    const channel = supabase
-      .channel('financial-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadFinancialData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
-        loadFinancialData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_movements' }, () => {
-        loadFinancialData();
-      })
-      .subscribe();
+    // Realtime subscription filtrada para este restaurante
+    if (restaurantId) {
+      const channel = supabase
+        .channel('financial-changes')
+        .on('postgres_changes' as any, { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}` 
+        }, () => {
+          loadFinancialData(restaurantId);
+        })
+        .on('postgres_changes' as any, { 
+          event: '*', 
+          schema: 'public', 
+          table: 'expenses',
+          filter: `restaurant_id=eq.${restaurantId}` 
+        }, () => {
+          loadFinancialData(restaurantId);
+        })
+        .on('postgres_changes' as any, { 
+          event: '*', 
+          schema: 'public', 
+          table: 'cash_movements',
+          filter: `restaurant_id=eq.${restaurantId}` 
+        }, () => {
+          loadFinancialData(restaurantId);
+        })
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [selectedPeriod]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [selectedPeriod, restaurantId]);
 
-  const loadFinancialData = async () => {
+  const loadFinancialData = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       setLoading(true);
 
@@ -103,10 +125,11 @@ export default function GestaoFinanceira() {
           startDate = new Date(now.setHours(0, 0, 0, 0));
       }
 
-      // Buscar pedidos completados (receitas) - usar created_at quando completed_at é null
+      // Buscar pedidos completados (receitas) do restaurante
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('*')
+        .eq('restaurant_id', rId)
         .eq('status', 'completed')
         .or(`completed_at.gte.${startDate.toISOString()},and(completed_at.is.null,created_at.gte.${startDate.toISOString()})`);
 
@@ -144,6 +167,7 @@ export default function GestaoFinanceira() {
       const { data: allCompleted } = await supabase
         .from('orders')
         .select('total, payment_method')
+        .eq('restaurant_id', rId)
         .eq('status', 'completed');
 
       const cumulativeBalance: BalanceByMethod = {
@@ -168,6 +192,7 @@ export default function GestaoFinanceira() {
       const { data: expensesData, error: expensesError } = await supabase
         .from('expenses')
         .select('*')
+        .eq('restaurant_id', rId)
         .gte('expense_date', startDate.toISOString());
 
       if (expensesError) throw expensesError;
@@ -180,7 +205,7 @@ export default function GestaoFinanceira() {
       prepareChartData(orders || [], expensesData || []);
       
       // Buscar itens mais vendidos
-      await loadTopSellingItems(startDate);
+      await loadTopSellingItems(startDate, rId);
 
     } catch (error) {
       console.error('Error loading financial data:', error);
@@ -190,15 +215,17 @@ export default function GestaoFinanceira() {
     }
   };
 
-  const loadTopSellingItems = async (startDate: Date) => {
+  const loadTopSellingItems = async (startDate: Date, rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       const { data: orderItems, error } = await supabase
         .from('order_items')
         .select(`
           *,
-          orders!inner(completed_at, status)
+          orders!inner(completed_at, status, restaurant_id)
         `)
         .eq('orders.status', 'completed')
+        .eq('orders.restaurant_id', rId)
         .gte('orders.completed_at', startDate.toISOString());
 
       if (error) throw error;

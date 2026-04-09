@@ -7,6 +7,8 @@ import { Gift, TrendingUp, Users, Wallet, CreditCard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useRestaurant } from "@/hooks/useRestaurant";
+import { Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function Cashback() {
+  const { restaurantId, loading: restaurantLoading } = useRestaurant();
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
@@ -34,14 +37,18 @@ export default function Cashback() {
   const [autoApply, setAutoApply] = useState(false);
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
+    if (restaurantId) {
+      loadCustomers(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadCustomers = async () => {
+  const loadCustomers = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
+        .eq('restaurant_id', rId)
         .order('loyalty_points', { ascending: false });
 
       if (error) throw error;
@@ -67,7 +74,8 @@ export default function Cashback() {
       const { error: updateError } = await supabase
         .from('customers')
         .update({ loyalty_points: selectedCustomer.loyalty_points - points })
-        .eq('id', selectedCustomer.id);
+        .eq('id', selectedCustomer.id)
+        .eq('restaurant_id', restaurantId);
 
       if (updateError) throw updateError;
 
@@ -75,6 +83,7 @@ export default function Cashback() {
         .from('loyalty_transactions')
         .insert({
           customer_id: selectedCustomer.id,
+          restaurant_id: restaurantId,
           points: -points,
           type: 'redeemed',
           description: manualKey ? `Resgate manual - Chave: ${manualKey}` : 'Resgate de pontos'
@@ -100,6 +109,14 @@ export default function Cashback() {
 
   const totalDistributed = customers.reduce((sum, c) => sum + (c.loyalty_points || 0), 0);
   const activeCustomers = customers.filter(c => (c.loyalty_points || 0) > 0).length;
+
+  if (restaurantLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">

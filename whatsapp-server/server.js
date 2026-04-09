@@ -997,6 +997,7 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
                 const { data: customer } = await supabase.from('customers')
                     .select('id, name, loyalty_points, notes, cpf, address, created_at')
                     .eq('phone', customerPhone)
+                    .eq('restaurant_id', restaurantId)
                     .maybeSingle();
                 
                 if (customer) {
@@ -1029,7 +1030,8 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
                 // Contagem total de pedidos anteriores
                 const { count: orderCount } = await supabase.from('orders')
                     .select('id', { count: 'exact', head: true })
-                    .eq('customer_phone', customerPhone);
+                    .eq('customer_phone', customerPhone)
+                    .eq('restaurant_id', restaurantId);
                 
                 customerContext.push(`- Total de Pedidos Já Realizados: ${orderCount || 0}`);
 
@@ -1037,6 +1039,7 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
                 const { data: recentOrders } = await supabase.from('orders')
                     .select('order_number, status, total, delivery_type, created_at')
                     .eq('customer_phone', customerPhone)
+                    .eq('restaurant_id', restaurantId)
                     .order('created_at', { ascending: false })
                     .limit(3);
                 
@@ -1054,6 +1057,7 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
                 const { data: activeOrder } = await supabase.from('orders')
                     .select('id, order_number, status, total, delivery_type, delivery_address, delivery_fee, motoboy_id, estimated_delivery_time, notes, created_at, order_source')
                     .eq('customer_phone', customerPhone)
+                    .eq('restaurant_id', restaurantId)
                     .not('status', 'in', '("completed","cancelled")')
                     .order('created_at', { ascending: false })
                     .limit(1)

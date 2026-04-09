@@ -327,7 +327,8 @@ function generateMenuResponse(categories: any[], menuItems: any[], restaurantNam
 
   response += `\n💬 Digite o nome do item para adicionar ao carrinho\n`;
   response += `🛒 *#carrinho* - Ver carrinho\n`;
-  response += `✅ *#confirmar* - Finalizar pedido`;
+  response += `✅ *#confirmar* - Finalizar pedido\n\n`;
+  response += `📸 *Ver fotos e cardápio completo:* https://gourmetflow.vercel.app/cardapio?restaurantId=${menuItems[0]?.restaurant_id || ''}`;
 
   return response;
 }
@@ -392,7 +393,8 @@ INSTRUÇÕES:
 - Respostas curtas e diretas
 - Se o cliente quiser pedir algo, sugira que digite o nome do item
 - NUNCA invente preços ou itens
-- Se não souber algo, sugira #cardapio`;
+- Se não souber algo, sugira #cardapio
+- SE O CLIENTE QUISER VER FOTOS OU O CARDÁPIO COMPLETO, ENVIE ESTE LINK: https://gourmetflow.vercel.app/cardapio?restaurantId=${menuItems[0]?.restaurant_id || ''}`;
 
   try {
     const geminiContents = [

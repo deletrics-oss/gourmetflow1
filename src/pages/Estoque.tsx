@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 interface StockItem {
   id: string;
@@ -34,6 +35,7 @@ interface StockItem {
 
 export default function Estoque() {
   const { toast } = useToast();
+  const { restaurantId } = useRestaurant();
   const [stockItems, setStockItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,14 +52,19 @@ export default function Estoque() {
   });
 
   useEffect(() => {
-    loadInventory();
-  }, []);
+    if (restaurantId) {
+      loadInventory(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadInventory = async () => {
+  const loadInventory = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
+        .eq('restaurant_id', rId)
         .order('name');
       
       if (error) throw error;
@@ -99,7 +106,7 @@ export default function Estoque() {
     try {
       const { error } = await supabase
         .from('inventory')
-        .insert([newItem]);
+        .insert([{ ...newItem, restaurant_id: restaurantId }]);
 
       if (error) throw error;
 
@@ -110,7 +117,7 @@ export default function Estoque() {
 
       setIsAddDialogOpen(false);
       setNewItem({ name: "", current_quantity: 0, unit: "kg", min_quantity: 0, category: "" });
-      loadInventory();
+      loadInventory(restaurantId);
     } catch (error) {
       console.error('Erro ao adicionar item:', error);
       toast({
@@ -134,7 +141,8 @@ export default function Estoque() {
           current_quantity: newQuantity,
           updated_at: new Date().toISOString()
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
 
@@ -143,7 +151,7 @@ export default function Estoque() {
         description: delta > 0 ? "Item adicionado ao estoque" : "Item removido do estoque",
       });
 
-      loadInventory();
+      loadInventory(restaurantId);
     } catch (error) {
       console.error('Erro ao atualizar:', error);
       toast({
@@ -159,7 +167,8 @@ export default function Estoque() {
       const { error } = await supabase
         .from('inventory')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
 
@@ -168,7 +177,7 @@ export default function Estoque() {
         description: "Item excluído do estoque",
       });
 
-      loadInventory();
+      loadInventory(restaurantId);
     } catch (error) {
       console.error('Erro ao deletar:', error);
       toast({
@@ -186,7 +195,8 @@ export default function Estoque() {
         current_quantity: item.current_quantity,
         unit: item.unit,
         min_quantity: item.min_quantity,
-        category: item.category
+        category: item.category,
+        restaurant_id: restaurantId
       };
 
       const { error } = await supabase
@@ -200,7 +210,7 @@ export default function Estoque() {
         description: `${clonedItem.name} foi adicionado ao estoque`,
       });
 
-      loadInventory();
+      loadInventory(restaurantId);
     } catch (error) {
       console.error('Erro ao clonar:', error);
       toast({
@@ -237,7 +247,8 @@ export default function Estoque() {
           category: newItem.category,
           updated_at: new Date().toISOString()
         })
-        .eq('id', editingItem.id);
+        .eq('id', editingItem.id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
 
@@ -249,7 +260,7 @@ export default function Estoque() {
       setIsAddDialogOpen(false);
       setEditingItem(null);
       setNewItem({ name: "", current_quantity: 0, unit: "kg", min_quantity: 0, category: "" });
-      loadInventory();
+      loadInventory(restaurantId);
     } catch (error) {
       console.error('Erro ao atualizar:', error);
       toast({

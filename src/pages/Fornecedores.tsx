@@ -10,8 +10,10 @@ import { Plus, Edit, Trash2, Search, Truck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useCEP } from "@/hooks/useCEP";
+import { useRestaurant } from "@/hooks/useRestaurant";
 
 export default function Fornecedores() {
+  const { restaurantId } = useRestaurant();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
@@ -28,14 +30,18 @@ export default function Fornecedores() {
   });
 
   useEffect(() => {
-    loadSuppliers();
-  }, []);
+    if (restaurantId) {
+      loadSuppliers(restaurantId);
+    }
+  }, [restaurantId]);
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = async (rId: string = restaurantId) => {
+    if (!rId) return;
     try {
       const { data, error } = await supabase
         .from('suppliers' as any)
         .select('*')
+        .eq('restaurant_id', rId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -57,14 +63,15 @@ export default function Fornecedores() {
         const { error } = await supabase
           .from('suppliers' as any)
           .update(formData)
-          .eq('id', editingSupplier.id);
+          .eq('id', editingSupplier.id)
+          .eq('restaurant_id', restaurantId);
 
         if (error) throw error;
         toast.success('Fornecedor atualizado!');
       } else {
         const { error } = await supabase
           .from('suppliers' as any)
-          .insert([formData]);
+          .insert([{ ...formData, restaurant_id: restaurantId }]);
 
         if (error) throw error;
         toast.success('Fornecedor cadastrado!');
@@ -72,7 +79,7 @@ export default function Fornecedores() {
 
       setDialogOpen(false);
       resetForm();
-      loadSuppliers();
+      loadSuppliers(restaurantId);
     } catch (error) {
       console.error('Erro ao salvar fornecedor:', error);
       toast.error('Erro ao salvar fornecedor');
@@ -86,11 +93,12 @@ export default function Fornecedores() {
       const { error } = await supabase
         .from('suppliers' as any)
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId);
 
       if (error) throw error;
       toast.success('Fornecedor excluído!');
-      loadSuppliers();
+      loadSuppliers(restaurantId);
     } catch (error) {
       console.error('Erro ao excluir fornecedor:', error);
       toast.error('Erro ao excluir fornecedor');
