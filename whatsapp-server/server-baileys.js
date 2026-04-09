@@ -280,10 +280,13 @@ async function generateBotResponse(message, logic) {
         }
         if ((logic.logicType === 'ai' || logic.logicType === 'hybrid') && aiModel) {
             try {
-                const promptText = `${logic.aiPrompt || 'Você é um assistente prestativo.'}\n\nUsuário: ${message}`;
-                const result = await aiModel.generateContent({
-                    contents: [{ role: 'user', parts: [{ text: promptText }] }]
+                const chat = aiModel.startChat({
+                    history: [
+                        { role: 'user', parts: [{ text: logic.aiPrompt || 'Você é um assistente prestativo.' }] },
+                        { role: 'model', parts: [{ text: 'Entendido! Estou pronto para ajudar.' }] }
+                    ]
                 });
+                const result = await chat.sendMessage(message);
                 const responseAI = await result.response;
                 return responseAI.text();
             } catch (err) {
