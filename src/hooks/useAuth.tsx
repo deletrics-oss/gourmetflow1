@@ -31,25 +31,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserRoles = async (userId: string) => {
     console.log('Fetching roles for user:', userId);
     
-    // Fetch user_roles (para super admin)
+    // Fetch user_roles (para super admin) — maybeSingle para não crashar se não existir
     const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
     
     if (roleError) {
       console.log('user_roles query error (normal for non-admins):', roleError.message);
     }
     setUserRole(roleData?.role ?? null);
 
-    // Fetch user_restaurants (para dono/funcionário)
+    // Fetch user_restaurants (para dono/funcionário) — maybeSingle para resiliência
     const { data: restaurantData, error: restaurantError } = await supabase
       .from('user_restaurants')
       .select('role')
       .eq('user_id', userId)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
     
     if (restaurantError) {
       console.error('user_restaurants query error:', restaurantError.message);

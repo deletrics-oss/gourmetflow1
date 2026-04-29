@@ -43,8 +43,34 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // GEMINI AI SDK INITIALIZATION
 // ============================================
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
-// Usando o alias -latest que é mais resiliente a mudanças de versão de API
-const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }) : null;
+
+// Lista de modelos em ordem de prioridade para fallback
+const GEMINI_MODELS = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-pro"];
+
+// Função unificada de geração com fallback multi-modelo
+async function generateWithFallback(prompt) {
+    if (!genAI) throw new Error('Gemini AI SDK não inicializado (chave ausente)');
+    
+    for (const modelName of GEMINI_MODELS) {
+        try {
+            gLog(`🤖 Tentando modelo: ${modelName}...`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            if (text) {
+                gLog(`✅ Resposta gerada com sucesso usando: ${modelName}`);
+                return text;
+            }
+        } catch (err) {
+            gErr(`⚠️ Falha no modelo ${modelName}:`, err.message);
+            if (modelName === GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
+                throw err; // Se o último falhar, propaga o erro
+            }
+        }
+    }
+    return null;
+}
 
 // ============================================
 // EVOLUTION API HELPER
@@ -728,7 +754,7 @@ async function handleEvolutionWebhook(req, res) {
         // Handle connection status updates
         if (event === 'connection.update') {
             const state = data?.state || data?.status;
-            const status = mapStatus({ state });
+            const status = mapStatus(state);
             
             const { data: device, error: devErr } = await supabase.from('whatsapp_devices')
                 .select('id').eq('name', instance).maybeSingle();
@@ -1140,11 +1166,12 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
                 }
 
                 // -----------------------------------------------
-                // 3. CUPONS DE DESCONTO ATIVOS
+                // 3. CUPONS DE DESCONTO ATIVOS (filtrados por tenant)
                 // -----------------------------------------------
                 const { data: activeCoupons } = await supabase.from('coupons')
                     .select('code, type, discount_value, min_order_value, valid_until')
                     .eq('is_active', true)
+                    .or(`restaurant_id.eq.${restaurantId},restaurant_id.is.null`)
                     .or(`valid_until.is.null,valid_until.gte.${new Date().toISOString()}`)
                     .limit(5);
                 
@@ -1246,6 +1273,43 @@ async function generateBotResponse(message, logic, restaurantId, customerPhone) 
 - Se for VIP (5+ pedidos), trate como cliente especial
 `;
 
+            // -----------------------------------------------
+            // 5b. HISTÓRICO DE CONVERSA RECENTE (contexto para IA)
+            // -----------------------------------------------
+            let conversationHistory = '';
+            if (customerPhone && restaurantId) {
+                // Buscar device para pegar conversation
+                const { data: deviceForHist } = await supabase.from('whatsapp_devices')
+                    .select('id').eq('restaurant_id', restaurantId)
+                    .limit(1);
+                
+                if (deviceForHist && deviceForHist.length > 0) {
+                    const { data: convForHist } = await supabase.from('whatsapp_conversations')
+                        .select('id').eq('device_id', deviceForHist[0].id)
+                        .eq('contact_phone', customerPhone).maybeSingle();
+                    
+                    if (convForHist) {
+                        const { data: recentMsgs } = await supabase.from('whatsapp_messages')
+                            .select('message_content, direction, is_from_bot, created_at')
+                            .eq('conversation_id', convForHist.id)
+                            .order('created_at', { ascending: false })
+                            .limit(6);
+                        
+                        if (recentMsgs && recentMsgs.length > 1) {
+                            // Reverter para ordem cronológica (mais antigo primeiro)
+                            const ordered = recentMsgs.reverse();
+                            // Remover a última mensagem (é a que estamos respondendo agora)
+                            const historyMsgs = ordered.slice(0, -1);
+                            conversationHistory = '\n# HISTÓRICO RECENTE DA CONVERSA:\n' + 
+                                historyMsgs.map(m => {
+                                    const sender = m.direction === 'incoming' ? 'CLIENTE' : 'SDR';
+                                    return `[${sender}]: ${m.message_content}`;
+                                }).join('\n');
+                        }
+                    }
+                }
+            }
+
             const fullPrompt = `
 ${systemPrompt}
 
@@ -1256,39 +1320,20 @@ ${customerContext.length > 0 ? customerContext.join('\n') : '- Novo cliente (pri
 ${restaurantContext.join('\n')}
 
 ${sdrInstructions}
+${conversationHistory}
 
 # CONTEXTO DO MOMENTO:
 - Data/Hora Atual: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
 `;
 
-            if (!aiModel) {
+            if (!genAI) {
                 throw new Error("Gemini AI SDK não inicializado (chave ausente)");
             }
 
             // MODO DE COMPATIBILIDADE TOTAL: Prompt Único (Sem Roles/History)
             const combinedPrompt = `${fullPrompt}\n\n[CLIENTE DIZ]: "${message}"\n\n[RESPOSTA SDR]:`;
             
-            let botMsg;
-            const modelsToTry = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-pro"];
-            
-            for (const modelName of modelsToTry) {
-                try {
-                    console.log(`[GourmetFlow] 🤖 Tentando modelo: ${modelName}...`);
-                    const currentModel = genAI.getGenerativeModel({ model: modelName });
-                    const result = await currentModel.generateContent(combinedPrompt);
-                    const response = await result.response;
-                    botMsg = response.text();
-                    if (botMsg) {
-                        console.log(`[GourmetFlow] ✅ Resposta gerada com sucesso usando: ${modelName}`);
-                        break; 
-                    }
-                } catch (err) {
-                    console.error(`[GourmetFlow] ⚠️ Falha no modelo ${modelName}:`, err.message);
-                    if (modelName === modelsToTry[modelsToTry.length - 1]) {
-                        throw err; // Se o último falhar, explode o erro
-                    }
-                }
-            }
+            const botMsg = await generateWithFallback(combinedPrompt);
 
             if (!botMsg) {
                 gLog('⚠️ Gemini retornou estrutura sem texto');
@@ -1509,7 +1554,7 @@ async function generateStatusNotification(oldStatus, newStatus, orderNumber, mot
         'cancelled': `❌ Pedido #${orderNumber} foi cancelado. Qualquer dúvida é só chamar!`
     };
 
-    if (!aiModel) return fallbackMessages[newStatus] || `📋 Pedido #${orderNumber}: status atualizado para ${translateStatus(newStatus)}`;
+    if (!genAI) return fallbackMessages[newStatus] || `📋 Pedido #${orderNumber}: status atualizado para ${translateStatus(newStatus)}`;
 
     try {
         const prompt = `Você é o SDR WhatsApp de um restaurante. Gere UMA ÚNICA mensagem curta e humanizada (máximo 2 linhas) para notificar o cliente sobre a mudança de status do pedido.
@@ -1527,9 +1572,7 @@ Regras:
 - Se for entrega, mencione o nome do motoboy se disponível
 - Responda APENAS com a mensagem, nada mais`;
 
-        const result = await aiModel.generateContent(prompt);
-        const response = await result.response;
-        const msg = response.text();
+        const msg = await generateWithFallback(prompt);
         return msg?.trim() || fallbackMessages[newStatus];
     } catch (err) {
         gErr('Erro ao gerar notificação IA:', err.message);

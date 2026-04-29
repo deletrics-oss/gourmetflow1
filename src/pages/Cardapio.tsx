@@ -338,9 +338,13 @@ export default function Cardapio() {
   };
 
   const handleCloneItem = async (item: any) => {
+    if (!restaurantId) {
+      toast.error('Restaurante não identificado. Faça login novamente.');
+      return;
+    }
     try {
-      const { name, description, price, promotional_price, category_id, image_url, is_available, preparation_time, sort_order } = item;
-      await supabase.from('menu_items').insert({
+      const { name, description, price, promotional_price, category_id, image_url, is_available, preparation_time, sort_order, sale_type, price_per_kg, available_hours } = item;
+      const { error } = await supabase.from('menu_items').insert({
         name: `${name} (Cópia)`,
         description,
         price,
@@ -349,29 +353,42 @@ export default function Cardapio() {
         image_url,
         is_available,
         preparation_time,
-        sort_order
+        sort_order,
+        sale_type,
+        price_per_kg,
+        available_hours,
+        restaurant_id: restaurantId
       });
+      if (error) throw error;
       toast.success(`"${name}" foi clonado com sucesso`);
       loadData();
-    } catch (error) {
-      toast.error('Erro ao clonar item');
+    } catch (error: any) {
+      console.error('Erro ao clonar item:', error);
+      toast.error(`Erro ao clonar item: ${error.message || 'Falha desconhecida'}`);
     }
   };
 
   const handleCloneCategory = async (category: any) => {
+    if (!restaurantId) {
+      toast.error('Restaurante não identificado. Faça login novamente.');
+      return;
+    }
     try {
       const { name, description, image_url, is_active, sort_order } = category;
-      await supabase.from('categories').insert({
+      const { error } = await supabase.from('categories').insert({
         name: `${name} (Cópia)`,
         description,
         image_url,
         is_active,
-        sort_order
+        sort_order,
+        restaurant_id: restaurantId
       });
+      if (error) throw error;
       toast.success(`"${name}" foi clonada com sucesso`);
       loadData();
-    } catch (error) {
-      toast.error('Erro ao clonar categoria');
+    } catch (error: any) {
+      console.error('Erro ao clonar categoria:', error);
+      toast.error(`Erro ao clonar categoria: ${error.message || 'Falha desconhecida'}`);
     }
   };
 

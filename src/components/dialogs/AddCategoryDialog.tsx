@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useRestaurant } from "@/hooks/useRestaurant";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { UploadImageDialog } from "./UploadImageDialog";
+import { toast } from "sonner";
 
 interface AddCategoryDialogProps {
   open: boolean;
@@ -22,30 +22,23 @@ export function AddCategoryDialog({ open, onOpenChange, onSuccess }: AddCategory
   const [loading, setLoading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const { restaurantId } = useRestaurant();
-  const { toast } = useToast();
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      toast({
-        title: "Erro",
-        description: "Nome da categoria é obrigatório",
-        variant: "destructive",
-      });
+      toast.error("Nome da categoria é obrigatório");
       return;
     }
 
     if (!restaurantId) {
-      toast({
-        title: "Erro",
-        description: "Restaurante não identificado",
-        variant: "destructive",
-      });
+      toast.error("Restaurante não identificado. Faça login novamente.");
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      console.log('[AddCategory] Inserindo categoria:', { name: name.trim(), restaurantId });
+      
+      const { data, error } = await supabase
         .from('categories')
         .insert({
           name: name.trim(),
@@ -53,27 +46,26 @@ export function AddCategoryDialog({ open, onOpenChange, onSuccess }: AddCategory
           image_url: image.trim() || null,
           restaurant_id: restaurantId,
           is_active: true
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[AddCategory] Erro Supabase:', error);
+        throw error;
+      }
 
-      toast({
-        title: "Sucesso!",
-        description: "Categoria adicionada com sucesso",
-      });
+      console.log('[AddCategory] Categoria criada com sucesso:', data);
+      toast.success("Categoria adicionada com sucesso!");
 
       setName("");
       setDescription("");
       setImage("");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao adicionar categoria:", error);
-      toast({
-        title: "Erro",
-        description: "Falha ao salvar no banco de dados",
-        variant: "destructive",
-      });
+      toast.error(`Erro ao salvar: ${error.message || 'Falha no banco de dados'}`);
     } finally {
       setLoading(false);
     }

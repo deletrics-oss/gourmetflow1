@@ -59,7 +59,7 @@ export const useRestaurant = () => {
           .eq('id', forcedId)
           .single();
       } else {
-        // Busca pelo vínculo do usuário
+        // Busca pelo vínculo do usuário — .limit(1) para evitar crash se houver múltiplos vínculos
         query = supabase
           .from('user_restaurants')
           .select(`
@@ -75,6 +75,7 @@ export const useRestaurant = () => {
           `)
           .eq('user_id', user?.id)
           .eq('is_active', true)
+          .limit(1)
           .single();
       }
 

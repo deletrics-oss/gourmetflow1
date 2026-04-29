@@ -81,8 +81,15 @@ export function AddMenuItemDialog({ open, onOpenChange, onSuccess }: AddMenuItem
       return;
     }
 
+    if (!restaurantId) {
+      toast.error('Restaurante não identificado. Faça login novamente.');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('[AddMenuItem] Inserindo item:', { name: name.trim(), category, restaurantId });
+
       const { data, error } = await supabase
         .from('menu_items')
         .insert({
@@ -102,8 +109,12 @@ export function AddMenuItemDialog({ open, onOpenChange, onSuccess }: AddMenuItem
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[AddMenuItem] Erro Supabase:', error);
+        throw error;
+      }
 
+      console.log('[AddMenuItem] Item criado com sucesso:', data);
       toast.success("Item adicionado! Deseja adicionar variações?");
       
       // Salvar ID e nome do item criado para gerenciar variações
@@ -129,9 +140,9 @@ export function AddMenuItemDialog({ open, onOpenChange, onSuccess }: AddMenuItem
       
       // Abrir dialog de variações
       setShowVariations(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao adicionar item:', error);
-      toast.error("Erro ao adicionar item");
+      toast.error(`Erro ao adicionar item: ${error.message || 'Falha no banco de dados'}`);
     } finally {
       setLoading(false);
     }
